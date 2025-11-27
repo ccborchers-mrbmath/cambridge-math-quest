@@ -1,12 +1,145 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import { SearchBar } from "@/components/SearchBar";
+import { QuestionDisplay } from "@/components/QuestionDisplay";
+import { questionsDatabase, Question } from "@/data/questions";
+import { BookOpen } from "lucide-react";
 
 const Index = () => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+
+  const handleSearch = () => {
+    if (!searchQuery.trim()) return;
+
+    // Simple search algorithm - find best match based on topic and subtopics
+    const query = searchQuery.toLowerCase();
+    const matches = questionsDatabase.filter((q) => {
+      const topicMatch = q.topic.toLowerCase().includes(query);
+      const subtopicMatch = q.subtopics.toLowerCase().includes(query);
+      return topicMatch || subtopicMatch;
+    });
+
+    if (matches.length > 0) {
+      // Select first match (could be enhanced with better ranking)
+      setSelectedQuestion(matches[0]);
+    } else {
+      // If no match, show a random question
+      const randomIndex = Math.floor(Math.random() * questionsDatabase.length);
+      setSelectedQuestion(questionsDatabase[randomIndex]);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
+      {/* Header */}
+      <header className="border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
+              <BookOpen className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-serif font-bold text-foreground">
+                Cambridge Maths 9709
+              </h1>
+              <p className="text-sm text-muted-foreground">AS & A Level Paper 3 Practice</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <main className="container mx-auto px-4 py-12">
+        {!selectedQuestion ? (
+          <div className="space-y-12">
+            {/* Hero section */}
+            <div className="text-center space-y-6 max-w-3xl mx-auto">
+              <div className="space-y-3">
+                <h2 className="text-5xl font-serif font-bold text-foreground leading-tight">
+                  Master Your Exam Skills
+                </h2>
+                <p className="text-xl text-muted-foreground">
+                  Practice past paper questions with AI-powered hints and instant marking
+                </p>
+              </div>
+
+              <div className="pt-4">
+                <SearchBar
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  onSearch={handleSearch}
+                />
+              </div>
+
+              {/* Topic suggestions */}
+              <div className="pt-8">
+                <p className="text-sm text-muted-foreground mb-4">Popular topics:</p>
+                <div className="flex flex-wrap gap-3 justify-center">
+                  {["Complex numbers", "Differentiation", "Integration", "Vectors", "Differential equations"].map((topic) => (
+                    <button
+                      key={topic}
+                      onClick={() => {
+                        setSearchQuery(topic);
+                        handleSearch();
+                      }}
+                      className="px-4 py-2 rounded-full bg-secondary hover:bg-primary/10 border border-border hover:border-primary/30 text-sm font-medium transition-all"
+                    >
+                      {topic}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Features */}
+            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto pt-12">
+              {[
+                {
+                  title: "Smart Hints",
+                  description: "Get AI-generated hints to guide you through challenging questions",
+                  icon: "💡",
+                },
+                {
+                  title: "Instant Markschemes",
+                  description: "View official markschemes to check your answers",
+                  icon: "📋",
+                },
+                {
+                  title: "Work Marking",
+                  description: "Upload your solutions for AI-powered feedback and marking",
+                  icon: "📸",
+                },
+              ].map((feature, index) => (
+                <div
+                  key={index}
+                  className="p-6 rounded-xl bg-card border border-border shadow-card hover:shadow-elevated transition-all"
+                >
+                  <div className="text-4xl mb-4">{feature.icon}</div>
+                  <h3 className="font-serif font-semibold text-lg mb-2">{feature.title}</h3>
+                  <p className="text-muted-foreground text-sm">{feature.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            <button
+              onClick={() => setSelectedQuestion(null)}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+            >
+              ← Back to search
+            </button>
+            <QuestionDisplay question={selectedQuestion} />
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border mt-24 py-8">
+        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
+          <p>Cambridge International AS & A Level Mathematics 9709 Paper 3 Practice Tool</p>
+        </div>
+      </footer>
     </div>
   );
 };
