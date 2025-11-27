@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Lightbulb, FileText, Camera, X } from "lucide-react";
+import { Lightbulb, FileText, Camera, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface QuestionDisplayProps {
   question: Question;
@@ -12,9 +13,35 @@ interface QuestionDisplayProps {
 export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [showMarkscheme, setShowMarkscheme] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
+  const [isLoadingHint, setIsLoadingHint] = useState(false);
 
-  const handleHint = () => {
-    toast.info("AI hint feature coming soon! This will analyze the question and provide helpful hints.");
+  const handleHint = async () => {
+    if (hint) {
+      setHint(null);
+      return;
+    }
+
+    setIsLoadingHint(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-hint', {
+        body: { questionUrl: question.questionUrl }
+      });
+
+      if (error) throw error;
+
+      if (data?.hint) {
+        setHint(data.hint);
+        toast.success("Hint generated!");
+      } else {
+        toast.error("Failed to generate hint");
+      }
+    } catch (error) {
+      console.error("Error generating hint:", error);
+      toast.error("Failed to generate hint. Please try again.");
+    } finally {
+      setIsLoadingHint(false);
+    }
   };
 
   const handleMarkWork = () => {
@@ -56,10 +83,15 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
         <Button
           onClick={handleHint}
           variant="outline"
+          disabled={isLoadingHint}
           className="gap-2 h-12 px-6 border-primary/30 hover:bg-primary/5 hover:border-primary transition-all"
         >
-          <Lightbulb className="h-5 w-5 text-amber" />
-          Give me a hint
+          {isLoadingHint ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Lightbulb className="h-5 w-5 text-amber" />
+          )}
+          {isLoadingHint ? "Generating hint..." : hint ? "Hide hint" : "Give me a hint"}
         </Button>
 
         <Button
@@ -79,6 +111,27 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           Mark my work
         </Button>
       </div>
+
+      {/* Hint display */}
+      {hint && (
+        <Card className="p-6 shadow-elevated border-border bg-amber/5 border-amber/20 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-start gap-3">
+            <Lightbulb className="h-6 w-6 text-amber flex-shrink-0 mt-1" />
+            <div className="flex-1">
+              <h3 className="font-serif font-semibold text-foreground mb-2">Hint</h3>
+              <p className="text-foreground/80 leading-relaxed">{hint}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setHint(null)}
+              className="h-8 w-8 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Markscheme display */}
       {showMarkscheme && (
