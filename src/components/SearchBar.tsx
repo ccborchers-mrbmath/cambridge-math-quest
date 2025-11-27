@@ -22,7 +22,7 @@ export const SearchBar = ({ value, onChange, onSearch }: SearchBarProps) => {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground h-5 w-5" />
           <Input
             type="text"
-            placeholder="Search for a topic (e.g., 'complex numbers', 'integration', 'vectors')"
+            placeholder="Search by topic, year, paper, or question number (e.g., 'complex numbers', '2024', 'paper 31', 'question 5')"
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyPress={handleKeyPress}

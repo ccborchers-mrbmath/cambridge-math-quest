@@ -11,17 +11,64 @@ const Index = () => {
   const handleSearch = () => {
     if (!searchQuery.trim()) return;
 
-    // Simple search algorithm - find best match based on topic and subtopics
-    const query = searchQuery.toLowerCase();
-    const matches = questionsDatabase.filter((q) => {
-      const topicMatch = q.topic.toLowerCase().includes(query);
-      const subtopicMatch = q.subtopics.toLowerCase().includes(query);
-      return topicMatch || subtopicMatch;
+    const query = searchQuery.toLowerCase().trim();
+    
+    // Enhanced search algorithm with scoring
+    const matches = questionsDatabase.map((q) => {
+      let score = 0;
+      
+      // Check for exact question number match (highest priority)
+      const questionNumberMatch = query.match(/(?:question\s*)?(\d+)/i);
+      if (questionNumberMatch) {
+        const searchQuestionNum = parseInt(questionNumberMatch[1]);
+        if (q.questionNumber === searchQuestionNum) {
+          score += 100;
+        }
+      }
+      
+      // Check for year match
+      const yearMatch = query.match(/\b(20\d{2})\b/);
+      if (yearMatch) {
+        const searchYear = parseInt(yearMatch[1]);
+        if (q.year === searchYear) {
+          score += 50;
+        }
+      }
+      
+      // Check for paper number match
+      const paperMatch = query.match(/(?:paper\s*)?(\d{1,2})/i);
+      if (paperMatch && query.includes('paper')) {
+        const searchPaper = parseInt(paperMatch[1]);
+        if (q.paperNumber === searchPaper) {
+          score += 50;
+        }
+      }
+      
+      // Topic match
+      if (q.topic.toLowerCase().includes(query)) {
+        score += 30;
+      }
+      
+      // Subtopic match
+      if (q.subtopics.toLowerCase().includes(query)) {
+        score += 20;
+      }
+      
+      // Sitting match
+      if (q.sitting.toLowerCase().includes(query)) {
+        score += 10;
+      }
+      
+      return { question: q, score };
     });
 
-    if (matches.length > 0) {
-      // Select first match (could be enhanced with better ranking)
-      setSelectedQuestion(matches[0]);
+    // Filter out zero scores and sort by score descending
+    const rankedMatches = matches
+      .filter(m => m.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    if (rankedMatches.length > 0) {
+      setSelectedQuestion(rankedMatches[0].question);
     } else {
       // If no match, show a random question
       const randomIndex = Math.floor(Math.random() * questionsDatabase.length);
