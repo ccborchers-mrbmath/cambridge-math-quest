@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Lightbulb, FileText, Camera, X, Loader2 } from "lucide-react";
+import { Lightbulb, FileText, Camera, X, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
@@ -16,6 +16,8 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [showCamera, setShowCamera] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const [isLoadingHint, setIsLoadingHint] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleHint = async () => {
     if (hint) {
@@ -47,9 +49,28 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
 
   const handleMarkWork = () => {
     setShowCamera(!showCamera);
-    if (!showCamera) {
-      toast.info("Camera feature coming soon! You'll be able to photograph your work for AI marking.");
+    setUploadedImage(null);
+  };
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        toast.error("Image size must be less than 10MB");
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImage(reader.result as string);
+        toast.success("Image uploaded successfully!");
+      };
+      reader.readAsDataURL(file);
     }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
   };
 
   return (
@@ -159,25 +180,86 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
         </Card>
       )}
 
-      {/* Camera placeholder */}
+      {/* Camera and upload interface */}
       {showCamera && (
-        <Card className="p-8 shadow-elevated border-border animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="text-center space-y-4">
-            <Camera className="h-16 w-16 mx-auto text-muted-foreground" />
-            <div>
-              <h3 className="font-serif font-semibold text-foreground mb-2">
-                Camera Feature
+        <Card className="p-6 shadow-elevated border-border animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif font-semibold text-foreground">
+                Upload Your Work
               </h3>
-              <p className="text-muted-foreground">
-                Camera integration coming soon! You'll be able to take a photo of your work and receive AI-powered marking and feedback.
-              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowCamera(false);
+                  setUploadedImage(null);
+                }}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-            <Button
-              onClick={() => setShowCamera(false)}
-              variant="outline"
-            >
-              Close
-            </Button>
+
+            {!uploadedImage ? (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Take a photo of your work or upload an image from your device for AI marking.
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={triggerFileInput}
+                    className="gap-2 flex-1"
+                    variant="outline"
+                  >
+                    <Upload className="h-5 w-5" />
+                    Upload from device
+                  </Button>
+                  <Button
+                    onClick={triggerFileInput}
+                    className="gap-2 flex-1 bg-accent hover:bg-accent/90"
+                  >
+                    <Camera className="h-5 w-5" />
+                    Take photo
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="relative rounded-lg overflow-hidden border border-border">
+                  <img
+                    src={uploadedImage}
+                    alt="Uploaded work"
+                    className="w-full h-auto"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={triggerFileInput}
+                    variant="outline"
+                    className="gap-2 flex-1"
+                  >
+                    <Upload className="h-5 w-5" />
+                    Upload different image
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      toast.info("AI marking feature coming soon!");
+                    }}
+                    className="gap-2 flex-1 bg-primary hover:bg-primary/90"
+                  >
+                    Get AI feedback
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
       )}
