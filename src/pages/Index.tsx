@@ -17,8 +17,8 @@ const Index = () => {
     const matches = questionsDatabase.map((q) => {
       let score = 0;
       
-      // Check for exact question number match (highest priority)
-      const questionNumberMatch = query.match(/(?:question\s*)?(\d+)/i);
+      // Check for question number match (q3, question 3, etc.)
+      const questionNumberMatch = query.match(/(?:q|question)\s*(\d+)/i);
       if (questionNumberMatch) {
         const searchQuestionNum = parseInt(questionNumberMatch[1]);
         if (q.questionNumber === searchQuestionNum) {
@@ -35,13 +35,23 @@ const Index = () => {
         }
       }
       
-      // Check for paper number match
-      const paperMatch = query.match(/(?:paper\s*)?(\d{1,2})/i);
-      if (paperMatch && query.includes('paper')) {
+      // Check for paper number match (only when "paper" is mentioned)
+      const paperMatch = query.match(/paper\s*(\d{1,2})/i);
+      if (paperMatch) {
         const searchPaper = parseInt(paperMatch[1]);
         if (q.paperNumber === searchPaper) {
           score += 50;
         }
+      }
+      
+      // Check for month/sitting match (may, june, march, november, etc.)
+      const sittingWords = query.split(/\s+/);
+      const monthKeywords = ['may', 'june', 'march', 'november', 'feb', 'oct'];
+      const hasMonthMatch = monthKeywords.some(month => 
+        sittingWords.includes(month) && q.sitting.toLowerCase().includes(month)
+      );
+      if (hasMonthMatch) {
+        score += 40;
       }
       
       // Topic match
@@ -52,11 +62,6 @@ const Index = () => {
       // Subtopic match
       if (q.subtopics.toLowerCase().includes(query)) {
         score += 20;
-      }
-      
-      // Sitting match
-      if (q.sitting.toLowerCase().includes(query)) {
-        score += 10;
       }
       
       return { question: q, score };
