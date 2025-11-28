@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Lightbulb, FileText, Camera, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { LatexRenderer } from "@/components/LatexRenderer";
 
 interface QuestionDisplayProps {
   question: Question;
@@ -119,7 +120,10 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
             <Lightbulb className="h-6 w-6 text-amber flex-shrink-0 mt-1" />
             <div className="flex-1">
               <h3 className="font-serif font-semibold text-foreground mb-2">Hint</h3>
-              <p className="text-foreground/80 leading-relaxed">{hint}</p>
+              <LatexRenderer 
+                content={hint} 
+                className="text-foreground/80 leading-relaxed"
+              />
             </div>
             <Button
               variant="ghost"
