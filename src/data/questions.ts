@@ -12,6 +12,116 @@ export interface Question {
 export const questionsDatabase: Question[] = [
   {
     year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 1,
+    topic: "Algebra",
+    subtopics: "1.4 Division of polynomials",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_01.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_01.jpg"
+  },
+  {
+    year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 2,
+    topic: "Further algebra",
+    subtopics: "7.4 Binomial expansion of (a + x)^n for values of n that are not positive integers",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_02.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_02.jpg"
+  },
+  {
+    year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 3,
+    topic: "Complex numbers",
+    subtopics: "11.2 Complex numbers, 11.4 Solving equations",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_03.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_03.jpg"
+  },
+  {
+    year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 4,
+    topic: "Logarithmic and exponential functions",
+    subtopics: "2.3 The laws of logarithms",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_04.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_04.jpg"
+  },
+  {
+    year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 5,
+    topic: "Complex numbers",
+    subtopics: "11.5 Loci",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_05.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_05.jpg"
+  },
+  {
+    year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 6,
+    topic: "Differentiation",
+    subtopics: "4.6 Implicit differentiation",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_06.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_06.jpg"
+  },
+  {
+    year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 7,
+    topic: "Numerical solutions of equations",
+    subtopics: "6.3 Using iterative processes to solve problems involving other areas of mathematics, 6.2 Improving your solution",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_07.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_07.jpg"
+  },
+  {
+    year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 8,
+    topic: "Trigonometry",
+    subtopics: "3.5 Expressing asin(theta) + bcos(theta) in the form Rsin(theta ± alpha) or Rcos(theta ± alpha)",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_08.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_08.jpg"
+  },
+  {
+    year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 9,
+    topic: "Vectors",
+    subtopics: "9.1 Displacement or translation vectors, 9.3 The scalar product",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_09.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_09.jpg"
+  },
+  {
+    year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 10,
+    topic: "Further calculus",
+    subtopics: "7.2 Partial fractions, 8.5 The use of partial fractions in integration",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_10.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_10.jpg"
+  },
+  {
+    year: 2024,
+    sitting: "March",
+    paperNumber: 32,
+    questionNumber: 11,
+    topic: "Differential equations",
+    subtopics: "10.1 The technique of separating the variables, 8.5 The use of partial fractions in integration",
+    questionUrl: "https://storage.googleapis.com/exam_coach/9709_m24_qp_32/9709_m24_qp_32_11.jpg",
+    markschemeUrl: "https://storage.googleapis.com/exam_coach/9709_m24_ms_32/9709_m24_ms_32_11.jpg"
+  },
+  {
+    year: 2024,
     sitting: "June",
     paperNumber: 31,
     questionNumber: 1,
