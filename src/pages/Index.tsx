@@ -1,12 +1,75 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SearchBar } from "@/components/SearchBar";
 import { QuestionDisplay } from "@/components/QuestionDisplay";
 import { questionsDatabase, Question } from "@/data/questions";
 import { BookOpen } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+  const [selectedYear, setSelectedYear] = useState<string>("");
+  const [selectedSitting, setSelectedSitting] = useState<string>("");
+  const [selectedPaper, setSelectedPaper] = useState<string>("");
+  const [selectedQuestionNum, setSelectedQuestionNum] = useState<string>("");
+
+  // Get unique values for dropdowns
+  const years = Array.from(new Set(questionsDatabase.map(q => q.year.toString()))).sort((a, b) => b.localeCompare(a));
+  
+  const sittings = selectedYear 
+    ? Array.from(new Set(questionsDatabase.filter(q => q.year.toString() === selectedYear).map(q => q.sitting))).sort()
+    : [];
+  
+  const papers = selectedYear && selectedSitting
+    ? Array.from(new Set(questionsDatabase.filter(q => 
+        q.year.toString() === selectedYear && q.sitting === selectedSitting
+      ).map(q => q.paperNumber.toString()))).sort()
+    : [];
+  
+  const questionNumbers = selectedYear && selectedSitting && selectedPaper
+    ? Array.from(new Set(questionsDatabase.filter(q => 
+        q.year.toString() === selectedYear && 
+        q.sitting === selectedSitting && 
+        q.paperNumber.toString() === selectedPaper
+      ).map(q => q.questionNumber.toString()))).sort((a, b) => parseInt(a) - parseInt(b))
+    : [];
+
+  // Auto-select question when all dropdowns are filled
+  useEffect(() => {
+    if (selectedYear && selectedSitting && selectedPaper && selectedQuestionNum) {
+      const question = questionsDatabase.find(q => 
+        q.year.toString() === selectedYear &&
+        q.sitting === selectedSitting &&
+        q.paperNumber.toString() === selectedPaper &&
+        q.questionNumber.toString() === selectedQuestionNum
+      );
+      if (question) {
+        setSelectedQuestion(question);
+      }
+    }
+  }, [selectedYear, selectedSitting, selectedPaper, selectedQuestionNum]);
+
+  // Reset dependent dropdowns when parent changes
+  useEffect(() => {
+    setSelectedSitting("");
+    setSelectedPaper("");
+    setSelectedQuestionNum("");
+  }, [selectedYear]);
+
+  useEffect(() => {
+    setSelectedPaper("");
+    setSelectedQuestionNum("");
+  }, [selectedSitting]);
+
+  useEffect(() => {
+    setSelectedQuestionNum("");
+  }, [selectedPaper]);
 
   const handleSearch = () => {
     if (!searchQuery.trim()) return;
@@ -115,7 +178,58 @@ const Index = () => {
                 </p>
               </div>
 
+              {/* Dropdown filters */}
+              <div className="pt-6">
+                <p className="text-sm text-muted-foreground mb-4">Select your question:</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-4xl mx-auto">
+                  <Select value={selectedYear} onValueChange={setSelectedYear}>
+                    <SelectTrigger className="bg-card">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card z-50">
+                      {years.map(year => (
+                        <SelectItem key={year} value={year}>{year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={selectedSitting} onValueChange={setSelectedSitting} disabled={!selectedYear}>
+                    <SelectTrigger className="bg-card">
+                      <SelectValue placeholder="Sitting" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card z-50">
+                      {sittings.map(sitting => (
+                        <SelectItem key={sitting} value={sitting}>{sitting}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={selectedPaper} onValueChange={setSelectedPaper} disabled={!selectedSitting}>
+                    <SelectTrigger className="bg-card">
+                      <SelectValue placeholder="Paper" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card z-50">
+                      {papers.map(paper => (
+                        <SelectItem key={paper} value={paper}>Paper {paper}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={selectedQuestionNum} onValueChange={setSelectedQuestionNum} disabled={!selectedPaper}>
+                    <SelectTrigger className="bg-card">
+                      <SelectValue placeholder="Question" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card z-50">
+                      {questionNumbers.map(num => (
+                        <SelectItem key={num} value={num}>Question {num}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="pt-4">
+                <p className="text-sm text-muted-foreground mb-3">Or search by topic:</p>
                 <SearchBar
                   value={searchQuery}
                   onChange={setSearchQuery}
@@ -176,7 +290,13 @@ const Index = () => {
         ) : (
           <div className="space-y-8">
             <button
-              onClick={() => setSelectedQuestion(null)}
+              onClick={() => {
+                setSelectedQuestion(null);
+                setSelectedYear("");
+                setSelectedSitting("");
+                setSelectedPaper("");
+                setSelectedQuestionNum("");
+              }}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
             >
               ← Back to search
