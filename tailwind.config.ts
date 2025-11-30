@@ -51,11 +51,10 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        cambridge: {
-          blue: "hsl(var(--cambridge-blue))",
-          light: "hsl(var(--cambridge-blue-light))",
-        },
-        amber: "hsl(var(--amber-accent))",
+        yellow: "hsl(var(--bright-yellow))",
+        coral: "hsl(var(--coral-orange))",
+        red: "hsl(var(--red-accent))",
+        charcoal: "hsl(var(--dark-charcoal))",
         success: "hsl(var(--success))",
       },
       borderRadius: {
