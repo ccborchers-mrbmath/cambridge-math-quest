@@ -8,86 +8,86 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Mr Borchers Maths color palette - bright yellow and coral orange */
-    --background: 54 99% 65%;
-    --foreground: 0 0% 23%;
+    /* Calm, eye-friendly color palette for extended study sessions */
+    --background: 210 30% 98%;
+    --foreground: 215 20% 25%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 23%;
+    --card-foreground: 215 20% 25%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 23%;
+    --popover-foreground: 215 20% 25%;
 
-    /* Coral orange for navigation and primary actions */
-    --primary: 10 80% 58%;
+    /* Soft blue - calming and professional */
+    --primary: 210 60% 55%;
     --primary-foreground: 0 0% 100%;
     
-    /* Bright red accent for headings */
-    --accent: 5 65% 55%;
+    /* Muted teal accent */
+    --accent: 180 45% 50%;
     --accent-foreground: 0 0% 100%;
 
-    --secondary: 10 70% 50%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 210 25% 92%;
+    --secondary-foreground: 215 20% 25%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 40%;
+    --muted: 210 20% 95%;
+    --muted-foreground: 215 15% 50%;
 
-    --destructive: 0 75% 55%;
+    --destructive: 0 65% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 88%;
-    --input: 0 0% 96%;
-    --ring: 10 80% 58%;
+    --border: 210 20% 90%;
+    --input: 210 20% 95%;
+    --ring: 210 60% 55%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
     /* Custom design tokens */
-    --bright-yellow: 54 99% 65%;
-    --coral-orange: 10 80% 58%;
-    --red-accent: 5 65% 55%;
-    --dark-charcoal: 0 0% 23%;
-    --success: 142 76% 36%;
+    --soft-blue: 210 60% 55%;
+    --muted-teal: 180 45% 50%;
+    --light-gray: 210 20% 95%;
+    --text-gray: 215 20% 25%;
+    --success: 142 50% 50%;
     
     /* Gradients */
-    --gradient-hero: linear-gradient(135deg, hsl(10 80% 58%) 0%, hsl(5 65% 55%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(54 99% 65%) 0%, hsl(54 95% 70%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(210 60% 55%) 0%, hsl(180 45% 50%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(210 30% 98%) 0%, hsl(210 25% 96%) 100%);
     
     /* Shadows */
-    --shadow-card: 0 2px 8px hsl(0 0% 23% / 0.08);
-    --shadow-elevated: 0 8px 24px hsl(0 0% 23% / 0.12);
+    --shadow-card: 0 2px 8px hsl(210 20% 25% / 0.06);
+    --shadow-elevated: 0 4px 16px hsl(210 20% 25% / 0.1);
     
     /* Transitions */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
-    --background: 0 0% 23%;
-    --foreground: 0 0% 95%;
+    --background: 215 25% 12%;
+    --foreground: 210 20% 92%;
 
-    --card: 0 0% 18%;
-    --card-foreground: 0 0% 95%;
+    --card: 215 20% 16%;
+    --card-foreground: 210 20% 92%;
 
-    --popover: 0 0% 18%;
-    --popover-foreground: 0 0% 95%;
+    --popover: 215 20% 16%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 10 80% 58%;
+    --primary: 210 60% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --accent: 5 65% 55%;
+    --accent: 180 45% 55%;
     --accent-foreground: 0 0% 100%;
 
-    --secondary: 10 70% 45%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 215 20% 22%;
+    --secondary-foreground: 210 20% 92%;
 
-    --muted: 0 0% 30%;
-    --muted-foreground: 0 0% 65%;
+    --muted: 215 20% 20%;
+    --muted-foreground: 210 15% 65%;
 
-    --destructive: 0 75% 55%;
+    --destructive: 0 65% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 35%;
-    --input: 0 0% 35%;
-    --ring: 10 80% 58%;
+    --border: 215 20% 28%;
+    --input: 215 20% 22%;
+    --ring: 210 60% 60%;
   }
 }
 
