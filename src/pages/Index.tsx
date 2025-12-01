@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { SearchBar } from "@/components/SearchBar";
 import { QuestionDisplay } from "@/components/QuestionDisplay";
 import { questionsDatabase, Question } from "@/data/questions";
-import { BookOpen } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { BookOpen, User, Settings } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -12,12 +15,19 @@ import {
 } from "@/components/ui/select";
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { user, userRole, loading, signOut } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedSitting, setSelectedSitting] = useState<string>("");
   const [selectedPaper, setSelectedPaper] = useState<string>("");
   const [selectedQuestionNum, setSelectedQuestionNum] = useState<string>("");
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
 
   // Get unique values for dropdowns
   const years = Array.from(new Set(questionsDatabase.map(q => q.year.toString()))).sort((a, b) => b.localeCompare(a));
@@ -149,15 +159,43 @@ const Index = () => {
       {/* Header */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-              <BookOpen className="h-6 w-6 text-primary-foreground" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
+                <BookOpen className="h-6 w-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-serif font-bold text-foreground">
+                  Cambridge Maths 9709
+                </h1>
+                <p className="text-sm text-muted-foreground">AS & A Level Paper 3 Practice</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-serif font-bold text-foreground">
-                Cambridge Maths 9709
-              </h1>
-              <p className="text-sm text-muted-foreground">AS & A Level Paper 3 Practice</p>
+            
+            <div className="flex items-center gap-3">
+              {loading ? (
+                <div className="h-8 w-8 animate-pulse bg-secondary rounded-full" />
+              ) : user ? (
+                <>
+                  {userRole === 'admin' && (
+                    <Button variant="outline" onClick={() => navigate('/admin')}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Admin Dashboard
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => navigate('/progress')}>
+                    <User className="h-4 w-4 mr-2" />
+                    My Progress
+                  </Button>
+                  <Button variant="outline" onClick={handleSignOut}>
+                    Sign Out
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={() => navigate('/auth')}>
+                  Sign In
+                </Button>
+              )}
             </div>
           </div>
         </div>
