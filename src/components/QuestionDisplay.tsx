@@ -2,21 +2,29 @@ import { useState, useRef } from "react";
 import { Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Lightbulb, FileText, Camera, X, Loader2, Upload } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
+import { useAuth } from "@/hooks/useAuth";
 
 interface QuestionDisplayProps {
   question: Question;
 }
 
 export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
+  const { user } = useAuth();
   const [showMarkscheme, setShowMarkscheme] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const [isLoadingHint, setIsLoadingHint] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [percentageAttained, setPercentageAttained] = useState<string>("");
+  const [natureOfErrors, setNatureOfErrors] = useState<string>("");
+  const [isSavingAttempt, setIsSavingAttempt] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleHint = async () => {
@@ -71,6 +79,50 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
 
   const triggerFileInput = () => {
     fileInputRef.current?.click();
+  };
+
+  const saveAttempt = async () => {
+    if (!user) {
+      toast.error("Please sign in to save your attempt");
+      return;
+    }
+
+    if (!uploadedImage) {
+      toast.error("Please upload an image of your work");
+      return;
+    }
+
+    setIsSavingAttempt(true);
+    try {
+      const { error } = await supabase
+        .from('student_attempts')
+        .insert({
+          user_id: user.id,
+          year: question.year,
+          sitting: question.sitting,
+          paper_number: question.paperNumber,
+          question_number: question.questionNumber,
+          topic: question.topic,
+          subtopic: question.subtopics,
+          attempted: true,
+          percentage_attained: percentageAttained ? parseFloat(percentageAttained) : null,
+          nature_of_errors: natureOfErrors || null,
+          image_url: uploadedImage,
+        });
+
+      if (error) throw error;
+
+      toast.success("Attempt saved successfully!");
+      setShowCamera(false);
+      setUploadedImage(null);
+      setPercentageAttained("");
+      setNatureOfErrors("");
+    } catch (error) {
+      console.error('Error saving attempt:', error);
+      toast.error("Failed to save attempt. Please try again.");
+    } finally {
+      setIsSavingAttempt(false);
+    }
   };
 
   return (
@@ -240,6 +292,35 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                     className="w-full h-auto"
                   />
                 </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="percentage">Score (optional)</Label>
+                    <Input
+                      id="percentage"
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="Enter percentage (0-100)"
+                      value={percentageAttained}
+                      onChange={(e) => setPercentageAttained(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="errors">Areas to improve (optional)</Label>
+                    <Textarea
+                      id="errors"
+                      placeholder="e.g., 'Need to practice integration by parts' or 'Forgot to apply chain rule'"
+                      value={natureOfErrors}
+                      onChange={(e) => setNatureOfErrors(e.target.value)}
+                      className="mt-1"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+
                 <div className="flex gap-3">
                   <Button
                     onClick={triggerFileInput}
@@ -247,15 +328,19 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                     className="gap-2 flex-1"
                   >
                     <Upload className="h-5 w-5" />
-                    Upload different image
+                    Change image
                   </Button>
                   <Button
-                    onClick={() => {
-                      toast.info("AI marking feature coming soon!");
-                    }}
+                    onClick={saveAttempt}
+                    disabled={isSavingAttempt}
                     className="gap-2 flex-1 bg-primary hover:bg-primary/90"
                   >
-                    Get AI feedback
+                    {isSavingAttempt ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Save className="h-5 w-5" />
+                    )}
+                    {isSavingAttempt ? "Saving..." : "Save attempt"}
                   </Button>
                 </div>
               </div>
