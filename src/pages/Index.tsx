@@ -5,7 +5,7 @@ import { QuestionDisplay } from "@/components/QuestionDisplay";
 import { questionsDatabase, Question } from "@/data/questions";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { BookOpen, User, Settings } from "lucide-react";
+import { BookOpen, User, Settings, RefreshCw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -23,6 +23,8 @@ const Index = () => {
   const [selectedSitting, setSelectedSitting] = useState<string>("");
   const [selectedPaper, setSelectedPaper] = useState<string>("");
   const [selectedQuestionNum, setSelectedQuestionNum] = useState<string>("");
+  const [currentTopic, setCurrentTopic] = useState<string>("");
+  const [viewedQuestionIds, setViewedQuestionIds] = useState<Set<string>>(new Set());
 
   const handleSignOut = async () => {
     await signOut();
@@ -81,12 +83,64 @@ const Index = () => {
     setSelectedQuestionNum("");
   }, [selectedPaper]);
 
-  const handleSearch = () => {
-    if (!searchQuery.trim()) return;
+  // Helper to get a unique question ID
+  const getQuestionId = (q: Question) => `${q.year}-${q.sitting}-${q.paperNumber}-${q.questionNumber}`;
 
-    const query = searchQuery.toLowerCase().trim();
+  // Get questions matching a topic (case-insensitive)
+  const getQuestionsForTopic = (topic: string) => {
+    const topicLower = topic.toLowerCase();
+    return questionsDatabase.filter(q => 
+      q.topic.toLowerCase().includes(topicLower) || 
+      q.subtopics.toLowerCase().includes(topicLower)
+    );
+  };
+
+  // Select a random question from topic, preferring unviewed ones
+  const selectRandomFromTopic = (topic: string, excludeIds?: Set<string>) => {
+    const topicQuestions = getQuestionsForTopic(topic);
+    if (topicQuestions.length === 0) return null;
+
+    const idsToExclude = excludeIds || viewedQuestionIds;
+    const unviewedQuestions = topicQuestions.filter(q => !idsToExclude.has(getQuestionId(q)));
     
-    // Enhanced search algorithm with scoring
+    // If all questions viewed, reset and pick from all
+    const pool = unviewedQuestions.length > 0 ? unviewedQuestions : topicQuestions;
+    const randomIndex = Math.floor(Math.random() * pool.length);
+    return pool[randomIndex];
+  };
+
+  // Handle showing another question on the same topic
+  const handleShowAnother = () => {
+    if (!currentTopic) return;
+    
+    const question = selectRandomFromTopic(currentTopic);
+    if (question) {
+      const questionId = getQuestionId(question);
+      setViewedQuestionIds(prev => new Set(prev).add(questionId));
+      setSelectedQuestion(question);
+    }
+  };
+
+  const handleSearch = (topicOverride?: string) => {
+    const queryToUse = topicOverride || searchQuery;
+    if (!queryToUse.trim()) return;
+
+    const query = queryToUse.toLowerCase().trim();
+    
+    // Check if this is a topic-based search (from popular topics or subtopics)
+    const topicQuestions = getQuestionsForTopic(query);
+    if (topicQuestions.length > 0) {
+      setCurrentTopic(query);
+      const question = selectRandomFromTopic(query);
+      if (question) {
+        const questionId = getQuestionId(question);
+        setViewedQuestionIds(prev => new Set(prev).add(questionId));
+        setSelectedQuestion(question);
+        return;
+      }
+    }
+    
+    // Enhanced search algorithm with scoring for non-topic searches
     const matches = questionsDatabase.map((q) => {
       let score = 0;
       
@@ -146,9 +200,11 @@ const Index = () => {
       .sort((a, b) => b.score - a.score);
 
     if (rankedMatches.length > 0) {
+      setCurrentTopic("");
       setSelectedQuestion(rankedMatches[0].question);
     } else {
       // If no match, show a random question
+      setCurrentTopic("");
       const randomIndex = Math.floor(Math.random() * questionsDatabase.length);
       setSelectedQuestion(questionsDatabase[randomIndex]);
     }
@@ -284,7 +340,7 @@ const Index = () => {
                       key={topic}
                       onClick={() => {
                         setSearchQuery(topic);
-                        handleSearch();
+                        handleSearch(topic);
                       }}
                       className="px-4 py-2 rounded-full bg-secondary hover:bg-primary/10 border border-border hover:border-primary/30 text-sm font-medium transition-all"
                     >
@@ -327,18 +383,32 @@ const Index = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            <button
-              onClick={() => {
-                setSelectedQuestion(null);
-                setSelectedYear("");
-                setSelectedSitting("");
-                setSelectedPaper("");
-                setSelectedQuestionNum("");
-              }}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
-            >
-              ← Back to search
-            </button>
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setSelectedQuestion(null);
+                  setSelectedYear("");
+                  setSelectedSitting("");
+                  setSelectedPaper("");
+                  setSelectedQuestionNum("");
+                  setCurrentTopic("");
+                }}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+              >
+                ← Back to search
+              </button>
+              
+              {currentTopic && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleShowAnother}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Show me another on this topic
+                </Button>
+              )}
+            </div>
             <QuestionDisplay question={selectedQuestion} />
           </div>
         )}
