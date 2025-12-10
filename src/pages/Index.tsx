@@ -86,13 +86,58 @@ const Index = () => {
   // Helper to get a unique question ID
   const getQuestionId = (q: Question) => `${q.year}-${q.sitting}-${q.paperNumber}-${q.questionNumber}`;
 
-  // Get questions matching a topic (case-insensitive)
+  // Calculate similarity score between search terms and text
+  const calculateSimilarity = (searchTerms: string[], text: string): number => {
+    const textLower = text.toLowerCase();
+    const words = textLower.split(/[\s,.\-_()^]+/).filter(w => w.length > 2);
+    let score = 0;
+    
+    for (const term of searchTerms) {
+      // Exact substring match (highest priority)
+      if (textLower.includes(term)) {
+        score += 100;
+        continue;
+      }
+      
+      // Word-level matching
+      for (const word of words) {
+        if (word === term) {
+          score += 80;
+        } else if (word.includes(term) || term.includes(word)) {
+          score += 50;
+        } else if (word.length > 3 && term.length > 3) {
+          // Check for common prefix/suffix (at least 4 chars)
+          const minLen = Math.min(word.length, term.length);
+          let commonPrefix = 0;
+          for (let i = 0; i < minLen; i++) {
+            if (word[i] === term[i]) commonPrefix++;
+            else break;
+          }
+          if (commonPrefix >= 4) score += 30;
+        }
+      }
+    }
+    
+    return score;
+  };
+
+  // Get questions matching a topic with fuzzy matching
   const getQuestionsForTopic = (topic: string) => {
-    const topicLower = topic.toLowerCase();
-    return questionsDatabase.filter(q => 
-      q.topic.toLowerCase().includes(topicLower) || 
-      q.subtopics.toLowerCase().includes(topicLower)
-    );
+    const searchTerms = topic.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+    
+    // Score each question
+    const scored = questionsDatabase.map(q => {
+      const topicScore = calculateSimilarity(searchTerms, q.topic);
+      const subtopicScore = calculateSimilarity(searchTerms, q.subtopics);
+      return { question: q, score: topicScore + subtopicScore };
+    });
+    
+    // Return questions with score above threshold, sorted by score
+    const threshold = 30;
+    return scored
+      .filter(s => s.score >= threshold)
+      .sort((a, b) => b.score - a.score)
+      .map(s => s.question);
   };
 
   // Select a random question from topic, preferring unviewed ones
