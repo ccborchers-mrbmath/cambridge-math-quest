@@ -159,16 +159,41 @@ const Index = () => {
     return pool[randomIndex];
   };
 
+  // Get questions with exact topic match (for "show another" functionality)
+  const getQuestionsWithExactTopic = (topic: string) => {
+    return questionsDatabase.filter(q => q.topic.toLowerCase() === topic.toLowerCase());
+  };
+
   // Handle showing another question on the same topic
   const handleShowAnother = () => {
-    if (!currentTopic) return;
+    if (!selectedQuestion) return;
     
-    const question = selectRandomFromTopic(currentTopic);
-    if (question) {
-      const questionId = getQuestionId(question);
-      setViewedQuestionIds(prev => new Set(prev).add(questionId));
-      setSelectedQuestion(question);
-    }
+    // Always use the currently displayed question's exact topic
+    const exactTopic = selectedQuestion.topic;
+    const matchingQuestions = getQuestionsWithExactTopic(exactTopic);
+    
+    if (matchingQuestions.length === 0) return;
+    
+    // Filter out viewed questions
+    const currentQuestionId = getQuestionId(selectedQuestion);
+    const unviewedQuestions = matchingQuestions.filter(q => {
+      const qId = getQuestionId(q);
+      return qId !== currentQuestionId && !viewedQuestionIds.has(qId);
+    });
+    
+    // If all questions viewed, pick from all except current
+    const pool = unviewedQuestions.length > 0 
+      ? unviewedQuestions 
+      : matchingQuestions.filter(q => getQuestionId(q) !== currentQuestionId);
+    
+    if (pool.length === 0) return;
+    
+    const randomIndex = Math.floor(Math.random() * pool.length);
+    const newQuestion = pool[randomIndex];
+    const questionId = getQuestionId(newQuestion);
+    setViewedQuestionIds(prev => new Set(prev).add(questionId));
+    setSelectedQuestion(newQuestion);
+    setCurrentTopic(newQuestion.topic.toLowerCase());
   };
 
   const handleSearch = (topicOverride?: string) => {
