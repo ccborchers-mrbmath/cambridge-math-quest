@@ -63,6 +63,9 @@ const Index = () => {
       );
       if (question) {
         setSelectedQuestion(question);
+        setCurrentTopic(question.topic.toLowerCase());
+        const questionId = getQuestionId(question);
+        setViewedQuestionIds(prev => new Set(prev).add(questionId));
       }
     }
   }, [selectedYear, selectedSitting, selectedPaper, selectedQuestionNum]);
