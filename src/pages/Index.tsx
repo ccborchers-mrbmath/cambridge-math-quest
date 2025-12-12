@@ -34,8 +34,10 @@ const Index = () => {
   // Get unique values for dropdowns
   const years = Array.from(new Set(questionsDatabase.map(q => q.year.toString()))).sort((a, b) => b.localeCompare(a));
   
+  const sittingOrder: Record<string, number> = { 'March': 1, 'May': 2, 'June': 3, 'October': 4, 'November': 5 };
   const sittings = selectedYear 
-    ? Array.from(new Set(questionsDatabase.filter(q => q.year.toString() === selectedYear).map(q => q.sitting))).sort()
+    ? Array.from(new Set(questionsDatabase.filter(q => q.year.toString() === selectedYear).map(q => q.sitting)))
+        .sort((a, b) => (sittingOrder[a] || 99) - (sittingOrder[b] || 99))
     : [];
   
   const papers = selectedYear && selectedSitting
