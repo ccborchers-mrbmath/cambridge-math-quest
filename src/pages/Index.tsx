@@ -375,7 +375,7 @@ const Index = () => {
                 <SearchBar
                   value={searchQuery}
                   onChange={setSearchQuery}
-                  onSearch={handleSearch}
+                  onSearch={() => handleSearch()}
                 />
               </div>
 
