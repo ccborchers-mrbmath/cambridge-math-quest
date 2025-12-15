@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { SearchBar } from "@/components/SearchBar";
 import { QuestionDisplay } from "@/components/QuestionDisplay";
+import { TopicTest } from "@/components/TopicTest";
 import { questionsDatabase, Question } from "@/data/questions";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,10 @@ const Index = () => {
   const [selectedQuestionNum, setSelectedQuestionNum] = useState<string>("");
   const [currentTopic, setCurrentTopic] = useState<string>("");
   const [viewedQuestionIds, setViewedQuestionIds] = useState<Set<string>>(new Set());
+  const [testTopic, setTestTopic] = useState<string>("");
+
+  // Get unique main topics for the "Test me on" dropdown
+  const mainTopics = Array.from(new Set(questionsDatabase.map(q => q.topic))).sort();
 
   const handleSignOut = async () => {
     await signOut();
@@ -334,7 +339,9 @@ const Index = () => {
 
       {/* Main content */}
       <main className="container mx-auto px-4 py-12">
-        {!selectedQuestion ? (
+        {testTopic ? (
+          <TopicTest topic={testTopic} onBack={() => setTestTopic("")} />
+        ) : !selectedQuestion ? (
           <div className="space-y-12">
             {/* Hero section */}
             <div className="text-center space-y-6 max-w-3xl mx-auto">
@@ -422,6 +429,23 @@ const Index = () => {
                       {topic}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Test me on dropdown */}
+              <div className="pt-8 border-t border-border mt-8">
+                <p className="text-sm text-muted-foreground mb-4">Or generate a 3-question test:</p>
+                <div className="max-w-sm mx-auto">
+                  <Select value="" onValueChange={(value) => setTestTopic(value)}>
+                    <SelectTrigger className="bg-card">
+                      <SelectValue placeholder="Test me on..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card z-50 max-h-64">
+                      {mainTopics.map(topic => (
+                        <SelectItem key={topic} value={topic}>{topic}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
