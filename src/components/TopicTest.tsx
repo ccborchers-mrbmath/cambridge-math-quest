@@ -3,6 +3,11 @@ import { Question, questionsDatabase } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Eye, EyeOff, Loader2 } from "lucide-react";
 
+// Proxy URL for images to bypass CORS
+const getProxiedImageUrl = (originalUrl: string): string => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  return `${supabaseUrl}/functions/v1/image-proxy?url=${encodeURIComponent(originalUrl)}`;
+};
 interface TopicTestProps {
   topic: string;
   onBack: () => void;
@@ -97,10 +102,12 @@ const processQuestionImage = async (
     };
 
     img.onerror = () => {
+      console.error("Failed to load image:", imageUrl);
       reject(new Error("Failed to load image"));
     };
 
-    img.src = imageUrl;
+    // Use proxied URL to bypass CORS
+    img.src = getProxiedImageUrl(imageUrl);
   });
 };
 
