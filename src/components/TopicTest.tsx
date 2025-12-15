@@ -92,10 +92,12 @@ const processQuestionImage = async (
       ctx.fillRect(0, 0, 255, 155);
 
       // Draw new question number in Cambridge style (bold serif)
+      // Position: right-aligned at 228px from left, bottom of number at 105px from top
       ctx.fillStyle = "#000000";
       ctx.font = "bold 48px 'Times New Roman', Times, serif";
-      ctx.textBaseline = "top";
-      ctx.fillText(`${newNumber}`, 40, 50);
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(`${newNumber}`, 228, 105);
 
       // Convert to data URL
       resolve(canvas.toDataURL("image/jpeg", 0.95));
