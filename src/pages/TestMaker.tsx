@@ -4,8 +4,9 @@ import { questionsDatabase, Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, FileText, Clock, Award, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, Clock, Award, Loader2, Download } from "lucide-react";
 import { processQuestionImage } from "@/utils/imageProcessing";
+import jsPDF from "jspdf";
 
 interface ProcessedQuestion {
   original: Question;
@@ -136,6 +137,131 @@ const TestMaker = () => {
     setIsCompiled(true);
   };
 
+  // Generate and download PDF
+  const handleDownloadPDF = async () => {
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
+
+    // Cover Page
+    pdf.setFillColor(30, 41, 59); // slate-800
+    pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+    
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(32);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Custom Practice Test', pageWidth / 2, 80, { align: 'center' });
+
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`${processedQuestions.length} Questions`, pageWidth / 2, 100, { align: 'center' });
+    pdf.text(`${testStats.totalMarks} Marks`, pageWidth / 2, 110, { align: 'center' });
+    pdf.text(`Time: ${testStats.timeString}`, pageWidth / 2, 120, { align: 'center' });
+
+    // Grade thresholds
+    pdf.setFontSize(14);
+    pdf.text('Grade Thresholds', pageWidth / 2, 150, { align: 'center' });
+    pdf.setFontSize(12);
+    const thresholds = `A: ${testStats.gradeThresholds.A} | B: ${testStats.gradeThresholds.B} | C: ${testStats.gradeThresholds.C} | D: ${testStats.gradeThresholds.D} | E: ${testStats.gradeThresholds.E}`;
+    pdf.text(thresholds, pageWidth / 2, 162, { align: 'center' });
+
+    // Topics included
+    const topics = Array.from(new Set(processedQuestions.map(pq => pq.original.topic)));
+    pdf.setFontSize(14);
+    pdf.text('Topics Covered', pageWidth / 2, 190, { align: 'center' });
+    pdf.setFontSize(10);
+    topics.forEach((topic, i) => {
+      pdf.text(`• ${topic}`, pageWidth / 2, 202 + (i * 8), { align: 'center' });
+    });
+
+    // Footer text
+    pdf.setFontSize(10);
+    pdf.text('Good luck!', pageWidth / 2, pageHeight - 30, { align: 'center' });
+
+    // Add questions - one per two pages (question page + blank working page)
+    for (let i = 0; i < processedQuestions.length; i++) {
+      const pq = processedQuestions[i];
+      
+      // Question page
+      pdf.addPage();
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+      
+      // Question header
+      pdf.setTextColor(30, 41, 59);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`Question ${pq.newNumber}`, margin, margin);
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(`${pq.original.marks} marks | ${pq.original.topic}`, margin, margin + 6);
+      
+      // Add image if available
+      if (pq.processedImageUrl) {
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = reject;
+            img.src = pq.processedImageUrl!;
+          });
+
+          const imgAspectRatio = img.width / img.height;
+          let imgWidth = contentWidth;
+          let imgHeight = imgWidth / imgAspectRatio;
+          
+          // Ensure image fits on page
+          const maxHeight = pageHeight - margin - 35;
+          if (imgHeight > maxHeight) {
+            imgHeight = maxHeight;
+            imgWidth = imgHeight * imgAspectRatio;
+          }
+
+          pdf.addImage(img, 'PNG', margin, margin + 15, imgWidth, imgHeight);
+        } catch (error) {
+          console.error('Error adding image to PDF:', error);
+          pdf.setTextColor(200, 0, 0);
+          pdf.text('Error loading question image', margin, margin + 30);
+        }
+      }
+
+      // Page number
+      pdf.setTextColor(150, 150, 150);
+      pdf.setFontSize(10);
+      pdf.text(`Page ${(i * 2) + 2}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+      // Blank working page
+      pdf.addPage();
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+      
+      // Working space header
+      pdf.setTextColor(200, 200, 200);
+      pdf.setFontSize(12);
+      pdf.text(`Working space for Question ${pq.newNumber}`, pageWidth / 2, margin, { align: 'center' });
+      
+      // Page number
+      pdf.setTextColor(150, 150, 150);
+      pdf.setFontSize(10);
+      pdf.text(`Page ${(i * 2) + 3}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
+
+    // Download the PDF
+    const date = new Date().toISOString().split('T')[0];
+    pdf.save(`practice-test-${date}.pdf`);
+  };
+
   if (isCompiled) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
@@ -150,6 +276,10 @@ const TestMaker = () => {
               </div>
               <Button variant="outline" onClick={() => navigate("/")}>
                 Return Home
+              </Button>
+              <Button onClick={handleDownloadPDF}>
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF
               </Button>
             </div>
           </div>
