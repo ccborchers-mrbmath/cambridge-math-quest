@@ -493,6 +493,7 @@ const TestMaker = () => {
                                 <Checkbox 
                                   checked={isQuestionSelected(qId)}
                                   onCheckedChange={() => toggleQuestion(qId)}
+                                  onClick={(e) => e.stopPropagation()}
                                 />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium">
