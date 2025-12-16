@@ -1,16 +1,112 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { questionsDatabase, Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, FileText, Clock, Award } from "lucide-react";
+import { ArrowLeft, FileText, Clock, Award, Loader2 } from "lucide-react";
+
+// Proxy URL for images to bypass CORS
+const getProxiedImageUrl = (originalUrl: string): string => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  return `${supabaseUrl}/functions/v1/image-proxy?url=${encodeURIComponent(originalUrl)}`;
+};
+
+// Find the vertical baseline of the first line of text by scanning for dark pixels
+const findTextBaseline = (
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number
+): number => {
+  const defaultBaseline = 105;
+  const scanStartX = 260;
+  const scanEndX = Math.min(canvasWidth, 500);
+  const scanStartY = 20;
+  const scanEndY = 150;
+  const darkThreshold = 200;
+
+  try {
+    for (let y = scanStartY; y < scanEndY; y++) {
+      const imageData = ctx.getImageData(scanStartX, y, scanEndX - scanStartX, 1);
+      let darkPixelCount = 0;
+
+      for (let i = 0; i < imageData.data.length; i += 4) {
+        const r = imageData.data[i];
+        const g = imageData.data[i + 1];
+        const b = imageData.data[i + 2];
+
+        if (r < darkThreshold && g < darkThreshold && b < darkThreshold) {
+          darkPixelCount++;
+        }
+      }
+
+      if (darkPixelCount > 3) {
+        return y + 38;
+      }
+    }
+  } catch (e) {
+    console.warn("Text detection failed, using default position");
+  }
+
+  return defaultBaseline;
+};
+
+// Process image: draw white rectangle and new number
+const processQuestionImage = async (
+  imageUrl: string,
+  newNumber: number
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0);
+      const textBaseline = findTextBaseline(ctx, img.width);
+
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, 255, 155);
+
+      ctx.fillStyle = "#000000";
+      ctx.font = "bold 48px 'Times New Roman', Times, serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(`${newNumber}`, 228, textBaseline);
+
+      resolve(canvas.toDataURL("image/jpeg", 0.95));
+    };
+
+    img.onerror = () => {
+      console.error("Failed to load image:", imageUrl);
+      reject(new Error("Failed to load image"));
+    };
+
+    img.src = getProxiedImageUrl(imageUrl);
+  });
+};
+
+interface ProcessedQuestion {
+  original: Question;
+  newNumber: number;
+  processedImageUrl: string | null;
+}
 
 const TestMaker = () => {
   const navigate = useNavigate();
   const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
   const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
   const [isCompiled, setIsCompiled] = useState(false);
+  const [processedQuestions, setProcessedQuestions] = useState<ProcessedQuestion[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Get unique topics
   const allTopics = useMemo(() => 
@@ -97,6 +193,36 @@ const TestMaker = () => {
     setSelectedQuestions(newQuestions);
   };
 
+  // Process images and compile test
+  const handleCompileTest = async () => {
+    setIsProcessing(true);
+    
+    const processed: ProcessedQuestion[] = await Promise.all(
+      compiledQuestions.map(async (q, index) => {
+        const newNumber = index + 1;
+        try {
+          const processedImageUrl = await processQuestionImage(q.questionUrl, newNumber);
+          return {
+            original: q,
+            newNumber,
+            processedImageUrl,
+          };
+        } catch (error) {
+          console.error("Error processing image:", error);
+          return {
+            original: q,
+            newNumber,
+            processedImageUrl: null,
+          };
+        }
+      })
+    );
+
+    setProcessedQuestions(processed);
+    setIsProcessing(false);
+    setIsCompiled(true);
+  };
+
   if (isCompiled) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
@@ -150,25 +276,31 @@ const TestMaker = () => {
 
           {/* Questions */}
           <div className="space-y-6">
-            {compiledQuestions.map((question, index) => (
-              <Card key={getQuestionId(question)}>
+            {processedQuestions.map((pq) => (
+              <Card key={getQuestionId(pq.original)}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg">
-                    Question {index + 1} 
+                    Question {pq.newNumber} 
                     <span className="text-sm font-normal text-muted-foreground ml-2">
-                      ({question.marks} marks) - {question.topic}
+                      ({pq.original.marks} marks) - {pq.original.topic}
                     </span>
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    {question.year} {question.sitting} Paper {question.paperNumber} Q{question.questionNumber}
+                    {pq.original.year} {pq.original.sitting} Paper {pq.original.paperNumber} Q{pq.original.questionNumber}
                   </p>
                 </CardHeader>
                 <CardContent>
-                  <img 
-                    src={question.questionUrl} 
-                    alt={`Question ${index + 1}`}
-                    className="w-full max-w-3xl rounded-lg border"
-                  />
+                  {pq.processedImageUrl ? (
+                    <img 
+                      src={pq.processedImageUrl} 
+                      alt={`Question ${pq.newNumber}`}
+                      className="w-full max-w-3xl rounded-lg border"
+                    />
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Failed to load question image
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -194,11 +326,20 @@ const TestMaker = () => {
               </div>
             </div>
             <Button 
-              onClick={() => setIsCompiled(true)}
-              disabled={selectedQuestions.size === 0}
+              onClick={handleCompileTest}
+              disabled={selectedQuestions.size === 0 || isProcessing}
             >
-              <FileText className="h-4 w-4 mr-2" />
-              Compile Test ({selectedQuestions.size} questions)
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Compile Test ({selectedQuestions.size} questions)
+                </>
+              )}
             </Button>
           </div>
         </div>
