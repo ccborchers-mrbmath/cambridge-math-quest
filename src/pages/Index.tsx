@@ -6,7 +6,7 @@ import { TopicTest } from "@/components/TopicTest";
 import { questionsDatabase, Question } from "@/data/questions";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { BookOpen, User, Settings, RefreshCw } from "lucide-react";
+import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -319,6 +319,10 @@ const Index = () => {
                       Admin Dashboard
                     </Button>
                   )}
+                  <Button variant="outline" onClick={() => navigate('/test-maker')}>
+                    <FileEdit className="h-4 w-4 mr-2" />
+                    Test Maker
+                  </Button>
                   <Button variant="outline" onClick={() => navigate('/progress')}>
                     <User className="h-4 w-4 mr-2" />
                     My Progress
@@ -328,9 +332,15 @@ const Index = () => {
                   </Button>
                 </>
               ) : (
-                <Button onClick={() => navigate('/auth')}>
-                  Sign In
-                </Button>
+                <>
+                  <Button variant="outline" onClick={() => navigate('/test-maker')}>
+                    <FileEdit className="h-4 w-4 mr-2" />
+                    Test Maker
+                  </Button>
+                  <Button onClick={() => navigate('/auth')}>
+                    Sign In
+                  </Button>
+                </>
               )}
             </div>
           </div>
