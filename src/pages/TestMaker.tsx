@@ -1,98 +1,11 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { questionsDatabase, Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, FileText, Clock, Award, Loader2 } from "lucide-react";
-
-// Proxy URL for images to bypass CORS
-const getProxiedImageUrl = (originalUrl: string): string => {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  return `${supabaseUrl}/functions/v1/image-proxy?url=${encodeURIComponent(originalUrl)}`;
-};
-
-// Find the vertical baseline of the first line of text by scanning for dark pixels
-const findTextBaseline = (
-  ctx: CanvasRenderingContext2D,
-  canvasWidth: number
-): number => {
-  const defaultBaseline = 105;
-  const scanStartX = 260;
-  const scanEndX = Math.min(canvasWidth, 500);
-  const scanStartY = 20;
-  const scanEndY = 150;
-  const darkThreshold = 200;
-
-  try {
-    for (let y = scanStartY; y < scanEndY; y++) {
-      const imageData = ctx.getImageData(scanStartX, y, scanEndX - scanStartX, 1);
-      let darkPixelCount = 0;
-
-      for (let i = 0; i < imageData.data.length; i += 4) {
-        const r = imageData.data[i];
-        const g = imageData.data[i + 1];
-        const b = imageData.data[i + 2];
-
-        if (r < darkThreshold && g < darkThreshold && b < darkThreshold) {
-          darkPixelCount++;
-        }
-      }
-
-      if (darkPixelCount > 3) {
-        return y + 38;
-      }
-    }
-  } catch (e) {
-    console.warn("Text detection failed, using default position");
-  }
-
-  return defaultBaseline;
-};
-
-// Process image: draw white rectangle and new number
-const processQuestionImage = async (
-  imageUrl: string,
-  newNumber: number
-): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext("2d");
-
-      if (!ctx) {
-        reject(new Error("Could not get canvas context"));
-        return;
-      }
-
-      ctx.drawImage(img, 0, 0);
-      const textBaseline = findTextBaseline(ctx, img.width);
-
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, 255, 155);
-
-      ctx.fillStyle = "#000000";
-      ctx.font = "bold 48px 'Times New Roman', Times, serif";
-      ctx.textAlign = "right";
-      ctx.textBaseline = "bottom";
-      ctx.fillText(`${newNumber}`, 228, textBaseline);
-
-      resolve(canvas.toDataURL("image/jpeg", 0.95));
-    };
-
-    img.onerror = () => {
-      console.error("Failed to load image:", imageUrl);
-      reject(new Error("Failed to load image"));
-    };
-
-    img.src = getProxiedImageUrl(imageUrl);
-  });
-};
+import { processQuestionImage } from "@/utils/imageProcessing";
 
 interface ProcessedQuestion {
   original: Question;
