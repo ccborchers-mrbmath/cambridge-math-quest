@@ -562,9 +562,12 @@ const TestMaker = () => {
                         <span className="text-lg font-bold text-primary w-8">
                           {index + 1}
                         </span>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">
                             {question.year} {question.sitting} Paper {question.paperNumber} Q{question.questionNumber}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {question.subtopics}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {question.topic} • {question.marks} marks
