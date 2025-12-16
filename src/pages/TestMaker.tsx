@@ -4,7 +4,7 @@ import { questionsDatabase, Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, FileText, Clock, Award, Loader2, Download } from "lucide-react";
+import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical } from "lucide-react";
 import { processQuestionImage } from "@/utils/imageProcessing";
 import jsPDF from "jspdf";
 
@@ -14,10 +14,14 @@ interface ProcessedQuestion {
   processedImageUrl: string | null;
 }
 
+function getQuestionId(q: Question) {
+  return `${q.year}-${q.sitting}-${q.paperNumber}-${q.questionNumber}`;
+}
+
 const TestMaker = () => {
   const navigate = useNavigate();
   const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
-  const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]); // Changed to array for ordering
   const [isCompiled, setIsCompiled] = useState(false);
   const [processedQuestions, setProcessedQuestions] = useState<ProcessedQuestion[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -34,11 +38,16 @@ const TestMaker = () => {
     [selectedTopics]
   );
 
-  // Get selected question objects
+  // Get selected question objects in order
   const compiledQuestions = useMemo(() => 
-    questionsDatabase.filter(q => selectedQuestions.has(getQuestionId(q))),
-    [selectedQuestions]
+    selectedQuestionIds
+      .map(id => questionsDatabase.find(q => getQuestionId(q) === id))
+      .filter((q): q is Question => q !== undefined),
+    [selectedQuestionIds]
   );
+
+  // Helper to check if question is selected
+  const isQuestionSelected = (questionId: string) => selectedQuestionIds.includes(questionId);
 
   // Calculate test stats
   const testStats = useMemo(() => {
@@ -61,20 +70,15 @@ const TestMaker = () => {
     return { totalMarks, timeString, gradeThresholds };
   }, [compiledQuestions]);
 
-  function getQuestionId(q: Question) {
-    return `${q.year}-${q.sitting}-${q.paperNumber}-${q.questionNumber}`;
-  }
-
   const toggleTopic = (topic: string) => {
     const newTopics = new Set(selectedTopics);
     if (newTopics.has(topic)) {
       newTopics.delete(topic);
       // Remove questions from deselected topic
-      const newQuestions = new Set(selectedQuestions);
-      questionsDatabase
+      const idsToRemove = questionsDatabase
         .filter(q => q.topic === topic)
-        .forEach(q => newQuestions.delete(getQuestionId(q)));
-      setSelectedQuestions(newQuestions);
+        .map(q => getQuestionId(q));
+      setSelectedQuestionIds(prev => prev.filter(id => !idsToRemove.includes(id)));
     } else {
       newTopics.add(topic);
     }
@@ -82,29 +86,45 @@ const TestMaker = () => {
   };
 
   const toggleQuestion = (questionId: string) => {
-    const newQuestions = new Set(selectedQuestions);
-    if (newQuestions.has(questionId)) {
-      newQuestions.delete(questionId);
-    } else {
-      newQuestions.add(questionId);
-    }
-    setSelectedQuestions(newQuestions);
+    setSelectedQuestionIds(prev => {
+      if (prev.includes(questionId)) {
+        return prev.filter(id => id !== questionId);
+      } else {
+        return [...prev, questionId];
+      }
+    });
   };
 
   const selectAllInTopic = (topic: string) => {
-    const newQuestions = new Set(selectedQuestions);
-    questionsDatabase
+    const topicIds = questionsDatabase
       .filter(q => q.topic === topic)
-      .forEach(q => newQuestions.add(getQuestionId(q)));
-    setSelectedQuestions(newQuestions);
+      .map(q => getQuestionId(q));
+    setSelectedQuestionIds(prev => {
+      const newIds = [...prev];
+      topicIds.forEach(id => {
+        if (!newIds.includes(id)) newIds.push(id);
+      });
+      return newIds;
+    });
   };
 
   const deselectAllInTopic = (topic: string) => {
-    const newQuestions = new Set(selectedQuestions);
-    questionsDatabase
+    const topicIds = questionsDatabase
       .filter(q => q.topic === topic)
-      .forEach(q => newQuestions.delete(getQuestionId(q)));
-    setSelectedQuestions(newQuestions);
+      .map(q => getQuestionId(q));
+    setSelectedQuestionIds(prev => prev.filter(id => !topicIds.includes(id)));
+  };
+
+  // Reorder functions
+  const moveQuestion = (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= selectedQuestionIds.length) return;
+    
+    setSelectedQuestionIds(prev => {
+      const newArr = [...prev];
+      [newArr[index], newArr[newIndex]] = [newArr[newIndex], newArr[index]];
+      return newArr;
+    });
   };
 
   // Process images and compile test
@@ -370,7 +390,7 @@ const TestMaker = () => {
             </div>
             <Button 
               onClick={handleCompileTest}
-              disabled={selectedQuestions.size === 0 || isProcessing}
+              disabled={selectedQuestionIds.length === 0 || isProcessing}
             >
               {isProcessing ? (
                 <>
@@ -380,7 +400,7 @@ const TestMaker = () => {
               ) : (
                 <>
                   <FileText className="h-4 w-4 mr-2" />
-                  Compile Test ({selectedQuestions.size} questions)
+                  Compile Test ({selectedQuestionIds.length} questions)
                 </>
               )}
             </Button>
@@ -431,7 +451,7 @@ const TestMaker = () => {
                 <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
                   {Array.from(selectedTopics).sort().map(topic => {
                     const topicQuestions = filteredQuestions.filter(q => q.topic === topic);
-                    const selectedInTopic = topicQuestions.filter(q => selectedQuestions.has(getQuestionId(q))).length;
+                    const selectedInTopic = topicQuestions.filter(q => isQuestionSelected(getQuestionId(q))).length;
                     
                     return (
                       <div key={topic} className="space-y-2">
@@ -464,14 +484,14 @@ const TestMaker = () => {
                               <div 
                                 key={qId}
                                 className={`flex items-start space-x-2 p-3 rounded-lg border transition-colors cursor-pointer ${
-                                  selectedQuestions.has(qId) 
+                                  isQuestionSelected(qId) 
                                     ? 'bg-primary/10 border-primary/30' 
                                     : 'bg-card hover:bg-secondary/50'
                                 }`}
                                 onClick={() => toggleQuestion(qId)}
                               >
                                 <Checkbox 
-                                  checked={selectedQuestions.has(qId)}
+                                  checked={isQuestionSelected(qId)}
                                   onCheckedChange={() => toggleQuestion(qId)}
                                 />
                                 <div className="flex-1 min-w-0">
@@ -496,6 +516,66 @@ const TestMaker = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Question Order */}
+          {selectedQuestionIds.length > 0 && (
+            <Card className="lg:col-span-3">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <GripVertical className="h-4 w-4" />
+                  3. Set Question Order
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Arrange questions in the order they should appear in your test
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {compiledQuestions.map((question, index) => {
+                    const qId = getQuestionId(question);
+                    return (
+                      <div 
+                        key={qId}
+                        className="flex items-center gap-3 p-3 rounded-lg border bg-card"
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => moveQuestion(index, 'up')}
+                            disabled={index === 0}
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => moveQuestion(index, 'down')}
+                            disabled={index === compiledQuestions.length - 1}
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <span className="text-lg font-bold text-primary w-8">
+                          {index + 1}
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">
+                            {question.year} {question.sitting} Paper {question.paperNumber} Q{question.questionNumber}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {question.topic} • {question.marks} marks
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>
