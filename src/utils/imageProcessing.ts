@@ -96,3 +96,39 @@ export const processQuestionImage = async (
     img.src = getProxiedImageUrl(imageUrl);
   });
 };
+
+// Process markscheme image (just fetch via proxy, no modifications)
+export const processMarkschemeImage = async (
+  markschemeUrl: string
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
+
+      // Draw original image without modifications
+      ctx.drawImage(img, 0, 0);
+
+      // Convert to data URL
+      resolve(canvas.toDataURL("image/jpeg", 0.95));
+    };
+
+    img.onerror = () => {
+      console.error("Failed to load markscheme:", markschemeUrl);
+      reject(new Error("Failed to load markscheme"));
+    };
+
+    // Use proxied URL to bypass CORS
+    img.src = getProxiedImageUrl(markschemeUrl);
+  });
+};
