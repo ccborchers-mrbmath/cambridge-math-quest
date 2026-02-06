@@ -4,14 +4,18 @@ import { questionsDatabase, Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical } from "lucide-react";
-import { processQuestionImage } from "@/utils/imageProcessing";
+import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical, BookOpen, Eye, EyeOff } from "lucide-react";
+import { processQuestionImage, processMarkschemeImage } from "@/utils/imageProcessing";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import jsPDF from "jspdf";
 
 interface ProcessedQuestion {
   original: Question;
   newNumber: number;
   processedImageUrl: string | null;
+  processedMarkschemeUrl: string | null;
 }
 
 function getQuestionId(q: Question) {
@@ -21,10 +25,12 @@ function getQuestionId(q: Question) {
 const TestMaker = () => {
   const navigate = useNavigate();
   const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
-  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]); // Changed to array for ordering
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [isCompiled, setIsCompiled] = useState(false);
   const [processedQuestions, setProcessedQuestions] = useState<ProcessedQuestion[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [includeMarkschemes, setIncludeMarkschemes] = useState(true);
+  const [showMarkschemes, setShowMarkschemes] = useState(false);
 
   // Get unique topics
   const allTopics = useMemo(() => 
@@ -135,11 +141,15 @@ const TestMaker = () => {
       compiledQuestions.map(async (q, index) => {
         const newNumber = index + 1;
         try {
-          const processedImageUrl = await processQuestionImage(q.questionUrl, newNumber);
+          const [processedImageUrl, processedMarkschemeUrl] = await Promise.all([
+            processQuestionImage(q.questionUrl, newNumber),
+            includeMarkschemes ? processMarkschemeImage(q.markschemeUrl) : Promise.resolve(null)
+          ]);
           return {
             original: q,
             newNumber,
             processedImageUrl,
+            processedMarkschemeUrl,
           };
         } catch (error) {
           console.error("Error processing image:", error);
@@ -147,6 +157,7 @@ const TestMaker = () => {
             original: q,
             newNumber,
             processedImageUrl: null,
+            processedMarkschemeUrl: null,
           };
         }
       })
@@ -205,6 +216,8 @@ const TestMaker = () => {
     pdf.setFontSize(10);
     pdf.text('Good luck!', pageWidth / 2, pageHeight - 30, { align: 'center' });
 
+    let currentPageNum = 2;
+
     // Add questions - one per two pages (question page + blank working page)
     for (let i = 0; i < processedQuestions.length; i++) {
       const pq = processedQuestions[i];
@@ -259,7 +272,8 @@ const TestMaker = () => {
       // Page number
       pdf.setTextColor(150, 150, 150);
       pdf.setFontSize(10);
-      pdf.text(`Page ${(i * 2) + 2}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      pdf.text(`Page ${currentPageNum}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      currentPageNum++;
 
       // Blank working page
       pdf.addPage();
@@ -274,7 +288,89 @@ const TestMaker = () => {
       // Page number
       pdf.setTextColor(150, 150, 150);
       pdf.setFontSize(10);
-      pdf.text(`Page ${(i * 2) + 3}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      pdf.text(`Page ${currentPageNum}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      currentPageNum++;
+    }
+
+    // Add markschemes section if included
+    const hasMarkschemes = processedQuestions.some(pq => pq.processedMarkschemeUrl);
+    if (includeMarkschemes && hasMarkschemes) {
+      // Markscheme cover page
+      pdf.addPage();
+      pdf.setFillColor(30, 41, 59);
+      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+      
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(32);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Mark Schemes', pageWidth / 2, pageHeight / 2 - 20, { align: 'center' });
+      
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`${processedQuestions.length} Questions`, pageWidth / 2, pageHeight / 2 + 10, { align: 'center' });
+      
+      pdf.setFontSize(10);
+      pdf.text(`Page ${currentPageNum}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      currentPageNum++;
+
+      // Add each markscheme
+      for (let i = 0; i < processedQuestions.length; i++) {
+        const pq = processedQuestions[i];
+        
+        pdf.addPage();
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+        
+        // Markscheme header
+        pdf.setTextColor(30, 41, 59);
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`Mark Scheme - Question ${pq.newNumber}`, margin, margin);
+        
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(`${pq.original.marks} marks | ${pq.original.topic}`, margin, margin + 6);
+        
+        // Add markscheme image if available
+        if (pq.processedMarkschemeUrl) {
+          try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            await new Promise<void>((resolve, reject) => {
+              img.onload = () => resolve();
+              img.onerror = reject;
+              img.src = pq.processedMarkschemeUrl!;
+            });
+
+            const imgAspectRatio = img.width / img.height;
+            let imgWidth = contentWidth;
+            let imgHeight = imgWidth / imgAspectRatio;
+            
+            const maxHeight = pageHeight - margin - 35;
+            if (imgHeight > maxHeight) {
+              imgHeight = maxHeight;
+              imgWidth = imgHeight * imgAspectRatio;
+            }
+
+            pdf.addImage(img, 'PNG', margin, margin + 15, imgWidth, imgHeight);
+          } catch (error) {
+            console.error('Error adding markscheme to PDF:', error);
+            pdf.setTextColor(200, 0, 0);
+            pdf.text('Error loading markscheme image', margin, margin + 30);
+          }
+        } else {
+          pdf.setTextColor(150, 150, 150);
+          pdf.text('Markscheme not available', margin, margin + 30);
+        }
+
+        // Page number
+        pdf.setTextColor(150, 150, 150);
+        pdf.setFontSize(10);
+        pdf.text(`Page ${currentPageNum}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        currentPageNum++;
+      }
     }
 
     // Download the PDF
@@ -283,24 +379,41 @@ const TestMaker = () => {
   };
 
   if (isCompiled) {
+    const hasMarkschemes = processedQuestions.some(pq => pq.processedMarkschemeUrl);
+    
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
         <header className="border-b border-border bg-card/80 backdrop-blur-sm">
           <div className="container mx-auto px-4 py-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-3">
                 <Button variant="ghost" onClick={() => setIsCompiled(false)}>
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back to Selection
                 </Button>
               </div>
-              <Button variant="outline" onClick={() => navigate("/")}>
-                Return Home
-              </Button>
-              <Button onClick={handleDownloadPDF}>
-                <Download className="h-4 w-4 mr-2" />
-                Download PDF
-              </Button>
+              <div className="flex items-center gap-4">
+                {hasMarkschemes && (
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="show-markschemes"
+                      checked={showMarkschemes}
+                      onCheckedChange={setShowMarkschemes}
+                    />
+                    <Label htmlFor="show-markschemes" className="text-sm flex items-center gap-1">
+                      {showMarkschemes ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                      Markschemes
+                    </Label>
+                  </div>
+                )}
+                <Button variant="outline" onClick={() => navigate("/")}>
+                  Return Home
+                </Button>
+                <Button onClick={handleDownloadPDF}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download PDF
+                </Button>
+              </div>
             </div>
           </div>
         </header>
@@ -309,7 +422,7 @@ const TestMaker = () => {
           {/* Test Info Card */}
           <Card className="mb-8 bg-primary/5 border-primary/20">
             <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
                 <div className="flex flex-col items-center gap-2">
                   <FileText className="h-8 w-8 text-primary" />
                   <div>
@@ -333,11 +446,18 @@ const TestMaker = () => {
                     </p>
                   </div>
                 </div>
+                <div className="flex flex-col items-center gap-2">
+                  <BookOpen className="h-8 w-8 text-primary" />
+                  <div>
+                    <p className="text-2xl font-bold">{hasMarkschemes ? '✓' : '—'}</p>
+                    <p className="text-sm text-muted-foreground">Markschemes</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Questions */}
+          {/* Questions with optional Markschemes */}
           <div className="space-y-6">
             {processedQuestions.map((pq) => (
               <Card key={getQuestionId(pq.original)}>
@@ -353,16 +473,51 @@ const TestMaker = () => {
                   </p>
                 </CardHeader>
                 <CardContent>
-                  {pq.processedImageUrl ? (
-                    <img 
-                      src={pq.processedImageUrl} 
-                      alt={`Question ${pq.newNumber}`}
-                      className="w-full max-w-3xl rounded-lg border"
-                    />
+                  {showMarkschemes && hasMarkschemes ? (
+                    <Tabs defaultValue="question" className="w-full">
+                      <TabsList className="mb-4">
+                        <TabsTrigger value="question">Question</TabsTrigger>
+                        <TabsTrigger value="markscheme">Mark Scheme</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="question">
+                        {pq.processedImageUrl ? (
+                          <img 
+                            src={pq.processedImageUrl} 
+                            alt={`Question ${pq.newNumber}`}
+                            className="w-full max-w-3xl rounded-lg border"
+                          />
+                        ) : (
+                          <div className="text-center py-8 text-muted-foreground">
+                            Failed to load question image
+                          </div>
+                        )}
+                      </TabsContent>
+                      <TabsContent value="markscheme">
+                        {pq.processedMarkschemeUrl ? (
+                          <img 
+                            src={pq.processedMarkschemeUrl} 
+                            alt={`Mark scheme for Question ${pq.newNumber}`}
+                            className="w-full max-w-3xl rounded-lg border"
+                          />
+                        ) : (
+                          <div className="text-center py-8 text-muted-foreground">
+                            Markscheme not available
+                          </div>
+                        )}
+                      </TabsContent>
+                    </Tabs>
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      Failed to load question image
-                    </div>
+                    pq.processedImageUrl ? (
+                      <img 
+                        src={pq.processedImageUrl} 
+                        alt={`Question ${pq.newNumber}`}
+                        className="w-full max-w-3xl rounded-lg border"
+                      />
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Failed to load question image
+                      </div>
+                    )
                   )}
                 </CardContent>
               </Card>
@@ -434,6 +589,24 @@ const TestMaker = () => {
                   </span>
                 </div>
               ))}
+              
+              {/* Markscheme option */}
+              <div className="pt-4 mt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="include-markschemes" className="text-sm font-medium flex items-center gap-2">
+                    <BookOpen className="h-4 w-4" />
+                    Include Markschemes
+                  </Label>
+                  <Switch
+                    id="include-markschemes"
+                    checked={includeMarkschemes}
+                    onCheckedChange={setIncludeMarkschemes}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Add markschemes to compiled test & PDF
+                </p>
+              </div>
             </CardContent>
           </Card>
 
