@@ -339,11 +339,16 @@ const TestMaker = () => {
             });
 
             const imgAspectRatio = img.width / img.height;
-            // Stretch full page width (edge to edge), no side margins
-            const imgWidth = pageWidth;
-            const imgHeight = imgWidth / imgAspectRatio;
+            let imgWidth = contentWidth;
+            let imgHeight = imgWidth / imgAspectRatio;
 
-            pdf.addImage(img, 'PNG', 0, margin + 15, imgWidth, imgHeight);
+            const maxHeight = pageHeight - margin - 35;
+            if (imgHeight > maxHeight) {
+              imgHeight = maxHeight;
+              imgWidth = imgHeight * imgAspectRatio;
+            }
+
+            pdf.addImage(img, 'PNG', margin, margin + 15, imgWidth, imgHeight);
           } catch (error) {
             console.error('Error adding markscheme to PDF:', error);
             pdf.setTextColor(200, 0, 0);
