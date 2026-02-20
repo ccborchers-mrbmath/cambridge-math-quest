@@ -181,40 +181,73 @@ const TestMaker = () => {
     const margin = 20;
     const contentWidth = pageWidth - (margin * 2);
 
-    // Cover Page
-    pdf.setFillColor(30, 41, 59); // slate-800
+    // Cover Page - white background
+    pdf.setFillColor(255, 255, 255);
     pdf.rect(0, 0, pageWidth, pageHeight, 'F');
-    
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(32);
+
+    // Top accent bar
+    pdf.setFillColor(30, 41, 59);
+    pdf.rect(0, 0, pageWidth, 8, 'F');
+
+    // Title
+    pdf.setTextColor(15, 23, 42);
+    pdf.setFontSize(34);
     pdf.setFont('helvetica', 'bold');
-    pdf.text('Custom Practice Test', pageWidth / 2, 80, { align: 'center' });
+    pdf.text('Custom Practice Test', pageWidth / 2, 60, { align: 'center' });
 
-    pdf.setFontSize(16);
+    // Divider line
+    pdf.setDrawColor(200, 200, 200);
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, 70, pageWidth - margin, 70);
+
+    // Test stats
+    pdf.setFontSize(13);
     pdf.setFont('helvetica', 'normal');
-    pdf.text(`${processedQuestions.length} Questions`, pageWidth / 2, 100, { align: 'center' });
-    pdf.text(`${testStats.totalMarks} Marks`, pageWidth / 2, 110, { align: 'center' });
-    pdf.text(`Time: ${testStats.timeString}`, pageWidth / 2, 120, { align: 'center' });
+    pdf.setTextColor(71, 85, 105);
+    pdf.text(`${processedQuestions.length} Questions  ·  ${testStats.totalMarks} Marks  ·  Time: ${testStats.timeString}`, pageWidth / 2, 82, { align: 'center' });
 
-    // Grade thresholds
-    pdf.setFontSize(14);
-    pdf.text('Grade Thresholds', pageWidth / 2, 150, { align: 'center' });
-    pdf.setFontSize(12);
-    const thresholds = `A: ${testStats.gradeThresholds.A} | B: ${testStats.gradeThresholds.B} | C: ${testStats.gradeThresholds.C} | D: ${testStats.gradeThresholds.D} | E: ${testStats.gradeThresholds.E}`;
-    pdf.text(thresholds, pageWidth / 2, 162, { align: 'center' });
+    // Grade thresholds box
+    pdf.setFillColor(241, 245, 249);
+    pdf.roundedRect(margin, 95, contentWidth, 22, 3, 3, 'F');
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(30, 41, 59);
+    pdf.text('Grade Thresholds', margin + 8, 105);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(71, 85, 105);
+    const thresholds = `A: ${testStats.gradeThresholds.A}   B: ${testStats.gradeThresholds.B}   C: ${testStats.gradeThresholds.C}   D: ${testStats.gradeThresholds.D}   E: ${testStats.gradeThresholds.E}`;
+    pdf.text(thresholds, pageWidth - margin - 8, 105, { align: 'right' });
 
-    // Topics included
+    // Topics Covered section
     const topics = Array.from(new Set(processedQuestions.map(pq => pq.original.topic)));
-    pdf.setFontSize(14);
-    pdf.text('Topics Covered', pageWidth / 2, 190, { align: 'center' });
-    pdf.setFontSize(10);
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(15, 23, 42);
+    pdf.text('Topics Covered', margin, 138);
+
+    // Underline for Topics heading
+    pdf.setDrawColor(30, 41, 59);
+    pdf.setLineWidth(1);
+    pdf.line(margin, 142, margin + 62, 142);
+
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(30, 41, 59);
     topics.forEach((topic, i) => {
-      pdf.text(`• ${topic}`, pageWidth / 2, 202 + (i * 8), { align: 'center' });
+      const yPos = 154 + (i * 10);
+      // bullet dot
+      pdf.setFillColor(30, 41, 59);
+      pdf.circle(margin + 2, yPos - 2, 1.2, 'F');
+      pdf.text(`${topic}`, margin + 8, yPos);
     });
 
-    // Footer text
+    // Bottom accent bar + footer
+    pdf.setFillColor(30, 41, 59);
+    pdf.rect(0, pageHeight - 18, pageWidth, 18, 'F');
+    pdf.setTextColor(255, 255, 255);
     pdf.setFontSize(10);
-    pdf.text('Good luck!', pageWidth / 2, pageHeight - 30, { align: 'center' });
+    pdf.setFont('helvetica', 'italic');
+    pdf.text('Good luck!', pageWidth / 2, pageHeight - 7, { align: 'center' });
 
     let currentPageNum = 2;
 
