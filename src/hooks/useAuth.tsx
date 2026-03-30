@@ -56,7 +56,7 @@ export const useAuth = () => {
       if (error) throw error;
       setUserRole(data.role);
     } catch (error) {
-      console.error('Error fetching user role:', error);
+      console.error('Error fetching user role');
       setUserRole('student'); // Default to student
     } finally {
       setLoading(false);
