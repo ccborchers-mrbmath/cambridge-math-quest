@@ -186,8 +186,8 @@ export const processQuestionImage = async (
         // Place new number aligned to the same position as original
         // Right-align to where the original number's right edge was
         numberX = bbox.x + bbox.width + 4;
-        // Baseline = bottom of the original number
-        numberBaseline = bbox.y + bbox.height + 2;
+        // Baseline = bottom of the original number (+ offset to align with text)
+        numberBaseline = bbox.y + bbox.height + 10;
         fontSize = 48;
       } else {
         // Fallback: use original fixed approach
