@@ -188,10 +188,7 @@ export const processQuestionImage = async (
         numberX = bbox.x + bbox.width + 4;
         // Baseline = bottom of the original number
         numberBaseline = bbox.y + bbox.height + 2;
-        // Match font size to detected height (scale factor ~1.1 for descender allowance)
-        fontSize = Math.round(bbox.height * 1.1);
-        // Clamp font size to reasonable range
-        fontSize = Math.max(28, Math.min(fontSize, 64));
+        fontSize = 48;
       } else {
         // Fallback: use original fixed approach
         eraseWidth = 255;
