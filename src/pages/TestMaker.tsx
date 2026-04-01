@@ -168,6 +168,20 @@ const TestMaker = () => {
     setIsCompiled(true);
   };
 
+  // Download all renumbered question images individually
+  const handleDownloadImages = () => {
+    processedQuestions.forEach((pq) => {
+      if (pq.processedImageUrl) {
+        const link = document.createElement("a");
+        link.href = pq.processedImageUrl;
+        link.download = `Q${pq.newNumber}_${pq.original.topic.replace(/\s+/g, "_")}_${pq.original.year}_${pq.original.sitting}_P${pq.original.paperNumber}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    });
+  };
+
   // Generate and download PDF
   const handleDownloadPDF = async () => {
     const pdf = new jsPDF({
