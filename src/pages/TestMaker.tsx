@@ -4,7 +4,7 @@ import { questionsDatabase, Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical, BookOpen, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical, BookOpen, Eye, EyeOff, ImageDown } from "lucide-react";
 import { processQuestionImage, processMarkschemeImage } from "@/utils/imageProcessing";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -166,6 +166,20 @@ const TestMaker = () => {
     setProcessedQuestions(processed);
     setIsProcessing(false);
     setIsCompiled(true);
+  };
+
+  // Download all renumbered question images individually
+  const handleDownloadImages = () => {
+    processedQuestions.forEach((pq) => {
+      if (pq.processedImageUrl) {
+        const link = document.createElement("a");
+        link.href = pq.processedImageUrl;
+        link.download = `Q${pq.newNumber}_${pq.original.topic.replace(/\s+/g, "_")}_${pq.original.year}_${pq.original.sitting}_P${pq.original.paperNumber}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    });
   };
 
   // Generate and download PDF
@@ -435,6 +449,10 @@ const TestMaker = () => {
                 )}
                 <Button variant="outline" onClick={() => navigate("/")}>
                   Return Home
+                </Button>
+                <Button variant="outline" onClick={handleDownloadImages}>
+                  <ImageDown className="h-4 w-4 mr-2" />
+                  Download Images
                 </Button>
                 <Button onClick={handleDownloadPDF}>
                   <Download className="h-4 w-4 mr-2" />
