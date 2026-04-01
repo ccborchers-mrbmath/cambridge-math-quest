@@ -450,6 +450,10 @@ const TestMaker = () => {
                 <Button variant="outline" onClick={() => navigate("/")}>
                   Return Home
                 </Button>
+                <Button variant="outline" onClick={handleDownloadImages}>
+                  <ImageDown className="h-4 w-4 mr-2" />
+                  Download Images
+                </Button>
                 <Button onClick={handleDownloadPDF}>
                   <Download className="h-4 w-4 mr-2" />
                   Download PDF
