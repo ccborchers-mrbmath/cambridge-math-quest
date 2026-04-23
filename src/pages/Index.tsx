@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { SearchBar } from "@/components/SearchBar";
 import { QuestionDisplay } from "@/components/QuestionDisplay";
 import { TopicTest } from "@/components/TopicTest";
@@ -17,6 +17,7 @@ import {
 
 const Index = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, userRole, loading, signOut } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
@@ -95,6 +96,34 @@ const Index = () => {
 
   // Helper to get a unique question ID
   const getQuestionId = (q: Question) => `${q.year}-${q.sitting}-${q.paperNumber}-${q.questionNumber}`;
+
+  useEffect(() => {
+    const year = searchParams.get("year");
+    const sitting = searchParams.get("sitting");
+    const paper = searchParams.get("paper");
+    const questionNumber = searchParams.get("question");
+
+    if (!year || !sitting || !paper || !questionNumber) return;
+
+    const question = questionsDatabase.find(q =>
+      q.year.toString() === year &&
+      q.sitting === sitting &&
+      q.paperNumber.toString() === paper &&
+      q.questionNumber.toString() === questionNumber
+    );
+
+    if (!question) return;
+
+    setTestTopic("");
+    setSelectedYear(year);
+    setSelectedSitting(sitting);
+    setSelectedPaper(paper);
+    setSelectedQuestionNum(questionNumber);
+    setSelectedQuestion(question);
+    setCurrentTopic(question.topic.toLowerCase());
+    setViewedQuestionIds(prev => new Set(prev).add(getQuestionId(question)));
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // Calculate similarity score between search terms and text
   const calculateSimilarity = (searchTerms: string[], text: string): number => {
