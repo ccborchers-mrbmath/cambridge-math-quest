@@ -295,18 +295,19 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
               </Button>
             </div>
 
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+
             {!uploadedImage ? (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   Take a photo of your work or upload an image from your device for AI marking.
                 </p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     onClick={triggerFileInput}
