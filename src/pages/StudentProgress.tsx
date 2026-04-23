@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BookOpen, TrendingUp, Target, CheckCircle } from 'lucide-react';
+import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash } from 'lucide-react';
 
 interface StudentAttempt {
   id: string;
@@ -21,11 +21,14 @@ interface StudentAttempt {
   created_at: string;
 }
 
+type SortMode = 'recent' | 'reference' | 'topic' | 'score';
+
 const StudentProgress = () => {
   const navigate = useNavigate();
   const { user, loading, signOut } = useAuth();
   const [attempts, setAttempts] = useState<StudentAttempt[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [sortMode, setSortMode] = useState<SortMode>('recent');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -78,6 +81,27 @@ const StudentProgress = () => {
     ? attemptsWithScores.reduce((sum, a) => sum + (a.percentage_attained || 0), 0) / attemptsWithScores.length
     : 0;
   const topicsAttempted = new Set(attempts.map(a => a.topic).filter(Boolean)).size;
+
+  const sortedAttempts = [...attempts].sort((a, b) => {
+    if (sortMode === 'reference') {
+      return (
+        a.year - b.year ||
+        a.sitting.localeCompare(b.sitting) ||
+        a.paper_number - b.paper_number ||
+        a.question_number - b.question_number
+      );
+    }
+
+    if (sortMode === 'topic') {
+      return (a.topic || 'zzz').localeCompare(b.topic || 'zzz') || (a.subtopic || '').localeCompare(b.subtopic || '');
+    }
+
+    if (sortMode === 'score') {
+      return (b.percentage_attained ?? -1) - (a.percentage_attained ?? -1);
+    }
+
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
@@ -140,8 +164,28 @@ const StudentProgress = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Your Attempt History</CardTitle>
-            <CardDescription>Review your past attempts and identify areas for improvement</CardDescription>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <CardTitle>Your Attempt History</CardTitle>
+                <CardDescription>Review your past attempts and identify areas for improvement</CardDescription>
+              </div>
+              {attempts.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <Button variant={sortMode === 'recent' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('recent')}>
+                    Recent
+                  </Button>
+                  <Button variant={sortMode === 'reference' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('reference')}>
+                    <Hash className="h-4 w-4" /> Reference
+                  </Button>
+                  <Button variant={sortMode === 'topic' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('topic')}>
+                    <ArrowDownAZ className="h-4 w-4" /> Topic
+                  </Button>
+                  <Button variant={sortMode === 'score' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('score')}>
+                    <Trophy className="h-4 w-4" /> Best score
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {attempts.length === 0 ? (
@@ -161,7 +205,7 @@ const StudentProgress = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {attempts.map((attempt) => (
+                  {sortedAttempts.map((attempt) => (
                     <TableRow key={attempt.id}>
                       <TableCell className="font-medium">
                         {attempt.year} {attempt.sitting} P{attempt.paper_number} Q{attempt.question_number}
