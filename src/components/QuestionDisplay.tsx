@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save } from "lucide-react";
+import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
@@ -24,6 +24,8 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [percentageAttained, setPercentageAttained] = useState<string>("");
   const [natureOfErrors, setNatureOfErrors] = useState<string>("");
+  const [aiFeedback, setAiFeedback] = useState<string>("");
+  const [isMarkingWork, setIsMarkingWork] = useState(false);
   const [isSavingAttempt, setIsSavingAttempt] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -81,6 +83,45 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
     fileInputRef.current?.click();
   };
 
+  const handleAIMarking = async () => {
+    if (!uploadedImage) {
+      toast.error("Please upload an image of your work first");
+      return;
+    }
+
+    setIsMarkingWork(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('mark-work', {
+        body: {
+          questionUrl: question.questionUrl,
+          markschemeUrl: question.markschemeUrl,
+          workImage: uploadedImage,
+          questionMeta: {
+            year: question.year,
+            sitting: question.sitting,
+            paperNumber: question.paperNumber,
+            questionNumber: question.questionNumber,
+            topic: question.topic,
+            subtopics: question.subtopics,
+            marks: question.marks,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      setPercentageAttained(String(data.percentageAttained ?? ""));
+      setNatureOfErrors(data.natureOfErrors ?? "");
+      setAiFeedback(data.feedback ?? "");
+      toast.success("AI marking complete");
+    } catch (error) {
+      console.error('Error marking work:', error);
+      toast.error("Failed to mark work. Please try again.");
+    } finally {
+      setIsMarkingWork(false);
+    }
+  };
+
   const saveAttempt = async () => {
     if (!user) {
       toast.error("Please sign in to save your attempt");
@@ -117,6 +158,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       setUploadedImage(null);
       setPercentageAttained("");
       setNatureOfErrors("");
+      setAiFeedback("");
     } catch (error) {
       console.error('Error saving attempt:', error);
       toast.error("Failed to save attempt. Please try again.");
@@ -319,21 +361,41 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                       rows={3}
                     />
                   </div>
+
+                  {aiFeedback && (
+                    <Card className="p-4 bg-secondary/50 border-border">
+                      <Label>AI feedback</Label>
+                      <LatexRenderer content={aiFeedback} className="mt-2 text-sm text-foreground/80 leading-relaxed" />
+                    </Card>
+                  )}
                 </div>
 
-                <div className="flex gap-3">
+                <div className="grid gap-3 sm:grid-cols-3">
                   <Button
                     onClick={triggerFileInput}
                     variant="outline"
-                    className="gap-2 flex-1"
+                    className="gap-2"
                   >
                     <Upload className="h-5 w-5" />
                     Change image
                   </Button>
                   <Button
+                    onClick={handleAIMarking}
+                    disabled={isMarkingWork}
+                    variant="outline"
+                    className="gap-2 border-primary/30 hover:bg-primary/5"
+                  >
+                    {isMarkingWork ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-5 w-5" />
+                    )}
+                    {isMarkingWork ? "Marking..." : "AI mark"}
+                  </Button>
+                  <Button
                     onClick={saveAttempt}
-                    disabled={isSavingAttempt}
-                    className="gap-2 flex-1 bg-primary hover:bg-primary/90"
+                    disabled={isSavingAttempt || isMarkingWork}
+                    className="gap-2 bg-primary hover:bg-primary/90"
                   >
                     {isSavingAttempt ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
