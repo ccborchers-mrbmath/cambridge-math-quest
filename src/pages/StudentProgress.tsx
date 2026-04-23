@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash } from 'lucide-react';
+import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw } from 'lucide-react';
 
 interface StudentAttempt {
   id: string;
@@ -62,6 +62,17 @@ const StudentProgress = () => {
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
+  };
+
+  const handleReattempt = (attempt: StudentAttempt) => {
+    const params = new URLSearchParams({
+      year: attempt.year.toString(),
+      sitting: attempt.sitting,
+      paper: attempt.paper_number.toString(),
+      question: attempt.question_number.toString(),
+    });
+
+    navigate(`/?${params.toString()}`);
   };
 
   if (loading || loadingData) {
@@ -202,6 +213,7 @@ const StudentProgress = () => {
                     <TableHead>Score</TableHead>
                     <TableHead>Areas to Improve</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -226,6 +238,11 @@ const StudentProgress = () => {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(attempt.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="outline" size="sm" onClick={() => handleReattempt(attempt)}>
+                          <RotateCcw className="h-4 w-4" /> Reattempt
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
