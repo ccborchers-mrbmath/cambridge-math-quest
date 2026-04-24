@@ -152,6 +152,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           percentage_attained: percentageAttained ? parseFloat(percentageAttained) : null,
           nature_of_errors: natureOfErrors || null,
           image_url: uploadedImage,
+          ai_feedback: aiFeedback || null,
         });
 
       if (error) throw error;
