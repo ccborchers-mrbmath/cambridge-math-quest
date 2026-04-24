@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, PenTool } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Mode = "draw" | "erase";
+type Mode = "draw" | "calligraphy" | "erase";
 interface Point { x: number; y: number; }
 interface Stroke {
   mode: Mode;
@@ -70,6 +70,8 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       ctx.stroke();
     }
     ctx.restore();
+    // Nib angle for calligraphy strokes (typical italic nib ~ -45°)
+    const NIB_ANGLE = -Math.PI / 4;
     const all = currentStroke ? [...strokes, currentStroke] : strokes;
     for (const s of all) {
       ctx.lineCap = "round";
@@ -84,6 +86,39 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       }
       const pts = s.points;
       if (pts.length === 0) continue;
+
+      // Calligraphy: render each segment as a rotated rectangle so the
+      // stroke width varies with direction relative to the nib.
+      if (s.mode === "calligraphy") {
+        const nibLen = Math.max(s.width * 3, 8); // chisel tip length
+        const cos = Math.cos(NIB_ANGLE);
+        const sin = Math.sin(NIB_ANGLE);
+        const dx = (nibLen / 2) * cos;
+        const dy = (nibLen / 2) * sin;
+        ctx.fillStyle = s.color;
+        if (pts.length === 1) {
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x - dx, pts[0].y - dy);
+          ctx.lineTo(pts[0].x + dx, pts[0].y + dy);
+          ctx.lineWidth = Math.max(s.width * 0.6, 1);
+          ctx.strokeStyle = s.color;
+          ctx.stroke();
+          continue;
+        }
+        for (let i = 0; i < pts.length - 1; i++) {
+          const a = pts[i];
+          const b = pts[i + 1];
+          ctx.beginPath();
+          ctx.moveTo(a.x - dx, a.y - dy);
+          ctx.lineTo(a.x + dx, a.y + dy);
+          ctx.lineTo(b.x + dx, b.y + dy);
+          ctx.lineTo(b.x - dx, b.y - dy);
+          ctx.closePath();
+          ctx.fill();
+        }
+        continue;
+      }
+
       if (pts.length === 1) {
         ctx.beginPath();
         ctx.arc(pts[0].x, pts[0].y, s.width / 2, 0, Math.PI * 2);
@@ -174,6 +209,15 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
             <Button
               type="button"
               size="sm"
+              variant={mode === "calligraphy" ? "default" : "outline"}
+              onClick={() => setMode("calligraphy")}
+              className="gap-1"
+            >
+              <PenTool className="h-4 w-4" /> Calligraphy
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               variant={mode === "erase" ? "default" : "outline"}
               onClick={() => setMode("erase")}
               className="gap-1"
@@ -191,7 +235,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
                 onClick={() => { setColor(c.value); setMode("draw"); }}
                 className={cn(
                   "h-7 w-7 rounded-full border border-border transition-all",
-                  color === c.value && mode === "draw" && "ring-2 ring-offset-2 ring-primary"
+                  color === c.value && mode !== "erase" && "ring-2 ring-offset-2 ring-primary"
                 )}
                 style={{ backgroundColor: c.value }}
               />
