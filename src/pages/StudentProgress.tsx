@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon } from 'lucide-react';
+import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles } from 'lucide-react';
+import { LatexRenderer } from '@/components/LatexRenderer';
 
 interface StudentAttempt {
   id: string;
@@ -20,6 +21,7 @@ interface StudentAttempt {
   percentage_attained: number | null;
   nature_of_errors: string | null;
   image_url: string | null;
+  ai_feedback: string | null;
   created_at: string;
 }
 
@@ -215,6 +217,7 @@ const StudentProgress = () => {
                     <TableHead>Score</TableHead>
                     <TableHead>Areas to Improve</TableHead>
                     <TableHead>Answer</TableHead>
+                    <TableHead>AI Feedback</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
@@ -274,6 +277,32 @@ const StudentProgress = () => {
                           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                             <ImageIcon className="h-3 w-3" /> None
                           </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {attempt.ai_feedback ? (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm" className="gap-1">
+                                <Sparkles className="h-3 w-3" /> View
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl">
+                              <DialogHeader>
+                                <DialogTitle>
+                                  AI feedback — {attempt.year} {attempt.sitting} P{attempt.paper_number} Q{attempt.question_number}
+                                </DialogTitle>
+                              </DialogHeader>
+                              <div className="overflow-auto max-h-[75vh]">
+                                <LatexRenderer
+                                  content={attempt.ai_feedback}
+                                  className="text-sm text-foreground/80 leading-relaxed"
+                                />
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
