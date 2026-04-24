@@ -57,6 +57,18 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Faint horizontal ruled lines (like notebook paper)
+    const lineSpacing = 36;
+    ctx.save();
+    ctx.strokeStyle = "rgba(37, 99, 235, 0.18)";
+    ctx.lineWidth = 1;
+    for (let y = lineSpacing; y < canvas.height; y += lineSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+    ctx.restore();
     const all = currentStroke ? [...strokes, currentStroke] : strokes;
     for (const s of all) {
       ctx.lineCap = "round";
