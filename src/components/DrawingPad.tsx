@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Mode = "draw" | "erase";
@@ -34,6 +34,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const [color, setColor] = useState(COLORS[0].value);
   const [width, setWidth] = useState(3);
   const [size, setSize] = useState({ w: 800, h: 600 });
+  const [extraHeight, setExtraHeight] = useState(0);
 
   // Resize canvas to container width; use a tall fixed height so users have
   // plenty of vertical room. The container scrolls internally so the question
@@ -42,12 +43,12 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     const update = () => {
       const w = containerRef.current?.clientWidth ?? 800;
       const h = Math.max(1400, Math.round(w * 1.6));
-      setSize({ w, h });
+      setSize({ w, h: h + extraHeight });
     };
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, []);
+  }, [extraHeight]);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -238,6 +239,25 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           style={{ touchAction: "none", width: "100%", height: "auto", background: "#ffffff" }}
           className="cursor-crosshair block"
         />
+      </div>
+
+      <div className="flex justify-center">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setExtraHeight((h) => h + 800);
+            // Scroll to bottom after the canvas grows so the new space is visible
+            requestAnimationFrame(() => {
+              const c = containerRef.current;
+              if (c) c.scrollTop = c.scrollHeight;
+            });
+          }}
+          className="gap-2"
+        >
+          <Plus className="h-4 w-4" /> Extend canvas
+        </Button>
       </div>
 
       <div className="flex gap-3 justify-end">
