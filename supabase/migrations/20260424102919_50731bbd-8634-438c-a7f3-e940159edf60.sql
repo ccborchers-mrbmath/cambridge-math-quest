@@ -1,0 +1,1 @@
+ALTER TABLE public.student_attempts ADD COLUMN IF NOT EXISTS ai_feedback text;

@@ -43,6 +43,7 @@ export type Database = {
       }
       student_attempts: {
         Row: {
+          ai_feedback: string | null
           attempted: boolean | null
           created_at: string
           id: string
@@ -59,6 +60,7 @@ export type Database = {
           year: number
         }
         Insert: {
+          ai_feedback?: string | null
           attempted?: boolean | null
           created_at?: string
           id?: string
@@ -75,6 +77,7 @@ export type Database = {
           year: number
         }
         Update: {
+          ai_feedback?: string | null
           attempted?: boolean | null
           created_at?: string
           id?: string
