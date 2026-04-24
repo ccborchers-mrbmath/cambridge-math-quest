@@ -35,11 +35,13 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const [width, setWidth] = useState(3);
   const [size, setSize] = useState({ w: 800, h: 600 });
 
-  // Resize canvas to container width, keep 4:3 aspect
+  // Resize canvas to container width; use a tall fixed height so users have
+  // plenty of vertical room. The container scrolls internally so the question
+  // statement above stays visible.
   useEffect(() => {
     const update = () => {
       const w = containerRef.current?.clientWidth ?? 800;
-      const h = Math.max(500, Math.round(w * 0.75));
+      const h = Math.max(1400, Math.round(w * 1.6));
       setSize({ w, h });
     };
     update();
@@ -207,7 +209,11 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         </div>
       </Card>
 
-      <div ref={containerRef} className="w-full">
+      <div
+        ref={containerRef}
+        className="w-full overflow-y-auto rounded-lg border border-border shadow-sm bg-white"
+        style={{ maxHeight: "60vh" }}
+      >
         <canvas
           ref={canvasRef}
           width={size.w}
@@ -218,7 +224,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           onPointerCancel={finishStroke}
           onPointerLeave={(e) => { if (currentStroke) finishStroke(e); }}
           style={{ touchAction: "none", width: "100%", height: "auto", background: "#ffffff" }}
-          className="rounded-lg border border-border shadow-sm cursor-crosshair"
+          className="cursor-crosshair block"
         />
       </div>
 
