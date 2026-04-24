@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award } from 'lucide-react';
 import { LatexRenderer } from '@/components/LatexRenderer';
+import { getAllCurriculumSubtopics, getMasteredSubtopicCodes } from '@/lib/curriculum';
 
 interface StudentAttempt {
   id: string;
@@ -97,6 +99,13 @@ const StudentProgress = () => {
     : 0;
   const topicsAttempted = new Set(attempts.map(a => a.topic).filter(Boolean)).size;
 
+  const allSubtopics = getAllCurriculumSubtopics();
+  const totalSubtopics = allSubtopics.size;
+  const masteredSubtopics = getMasteredSubtopicCodes(attempts).size;
+  const masteryPct = totalSubtopics > 0
+    ? Math.round((masteredSubtopics / totalSubtopics) * 100)
+    : 0;
+
   const sortedAttempts = [...attempts].sort((a, b) => {
     if (sortMode === 'reference') {
       return (
@@ -145,7 +154,7 @@ const StudentProgress = () => {
       </header>
 
       <main className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Questions Attempted</CardTitle>
@@ -173,6 +182,20 @@ const StudentProgress = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{topicsAttempted}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Curriculum Mastery</CardTitle>
+              <Award className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{masteryPct}%</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {masteredSubtopics} / {totalSubtopics} subtopics mastered
+              </p>
+              <Progress value={masteryPct} className="h-2 mt-3" />
             </CardContent>
           </Card>
         </div>
