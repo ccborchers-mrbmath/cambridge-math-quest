@@ -5,7 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon } from 'lucide-react';
 
 interface StudentAttempt {
   id: string;
@@ -18,6 +19,7 @@ interface StudentAttempt {
   attempted: boolean;
   percentage_attained: number | null;
   nature_of_errors: string | null;
+  image_url: string | null;
   created_at: string;
 }
 
@@ -212,6 +214,7 @@ const StudentProgress = () => {
                     <TableHead>Topic</TableHead>
                     <TableHead>Score</TableHead>
                     <TableHead>Areas to Improve</TableHead>
+                    <TableHead>Answer</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
@@ -235,6 +238,43 @@ const StudentProgress = () => {
                       </TableCell>
                       <TableCell className="max-w-xs">
                         {attempt.nature_of_errors || '-'}
+                      </TableCell>
+                      <TableCell>
+                        {attempt.image_url ? (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <button
+                                type="button"
+                                className="h-14 w-14 rounded-md overflow-hidden border border-border hover:ring-2 hover:ring-primary transition-all"
+                                aria-label="View submitted answer"
+                              >
+                                <img
+                                  src={attempt.image_url}
+                                  alt={`Submitted answer for ${attempt.year} ${attempt.sitting} P${attempt.paper_number} Q${attempt.question_number}`}
+                                  className="h-full w-full object-cover"
+                                />
+                              </button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl">
+                              <DialogHeader>
+                                <DialogTitle>
+                                  Your answer — {attempt.year} {attempt.sitting} P{attempt.paper_number} Q{attempt.question_number}
+                                </DialogTitle>
+                              </DialogHeader>
+                              <div className="overflow-auto max-h-[75vh]">
+                                <img
+                                  src={attempt.image_url}
+                                  alt="Submitted answer full size"
+                                  className="w-full h-auto rounded-md"
+                                />
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <ImageIcon className="h-3 w-3" /> None
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(attempt.created_at).toLocaleDateString()}
