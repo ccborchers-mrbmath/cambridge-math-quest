@@ -227,7 +227,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           className="gap-2 h-12 px-6 bg-accent hover:bg-accent/90 text-accent-foreground shadow-sm transition-all"
         >
           <Camera className="h-5 w-5" />
-          Mark my work
+          Submit an answer
         </Button>
       </div>
 
@@ -283,7 +283,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-serif font-semibold text-foreground">
-                Upload Your Work
+                Submit Your Answer
               </h3>
               <Button
                 variant="ghost"
@@ -319,9 +319,16 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
             ) : !uploadedImage ? (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Take a photo, upload an image, or draw your answer on screen for AI marking.
+                  Choose how you'd like to submit your answer for AI marking.
                 </p>
                 <div className="grid gap-3 sm:grid-cols-3">
+                  <Button
+                    onClick={triggerFileInput}
+                    className="gap-2 bg-accent hover:bg-accent/90"
+                  >
+                    <Camera className="h-5 w-5" />
+                    Take a photo
+                  </Button>
                   <Button
                     onClick={triggerFileInput}
                     className="gap-2"
@@ -331,19 +338,12 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                     Upload from device
                   </Button>
                   <Button
-                    onClick={triggerFileInput}
-                    className="gap-2 bg-accent hover:bg-accent/90"
-                  >
-                    <Camera className="h-5 w-5" />
-                    Take photo
-                  </Button>
-                  <Button
                     onClick={() => setShowDrawing(true)}
                     className="gap-2"
                     variant="outline"
                   >
                     <Pencil className="h-5 w-5" />
-                    Draw answer
+                    Write an answer
                   </Button>
                 </div>
               </div>
