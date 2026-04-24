@@ -5,11 +5,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles } from "lucide-react";
+import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { useAuth } from "@/hooks/useAuth";
+import { DrawingPad } from "@/components/DrawingPad";
 
 interface QuestionDisplayProps {
   question: Question;
@@ -22,6 +23,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [hint, setHint] = useState<string | null>(null);
   const [isLoadingHint, setIsLoadingHint] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [showDrawing, setShowDrawing] = useState(false);
   const [percentageAttained, setPercentageAttained] = useState<string>("");
   const [natureOfErrors, setNatureOfErrors] = useState<string>("");
   const [aiFeedback, setAiFeedback] = useState<string>("");
@@ -60,6 +62,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const handleMarkWork = () => {
     setShowCamera(!showCamera);
     setUploadedImage(null);
+    setShowDrawing(false);
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -288,6 +291,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                 onClick={() => {
                   setShowCamera(false);
                   setUploadedImage(null);
+                  setShowDrawing(false);
                 }}
                 className="h-8 w-8 p-0"
               >
@@ -303,15 +307,24 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                 className="hidden"
               />
 
-            {!uploadedImage ? (
+            {showDrawing ? (
+              <DrawingPad
+                onComplete={(dataUrl) => {
+                  setUploadedImage(dataUrl);
+                  setShowDrawing(false);
+                  toast.success("Drawing captured!");
+                }}
+                onCancel={() => setShowDrawing(false)}
+              />
+            ) : !uploadedImage ? (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Take a photo of your work or upload an image from your device for AI marking.
+                  Take a photo, upload an image, or draw your answer on screen for AI marking.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="grid gap-3 sm:grid-cols-3">
                   <Button
                     onClick={triggerFileInput}
-                    className="gap-2 flex-1"
+                    className="gap-2"
                     variant="outline"
                   >
                     <Upload className="h-5 w-5" />
@@ -319,10 +332,18 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                   </Button>
                   <Button
                     onClick={triggerFileInput}
-                    className="gap-2 flex-1 bg-accent hover:bg-accent/90"
+                    className="gap-2 bg-accent hover:bg-accent/90"
                   >
                     <Camera className="h-5 w-5" />
                     Take photo
+                  </Button>
+                  <Button
+                    onClick={() => setShowDrawing(true)}
+                    className="gap-2"
+                    variant="outline"
+                  >
+                    <Pencil className="h-5 w-5" />
+                    Draw answer
                   </Button>
                 </div>
               </div>
@@ -371,7 +392,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                   )}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-4">
                   <Button
                     onClick={triggerFileInput}
                     variant="outline"
@@ -379,6 +400,14 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                   >
                     <Upload className="h-5 w-5" />
                     Change image
+                  </Button>
+                  <Button
+                    onClick={() => { setUploadedImage(null); setShowDrawing(true); }}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <Pencil className="h-5 w-5" />
+                    Draw again
                   </Button>
                   <Button
                     onClick={handleAIMarking}
