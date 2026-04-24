@@ -198,7 +198,8 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
         />
       </Card>
 
-      {/* Action buttons */}
+      {/* Action buttons - hidden while drawing to maximise writing space */}
+      {!showDrawing && (
       <div className="flex flex-wrap gap-4 justify-center">
         <Button
           onClick={handleHint}
@@ -231,6 +232,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           Submit an answer
         </Button>
       </div>
+      )}
 
       {/* Hint display */}
       {hint && (
@@ -282,6 +284,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       {showCamera && (
         <Card className="p-6 shadow-elevated border-border animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="space-y-4">
+            {!showDrawing && (
             <div className="flex items-center justify-between">
               <h3 className="font-serif font-semibold text-foreground">
                 Submit Your Answer
@@ -299,6 +302,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                 <X className="h-4 w-4" />
               </Button>
             </div>
+            )}
 
               <input
                 ref={fileInputRef}
