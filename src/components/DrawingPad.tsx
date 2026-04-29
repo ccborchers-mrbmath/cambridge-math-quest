@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Mode = "draw" | "erase";
+type Mode = "draw" | "line" | "erase";
 interface Point {
   x: number;
   y: number;
@@ -299,6 +299,14 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!currentStroke) return;
+    // Line mode: keep just two points (start + current), snapping near-axis lines.
+    if (currentStroke.mode === "line") {
+      const start = currentStroke.points[0];
+      const cur = eventToPoint(e);
+      const snapped = snapLineEnd(start, cur);
+      setCurrentStroke((cs) => cs ? { ...cs, points: [start, snapped] } : cs);
+      return;
+    }
     // Pull every coalesced sub-event for full tablet sample rate.
     const native = e.nativeEvent;
     const events = typeof native.getCoalescedEvents === "function"
@@ -313,8 +321,43 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const finishStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!currentStroke) return;
     canvasRef.current?.releasePointerCapture?.(e.pointerId);
-    setStrokes((prev) => [...prev, currentStroke]);
+    // Line mode: ensure we always commit a 2-point stroke with neutral pressure
+    // so widths don't taper from a single-point start.
+    let toCommit = currentStroke;
+    if (currentStroke.mode === "line" && currentStroke.points.length >= 1) {
+      const start = currentStroke.points[0];
+      const end = currentStroke.points[currentStroke.points.length - 1] ?? start;
+      const snapped = snapLineEnd(start, end);
+      // Force constant width by setting both endpoints' pressure equal.
+      const flatStart = { ...start, p: 0.5 };
+      const flatEnd = { ...snapped, p: 0.5 };
+      toCommit = { ...currentStroke, points: [flatStart, flatEnd] };
+    }
+    setStrokes((prev) => [...prev, toCommit]);
     setCurrentStroke(null);
+  };
+
+  /**
+   * If the line from `a` to `b` is within ~7° of horizontal or vertical,
+   * snap the endpoint so it is exactly horizontal/vertical. Otherwise leave
+   * it free.
+   */
+  const snapLineEnd = (a: Point, b: Point): Point => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    if (dx === 0 && dy === 0) return b;
+    const angle = Math.atan2(dy, dx); // -pi..pi
+    const deg = (angle * 180) / Math.PI;
+    const threshold = 7;
+    // Horizontal: angle near 0 or ±180.
+    if (Math.abs(deg) < threshold || Math.abs(Math.abs(deg) - 180) < threshold) {
+      return { ...b, y: a.y };
+    }
+    // Vertical: angle near ±90.
+    if (Math.abs(Math.abs(deg) - 90) < threshold) {
+      return { ...b, x: a.x };
+    }
+    return b;
   };
 
   const undo = () => setStrokes((prev) => prev.slice(0, -1));
@@ -347,6 +390,15 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
               className="gap-1"
             >
               <Pencil className="h-4 w-4" /> Pen
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "line" ? "default" : "outline"}
+              onClick={() => setMode("line")}
+              className="gap-1"
+            >
+              <Minus className="h-4 w-4" /> Line
             </Button>
             <Button
               type="button"
