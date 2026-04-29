@@ -811,6 +811,23 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       setCurrentStroke((cs) => cs ? { ...cs, points: [start, snapped] } : cs);
       return;
     }
+    // Ellipse mode: keep just two points marking the bounding-box corners.
+    // Hold Shift to constrain to a circle.
+    if (currentStroke.mode === "ellipse") {
+      const start = currentStroke.points[0];
+      const cur = eventToPoint(e);
+      let endX = cur.x, endY = cur.y;
+      if (e.shiftKey) {
+        const dx = cur.x - start.x;
+        const dy = cur.y - start.y;
+        const r = Math.max(Math.abs(dx), Math.abs(dy));
+        endX = start.x + Math.sign(dx || 1) * r;
+        endY = start.y + Math.sign(dy || 1) * r;
+      }
+      const end: Point = { ...cur, x: endX, y: endY, p: 0.5 };
+      setCurrentStroke((cs) => cs ? { ...cs, points: [start, end] } : cs);
+      return;
+    }
     // Pull every coalesced sub-event for full tablet sample rate.
     const native = e.nativeEvent;
     const events = typeof native.getCoalescedEvents === "function"
