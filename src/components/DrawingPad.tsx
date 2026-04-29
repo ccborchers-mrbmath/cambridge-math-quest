@@ -964,6 +964,15 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
             <Button
               type="button"
               size="sm"
+              variant={mode === "ellipse" ? "default" : "outline"}
+              onClick={() => setMode("ellipse")}
+              className="gap-1"
+            >
+              <Circle className="h-4 w-4" /> Ellipse
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               variant={mode === "select" ? "default" : "outline"}
               onClick={() => setMode("select")}
               className="gap-1"
