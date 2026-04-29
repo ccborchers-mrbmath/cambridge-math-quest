@@ -683,25 +683,26 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           return { ...s, points: orig.map((q) => ({ ...q, x: q.x + dx, y: q.y + dy })) };
         }));
       } else {
-        // Uniform scale around the anchor corner, based on the larger axis.
+        // Uniform scale around the anchor corner. We use the smaller axis
+        // ratio so the group stays inside the user's drag, never overshoots
+        // either dimension, and keeps proportions.
         const { anchorX, anchorY, origBox } = drag;
-        const targetW = Math.abs(cur.x - anchorX);
-        const targetH = Math.abs(cur.y - anchorY);
-        // Avoid divide-by-zero or flipping; also clamp to a sensible minimum.
+        const targetW = Math.max(1, Math.abs(cur.x - anchorX));
+        const targetH = Math.max(1, Math.abs(cur.y - anchorY));
         const sx = origBox.w > 0 ? targetW / origBox.w : 1;
         const sy = origBox.h > 0 ? targetH / origBox.h : 1;
-        const s = Math.max(0.05, Math.min(sx, sy)); // uniform — keeps proportions
+        const sUniform = Math.max(0.05, Math.min(sx, sy));
         setStrokes((prev) => prev.map((stroke, i) => {
           const orig = drag.origPointsByIndex.get(i);
           if (!orig) return stroke;
           const origW = drag.origWidthsByIndex.get(i) ?? stroke.width;
           return {
             ...stroke,
-            width: Math.max(1, origW * s),
+            width: Math.max(1, origW * sUniform),
             points: orig.map((q) => ({
               ...q,
-              x: anchorX + (q.x - anchorX) * s * Math.sign(cur.x - anchorX || 1) * (Math.sign(cur.x - anchorX || 1) === 1 ? 1 : -1),
-              y: anchorY + (q.y - anchorY) * s * Math.sign(cur.y - anchorY || 1) * (Math.sign(cur.y - anchorY || 1) === 1 ? 1 : -1),
+              x: anchorX + (q.x - anchorX) * sUniform,
+              y: anchorY + (q.y - anchorY) * sUniform,
             })),
           };
         }));
