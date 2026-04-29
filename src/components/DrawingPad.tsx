@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getStroke } from "perfect-freehand";
 
 type Mode = "draw" | "line" | "ellipse" | "select" | "lasso" | "erase";
 interface Point {
@@ -327,6 +328,40 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         ctx.stroke();
         continue;
       }
+      // ---------- Pen: perfect-freehand outline ----------
+      // For ink strokes we hand the raw pointer samples (with pressure) to
+      // perfect-freehand, which returns a closed polygon outline of the
+      // stroke including proper start/end tapers, smoothing, and pressure-
+      // modulated thickness. We then fill that polygon with a smooth path.
+      if (s.mode === "draw" || s.mode === "line") {
+        const usePressure =
+          s.mode === "draw" &&
+          raw.some((p) => Math.abs(p.p - 0.5) > 0.001);
+        const inputPts = raw.map((p) => [p.x, p.y, usePressure ? p.p : 0.5]);
+        const outline = getStroke(inputPts, {
+          size: s.width * 1.6,
+          thinning: usePressure ? 0.55 : 0.35,
+          smoothing: 0.6,
+          streamline: 0.45,
+          easing: (t) => t,
+          simulatePressure: !usePressure,
+          last: s !== currentStroke,
+          start: { taper: 0, cap: true },
+          end: { taper: 0, cap: true },
+        });
+        if (outline.length < 2) continue;
+        ctx.beginPath();
+        ctx.moveTo(outline[0][0], outline[0][1]);
+        for (let i = 1; i < outline.length; i++) {
+          const [x0, y0] = outline[i - 1];
+          const [x1, y1] = outline[i];
+          ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
+        }
+        ctx.closePath();
+        ctx.fill();
+        continue;
+      }
+      // ---------- Eraser: variable-width ribbon (existing path) ----------
       const pts = raw.length >= 2 ? smoothPath(raw) : raw;
 
       // Pre-compute and smooth widths along the path so taper transitions are
