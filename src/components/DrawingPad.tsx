@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Mode = "draw" | "line" | "erase";
+type Mode = "draw" | "line" | "select" | "erase";
 interface Point {
   x: number;
   y: number;
@@ -57,6 +57,14 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const [width, setWidth] = useState(3);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [extraHeight, setExtraHeight] = useState(0);
+  // Select / move state.
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origPoints: Point[] } | null>(null);
+
+  // Reset selection when leaving select mode.
+  useEffect(() => {
+    if (mode !== "select") setSelectedIndex(null);
+  }, [mode]);
 
   // Resize canvas to container width; tall fixed height so users have
   // plenty of vertical room. The container scrolls internally.
@@ -254,7 +262,74 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       ctx.fill();
     }
     ctx.globalCompositeOperation = "source-over";
-  }, [strokes, currentStroke, size]);
+
+    // Selection highlight: draw a dashed bounding box around the selected stroke.
+    if (selectedIndex !== null && strokes[selectedIndex]) {
+      const s = strokes[selectedIndex];
+      const bb = strokeBounds(s);
+      if (bb) {
+        ctx.save();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.strokeStyle = "hsl(217, 91%, 60%)";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
+        const pad = 6;
+        ctx.strokeRect(bb.x - pad, bb.y - pad, bb.w + pad * 2, bb.h + pad * 2);
+        ctx.restore();
+      }
+    }
+  }, [strokes, currentStroke, size, selectedIndex]);
+
+  // ---------- Hit testing & geometry helpers (for Select tool) ----------
+
+  const strokeBounds = (s: Stroke) => {
+    if (!s.points.length) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of s.points) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  };
+
+  /** Squared distance from point P to segment AB. */
+  const distSqToSegment = (
+    px: number, py: number, ax: number, ay: number, bx: number, by: number,
+  ) => {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return (px - ax) ** 2 + (py - ay) ** 2;
+    let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t * dx;
+    const cy = ay + t * dy;
+    return (px - cx) ** 2 + (py - cy) ** 2;
+  };
+
+  /** Find topmost stroke whose path passes within `tol` px of (x,y). */
+  const hitTestStroke = (x: number, y: number): number | null => {
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const s = strokes[i];
+      if (s.mode === "erase") continue; // erasers are invisible markers
+      const tol = Math.max(s.width + 8, 12);
+      const tolSq = tol * tol;
+      const pts = s.points;
+      if (pts.length === 1) {
+        const d = (pts[0].x - x) ** 2 + (pts[0].y - y) ** 2;
+        if (d <= tolSq) return i;
+        continue;
+      }
+      for (let j = 0; j < pts.length - 1; j++) {
+        if (distSqToSegment(x, y, pts[j].x, pts[j].y, pts[j + 1].x, pts[j + 1].y) <= tolSq) {
+          return i;
+        }
+      }
+    }
+    return null;
+  };
 
   // Resize backing store to devicePixelRatio for crisp rendering.
   useEffect(() => {
@@ -289,6 +364,20 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     e.preventDefault();
     canvasRef.current?.setPointerCapture(e.pointerId);
     const p = eventToPoint(e);
+    if (mode === "select") {
+      const hit = hitTestStroke(p.x, p.y);
+      setSelectedIndex(hit);
+      if (hit !== null) {
+        dragRef.current = {
+          startX: p.x,
+          startY: p.y,
+          origPoints: strokes[hit].points.map((q) => ({ ...q })),
+        };
+      } else {
+        dragRef.current = null;
+      }
+      return;
+    }
     setCurrentStroke({
       mode,
       color,
@@ -298,6 +387,20 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Select-mode drag: translate the selected stroke.
+    if (mode === "select") {
+      if (selectedIndex === null || !dragRef.current) return;
+      const cur = eventToPoint(e);
+      const dx = cur.x - dragRef.current.startX;
+      const dy = cur.y - dragRef.current.startY;
+      const orig = dragRef.current.origPoints;
+      setStrokes((prev) => prev.map((s, i) =>
+        i === selectedIndex
+          ? { ...s, points: orig.map((q) => ({ ...q, x: q.x + dx, y: q.y + dy })) }
+          : s
+      ));
+      return;
+    }
     if (!currentStroke) return;
     // Line mode: keep just two points (start + current), snapping near-axis lines.
     if (currentStroke.mode === "line") {
@@ -319,6 +422,11 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   };
 
   const finishStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (mode === "select") {
+      canvasRef.current?.releasePointerCapture?.(e.pointerId);
+      dragRef.current = null;
+      return;
+    }
     if (!currentStroke) return;
     canvasRef.current?.releasePointerCapture?.(e.pointerId);
     // Line mode: ensure we always commit a 2-point stroke with neutral pressure
@@ -348,7 +456,8 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     if (dx === 0 && dy === 0) return b;
     const angle = Math.atan2(dy, dx); // -pi..pi
     const deg = (angle * 180) / Math.PI;
-    const threshold = 7;
+    // Tighter snap — user must be very close to axis-aligned before it locks.
+    const threshold = 2.5;
     // Horizontal: angle near 0 or ±180.
     if (Math.abs(deg) < threshold || Math.abs(Math.abs(deg) - 180) < threshold) {
       return { ...b, y: a.y };
@@ -399,6 +508,15 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
               className="gap-1"
             >
               <Minus className="h-4 w-4" /> Line
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "select" ? "default" : "outline"}
+              onClick={() => setMode("select")}
+              className="gap-1"
+            >
+              <MousePointer2 className="h-4 w-4" /> Select
             </Button>
             <Button
               type="button"
@@ -464,7 +582,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           onPointerCancel={finishStroke}
           onPointerLeave={(e) => { if (currentStroke) finishStroke(e); }}
           style={{ touchAction: "none", display: "block", background: "#ffffff" }}
-          className="cursor-crosshair"
+          className={mode === "select" ? "cursor-move" : "cursor-crosshair"}
         />
       </div>
 
