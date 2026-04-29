@@ -203,20 +203,47 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   /** Build a smooth, dense polyline from the raw input samples. */
   const smoothPath = (pts: Point[]): Point[] => {
     if (pts.length < 2) return pts;
-    const out: Point[] = [pts[0]];
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i - 1] ?? pts[i];
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const p3 = pts[i + 2] ?? pts[i + 1];
-      // Adapt segment count to segment length so long jumps get more points.
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const dist = Math.hypot(dx, dy);
-      const segs = Math.max(4, Math.min(24, Math.ceil(dist / 3)));
+    // ---- Step 1: low-pass filter the raw input to kill pointer jitter ----
+    // Raw pointer events (especially from a finger or low-quality stylus)
+    // are noisy at the sub-pixel scale. Catmull-Rom faithfully traces that
+    // noise, producing wobbly strokes. A short Gaussian-ish smoothing pass
+    // on the input removes the wobble before curve fitting.
+    const filtered: Point[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      // Pin the endpoints so the stroke starts and ends exactly where the
+      // user touched down / lifted off.
+      if (i === 0 || i === pts.length - 1) {
+        filtered.push(pts[i]);
+        continue;
+      }
+      // Weighted 5-tap kernel [1,4,6,4,1]/16 (binomial / Gaussian approx).
+      const weights = [1, 4, 6, 4, 1];
+      let sx = 0, sy = 0, sp = 0, st = 0, sw = 0;
+      for (let k = -2; k <= 2; k++) {
+        const j = Math.min(pts.length - 1, Math.max(0, i + k));
+        const w = weights[k + 2];
+        sx += pts[j].x * w;
+        sy += pts[j].y * w;
+        sp += pts[j].p * w;
+        st += pts[j].t * w;
+        sw += w;
+      }
+      filtered.push({ x: sx / sw, y: sy / sw, p: sp / sw, t: st / sw });
+    }
+
+    // ---- Step 2: Catmull-Rom interpolation between the cleaned samples ----
+    const out: Point[] = [filtered[0]];
+    for (let i = 0; i < filtered.length - 1; i++) {
+      const p0 = filtered[i - 1] ?? filtered[i];
+      const p1 = filtered[i];
+      const p2 = filtered[i + 1];
+      const p3 = filtered[i + 2] ?? filtered[i + 1];
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      // Slightly denser sampling for silkier curves.
+      const segs = Math.max(6, Math.min(32, Math.ceil(dist / 2)));
       out.push(...catmullRom(p0, p1, p2, p3, segs).slice(1));
     }
-    out.push(pts[pts.length - 1]);
+    out.push(filtered[filtered.length - 1]);
     return out;
   };
 
