@@ -114,6 +114,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       setLassoSelection(null);
       setLassoPath(null);
     }
+    setHoverCursor(mode === "select" || mode === "lasso" ? "default" : "crosshair");
   }, [mode]);
 
   // Resize canvas to container width; tall fixed height so users have
@@ -897,6 +898,27 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
             <Button
               type="button"
               size="sm"
+              variant="outline"
+              onClick={() => {
+                if (!strokes.length) return;
+                const all: number[] = [];
+                for (let i = 0; i < strokes.length; i++) {
+                  if (strokes[i].mode !== "erase") all.push(i);
+                }
+                if (all.length) {
+                  setMode("lasso");
+                  setLassoPath(null);
+                  setLassoSelection(all);
+                }
+              }}
+              disabled={!strokes.length}
+              className="gap-1"
+            >
+              <BoxSelect className="h-4 w-4" /> Select all
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               variant={mode === "erase" ? "default" : "outline"}
               onClick={() => setMode("erase")}
               className="gap-1"
@@ -957,8 +979,19 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           onPointerUp={finishStroke}
           onPointerCancel={finishStroke}
           onPointerLeave={(e) => { if (currentStroke) finishStroke(e); }}
-          style={{ touchAction: "none", display: "block", background: "#ffffff" }}
-          className={mode === "select" || mode === "lasso" ? "cursor-move" : "cursor-crosshair"}
+          style={{
+            touchAction: "none",
+            display: "block",
+            background: "#ffffff",
+            cursor:
+              mode === "lasso"
+                ? hoverCursor
+                : mode === "select"
+                ? "default"
+                : mode === "erase"
+                ? "crosshair"
+                : "crosshair",
+          }}
         />
       </div>
 
