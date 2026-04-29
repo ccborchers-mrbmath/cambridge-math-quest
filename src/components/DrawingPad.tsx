@@ -695,6 +695,17 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         setLassoPath((prev) => prev ? [...prev, { x: cur.x, y: cur.y }] : prev);
         return;
       }
+      // Update hover cursor over selection handles when not actively dragging.
+      if (!lassoDragRef.current) {
+        const hp = eventToPoint(e);
+        const handle = hitLassoHandle(hp.x, hp.y);
+        if (handle === "tl" || handle === "br") setHoverCursor("nwse-resize");
+        else if (handle === "tr" || handle === "bl") setHoverCursor("nesw-resize");
+        else if (handle === "t" || handle === "b") setHoverCursor("ns-resize");
+        else if (handle === "l" || handle === "r") setHoverCursor("ew-resize");
+        else if (handle === "body") setHoverCursor("move");
+        else setHoverCursor("crosshair");
+      }
       // Translate or scale the current lasso selection.
       const drag = lassoDragRef.current;
       if (!drag) return;
@@ -708,26 +719,29 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           return { ...s, points: orig.map((q) => ({ ...q, x: q.x + dx, y: q.y + dy })) };
         }));
       } else {
-        // Uniform scale around the anchor corner. We use the smaller axis
-        // ratio so the group stays inside the user's drag, never overshoots
-        // either dimension, and keeps proportions.
-        const { anchorX, anchorY, origBox } = drag;
+        // Scale around the anchor. Corner handles scale both axes
+        // independently (allowing horizontal+vertical stretching); edge
+        // handles scale only one axis.
+        const { anchorX, anchorY, origBox, scaleX, scaleY } = drag;
         const targetW = Math.max(1, Math.abs(cur.x - anchorX));
         const targetH = Math.max(1, Math.abs(cur.y - anchorY));
-        const sx = origBox.w > 0 ? targetW / origBox.w : 1;
-        const sy = origBox.h > 0 ? targetH / origBox.h : 1;
-        const sUniform = Math.max(0.05, Math.min(sx, sy));
+        const rawSx = origBox.w > 0 ? targetW / origBox.w : 1;
+        const rawSy = origBox.h > 0 ? targetH / origBox.h : 1;
+        const sX = scaleX ? Math.max(0.05, rawSx) : 1;
+        const sY = scaleY ? Math.max(0.05, rawSy) : 1;
+        // Stroke width follows the average of the active scale axes.
+        const wScale = scaleX && scaleY ? (sX + sY) / 2 : (scaleX ? sX : sY);
         setStrokes((prev) => prev.map((stroke, i) => {
           const orig = drag.origPointsByIndex.get(i);
           if (!orig) return stroke;
           const origW = drag.origWidthsByIndex.get(i) ?? stroke.width;
           return {
             ...stroke,
-            width: Math.max(1, origW * sUniform),
+            width: Math.max(1, origW * wScale),
             points: orig.map((q) => ({
               ...q,
-              x: anchorX + (q.x - anchorX) * sUniform,
-              y: anchorY + (q.y - anchorY) * sUniform,
+              x: anchorX + (q.x - anchorX) * sX,
+              y: anchorY + (q.y - anchorY) * sY,
             })),
           };
         }));
