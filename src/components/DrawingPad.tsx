@@ -385,10 +385,26 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       ctx.arc(pts[pts.length - 1].x, pts[pts.length - 1].y, lastW, 0, Math.PI * 2);
       ctx.fill();
       // Ribbon body.
+      // Ribbon body — connect offset points with quadratic curves (using
+      // each point as a control and the midpoint to the next as the on-curve
+      // anchor). This eliminates the tiny facets you get from straight
+      // `lineTo` segments and gives the ink a glassy, printed-stroke edge.
+      const traceSmooth = (path: { x: number; y: number }[]) => {
+        if (path.length < 2) return;
+        ctx.lineTo(path[0].x, path[0].y);
+        for (let i = 0; i < path.length - 1; i++) {
+          const mx = (path[i].x + path[i + 1].x) / 2;
+          const my = (path[i].y + path[i + 1].y) / 2;
+          ctx.quadraticCurveTo(path[i].x, path[i].y, mx, my);
+        }
+        const last = path[path.length - 1];
+        ctx.lineTo(last.x, last.y);
+      };
       ctx.beginPath();
       ctx.moveTo(left[0].x, left[0].y);
-      for (let i = 1; i < left.length; i++) ctx.lineTo(left[i].x, left[i].y);
-      for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i].x, right[i].y);
+      traceSmooth(left);
+      const rightReversed = right.slice().reverse();
+      traceSmooth(rightReversed);
       ctx.closePath();
       ctx.fill();
     }
