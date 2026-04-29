@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2 } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Mode = "draw" | "line" | "select" | "erase";
+type Mode = "draw" | "line" | "select" | "lasso" | "erase";
 interface Point {
   x: number;
   y: number;
@@ -59,11 +59,55 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const [extraHeight, setExtraHeight] = useState(0);
   // Select / move state.
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const dragRef = useRef<{ startX: number; startY: number; origPoints: Point[] } | null>(null);
+  const dragRef = useRef<
+    | {
+        kind: "translate";
+        startX: number;
+        startY: number;
+        origPoints: Point[];
+      }
+    | {
+        // Dragging a single endpoint of a 2-point line.
+        kind: "endpoint";
+        endpointIndex: 0 | 1;
+        otherEnd: Point;
+      }
+    | null
+  >(null);
 
-  // Reset selection when leaving select mode.
+  // Lasso state: in-progress freehand polygon, the resulting selection
+  // (set of stroke indices), and the gesture currently being performed on
+  // that selection (translate / scale).
+  const [lassoPath, setLassoPath] = useState<{ x: number; y: number }[] | null>(null);
+  const [lassoSelection, setLassoSelection] = useState<number[] | null>(null);
+  const lassoDragRef = useRef<
+    | {
+        kind: "translate";
+        startX: number;
+        startY: number;
+        origPointsByIndex: Map<number, Point[]>;
+      }
+    | {
+        kind: "scale";
+        // Anchor corner stays fixed; resize relative to it.
+        anchorX: number;
+        anchorY: number;
+        // Original group bounds (without padding).
+        origBox: { x: number; y: number; w: number; h: number };
+        origPointsByIndex: Map<number, Point[]>;
+        // Original stroke widths so we can scale them too.
+        origWidthsByIndex: Map<number, number>;
+      }
+    | null
+  >(null);
+
+  // Reset selections when leaving the relevant mode.
   useEffect(() => {
     if (mode !== "select") setSelectedIndex(null);
+    if (mode !== "lasso") {
+      setLassoSelection(null);
+      setLassoPath(null);
+    }
   }, [mode]);
 
   // Resize canvas to container width; tall fixed height so users have
@@ -276,9 +320,77 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         const pad = 6;
         ctx.strokeRect(bb.x - pad, bb.y - pad, bb.w + pad * 2, bb.h + pad * 2);
         ctx.restore();
+
+        // If this selected stroke is a 2-point line, draw endpoint handles
+        // so the user can grab and drag either end.
+        if (s.mode === "line" && s.points.length === 2) {
+          ctx.save();
+          ctx.globalCompositeOperation = "source-over";
+          for (const ep of s.points) {
+            ctx.beginPath();
+            ctx.fillStyle = "#ffffff";
+            ctx.strokeStyle = "hsl(217, 91%, 60%)";
+            ctx.lineWidth = 2;
+            ctx.arc(ep.x, ep.y, ENDPOINT_RADIUS, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
       }
     }
-  }, [strokes, currentStroke, size, selectedIndex]);
+
+    // Lasso: live freehand polygon while drawing it.
+    if (lassoPath && lassoPath.length > 1) {
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = "hsl(217, 91%, 60%)";
+      ctx.fillStyle = "hsl(217, 91%, 60% / 0.08)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(lassoPath[0].x, lassoPath[0].y);
+      for (let i = 1; i < lassoPath.length; i++) ctx.lineTo(lassoPath[i].x, lassoPath[i].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Lasso selection: dashed bounding box around the group + 4 corner handles.
+    if (lassoSelection && lassoSelection.length) {
+      const bb = groupBounds(lassoSelection);
+      if (bb) {
+        ctx.save();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.strokeStyle = "hsl(217, 91%, 60%)";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
+        const pad = 8;
+        const x = bb.x - pad, y = bb.y - pad;
+        const w = bb.w + pad * 2, h = bb.h + pad * 2;
+        ctx.strokeRect(x, y, w, h);
+        ctx.setLineDash([]);
+        // Corner handles.
+        for (const [hx, hy] of [
+          [x, y], [x + w, y], [x, y + h], [x + w, y + h],
+        ] as const) {
+          ctx.beginPath();
+          ctx.fillStyle = "#ffffff";
+          ctx.strokeStyle = "hsl(217, 91%, 60%)";
+          ctx.lineWidth = 2;
+          ctx.rect(hx - HANDLE_HALF, hy - HANDLE_HALF, HANDLE_HALF * 2, HANDLE_HALF * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+  }, [strokes, currentStroke, size, selectedIndex, lassoPath, lassoSelection]);
+
+  // Visual constants used by the selection overlay.
+  const HANDLE_HALF = 7;
+  const ENDPOINT_RADIUS = 7;
 
   // ---------- Hit testing & geometry helpers (for Select tool) ----------
 
@@ -331,6 +443,76 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     return null;
   };
 
+  /** Bounding box covering several strokes (ignores erase strokes). */
+  const groupBounds = (indices: number[]) => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let any = false;
+    for (const idx of indices) {
+      const s = strokes[idx];
+      if (!s || s.mode === "erase") continue;
+      for (const p of s.points) {
+        any = true;
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+    }
+    if (!any) return null;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  };
+
+  /** Standard even-odd point-in-polygon test. */
+  const pointInPolygon = (x: number, y: number, poly: { x: number; y: number }[]) => {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i].x, yi = poly[i].y;
+      const xj = poly[j].x, yj = poly[j].y;
+      const intersect = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  };
+
+  /**
+   * Decide if a stroke is "captured" by the lasso polygon. We require either
+   * the stroke's bounding-box centre to lie inside, OR a majority of its
+   * sample points to lie inside. This catches both small marks and longer
+   * sweeps without being fooled by a single stray endpoint.
+   */
+  const strokeInLasso = (s: Stroke, poly: { x: number; y: number }[]) => {
+    if (!s.points.length) return false;
+    const bb = strokeBounds(s);
+    if (bb && pointInPolygon(bb.x + bb.w / 2, bb.y + bb.h / 2, poly)) return true;
+    let inside = 0;
+    for (const p of s.points) if (pointInPolygon(p.x, p.y, poly)) inside++;
+    return inside * 2 > s.points.length;
+  };
+
+  /** Which lasso-selection handle (if any) is at (x,y)? */
+  const hitLassoHandle = (x: number, y: number):
+    | "tl" | "tr" | "bl" | "br" | "body" | null => {
+    if (!lassoSelection || !lassoSelection.length) return null;
+    const bb = groupBounds(lassoSelection);
+    if (!bb) return null;
+    const pad = 8;
+    const bx = bb.x - pad, by = bb.y - pad;
+    const bw = bb.w + pad * 2, bh = bb.h + pad * 2;
+    const corners: Array<["tl" | "tr" | "bl" | "br", number, number]> = [
+      ["tl", bx, by],
+      ["tr", bx + bw, by],
+      ["bl", bx, by + bh],
+      ["br", bx + bw, by + bh],
+    ];
+    for (const [name, hx, hy] of corners) {
+      if (Math.abs(x - hx) <= HANDLE_HALF + 2 && Math.abs(y - hy) <= HANDLE_HALF + 2) {
+        return name;
+      }
+    }
+    if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) return "body";
+    return null;
+  };
+
   // Resize backing store to devicePixelRatio for crisp rendering.
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -366,9 +548,28 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     const p = eventToPoint(e);
     if (mode === "select") {
       const hit = hitTestStroke(p.x, p.y);
+      // If we already have a 2-point line selected, check for endpoint grabs first.
+      if (selectedIndex !== null) {
+        const cur = strokes[selectedIndex];
+        if (cur && cur.mode === "line" && cur.points.length === 2) {
+          for (let i = 0; i < 2; i++) {
+            const ep = cur.points[i];
+            const dx = p.x - ep.x, dy = p.y - ep.y;
+            if (dx * dx + dy * dy <= (ENDPOINT_RADIUS + 4) ** 2) {
+              dragRef.current = {
+                kind: "endpoint",
+                endpointIndex: i as 0 | 1,
+                otherEnd: { ...cur.points[1 - i] },
+              };
+              return;
+            }
+          }
+        }
+      }
       setSelectedIndex(hit);
       if (hit !== null) {
         dragRef.current = {
+          kind: "translate",
           startX: p.x,
           startY: p.y,
           origPoints: strokes[hit].points.map((q) => ({ ...q })),
@@ -376,6 +577,53 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       } else {
         dragRef.current = null;
       }
+      return;
+    }
+    if (mode === "lasso") {
+      // If there's already a lasso selection and the user grabs a handle
+      // or the body, start translate / scale instead of drawing a new lasso.
+      if (lassoSelection && lassoSelection.length) {
+        const handle = hitLassoHandle(p.x, p.y);
+        if (handle && handle !== "body") {
+          const bb = groupBounds(lassoSelection)!;
+          // Anchor is the OPPOSITE corner.
+          let ax = bb.x, ay = bb.y;
+          if (handle === "tl") { ax = bb.x + bb.w; ay = bb.y + bb.h; }
+          if (handle === "tr") { ax = bb.x;        ay = bb.y + bb.h; }
+          if (handle === "bl") { ax = bb.x + bb.w; ay = bb.y; }
+          if (handle === "br") { ax = bb.x;        ay = bb.y; }
+          const origPts = new Map<number, Point[]>();
+          const origW = new Map<number, number>();
+          for (const idx of lassoSelection) {
+            origPts.set(idx, strokes[idx].points.map((q) => ({ ...q })));
+            origW.set(idx, strokes[idx].width);
+          }
+          lassoDragRef.current = {
+            kind: "scale",
+            anchorX: ax, anchorY: ay,
+            origBox: bb,
+            origPointsByIndex: origPts,
+            origWidthsByIndex: origW,
+          };
+          return;
+        }
+        if (handle === "body") {
+          const origPts = new Map<number, Point[]>();
+          for (const idx of lassoSelection) {
+            origPts.set(idx, strokes[idx].points.map((q) => ({ ...q })));
+          }
+          lassoDragRef.current = {
+            kind: "translate",
+            startX: p.x, startY: p.y,
+            origPointsByIndex: origPts,
+          };
+          return;
+        }
+      }
+      // Otherwise begin a new lasso selection: clear old selection and start polygon.
+      setLassoSelection(null);
+      setLassoPath([{ x: p.x, y: p.y }]);
+      lassoDragRef.current = null;
       return;
     }
     setCurrentStroke({
@@ -387,18 +635,77 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    // Select-mode drag: translate the selected stroke.
+    // Select-mode drag: either translate the stroke, or (for a line)
+    // move just one of its endpoints.
     if (mode === "select") {
       if (selectedIndex === null || !dragRef.current) return;
       const cur = eventToPoint(e);
-      const dx = cur.x - dragRef.current.startX;
-      const dy = cur.y - dragRef.current.startY;
-      const orig = dragRef.current.origPoints;
-      setStrokes((prev) => prev.map((s, i) =>
-        i === selectedIndex
-          ? { ...s, points: orig.map((q) => ({ ...q, x: q.x + dx, y: q.y + dy })) }
-          : s
-      ));
+      const drag = dragRef.current;
+      if (drag.kind === "translate") {
+        const dx = cur.x - drag.startX;
+        const dy = cur.y - drag.startY;
+        const orig = drag.origPoints;
+        setStrokes((prev) => prev.map((s, i) =>
+          i === selectedIndex
+            ? { ...s, points: orig.map((q) => ({ ...q, x: q.x + dx, y: q.y + dy })) }
+            : s
+        ));
+      } else if (drag.kind === "endpoint") {
+        // Re-snap to axis when the new line is near horizontal/vertical.
+        const snapped = snapLineEnd(drag.otherEnd, { ...cur, p: 0.5 });
+        setStrokes((prev) => prev.map((s, i) => {
+          if (i !== selectedIndex) return s;
+          const newPts: Point[] = [...s.points];
+          newPts[drag.endpointIndex] = { ...snapped, p: 0.5 };
+          newPts[1 - drag.endpointIndex] = { ...drag.otherEnd, p: 0.5 };
+          return { ...s, points: newPts };
+        }));
+      }
+      return;
+    }
+    if (mode === "lasso") {
+      // In-progress freehand polygon.
+      if (lassoPath) {
+        const cur = eventToPoint(e);
+        setLassoPath((prev) => prev ? [...prev, { x: cur.x, y: cur.y }] : prev);
+        return;
+      }
+      // Translate or scale the current lasso selection.
+      const drag = lassoDragRef.current;
+      if (!drag) return;
+      const cur = eventToPoint(e);
+      if (drag.kind === "translate") {
+        const dx = cur.x - drag.startX;
+        const dy = cur.y - drag.startY;
+        setStrokes((prev) => prev.map((s, i) => {
+          const orig = drag.origPointsByIndex.get(i);
+          if (!orig) return s;
+          return { ...s, points: orig.map((q) => ({ ...q, x: q.x + dx, y: q.y + dy })) };
+        }));
+      } else {
+        // Uniform scale around the anchor corner, based on the larger axis.
+        const { anchorX, anchorY, origBox } = drag;
+        const targetW = Math.abs(cur.x - anchorX);
+        const targetH = Math.abs(cur.y - anchorY);
+        // Avoid divide-by-zero or flipping; also clamp to a sensible minimum.
+        const sx = origBox.w > 0 ? targetW / origBox.w : 1;
+        const sy = origBox.h > 0 ? targetH / origBox.h : 1;
+        const s = Math.max(0.05, Math.min(sx, sy)); // uniform — keeps proportions
+        setStrokes((prev) => prev.map((stroke, i) => {
+          const orig = drag.origPointsByIndex.get(i);
+          if (!orig) return stroke;
+          const origW = drag.origWidthsByIndex.get(i) ?? stroke.width;
+          return {
+            ...stroke,
+            width: Math.max(1, origW * s),
+            points: orig.map((q) => ({
+              ...q,
+              x: anchorX + (q.x - anchorX) * s * Math.sign(cur.x - anchorX || 1) * (Math.sign(cur.x - anchorX || 1) === 1 ? 1 : -1),
+              y: anchorY + (q.y - anchorY) * s * Math.sign(cur.y - anchorY || 1) * (Math.sign(cur.y - anchorY || 1) === 1 ? 1 : -1),
+            })),
+          };
+        }));
+      }
       return;
     }
     if (!currentStroke) return;
@@ -425,6 +732,26 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     if (mode === "select") {
       canvasRef.current?.releasePointerCapture?.(e.pointerId);
       dragRef.current = null;
+      return;
+    }
+    if (mode === "lasso") {
+      canvasRef.current?.releasePointerCapture?.(e.pointerId);
+      // If we were drawing a polygon, finalise the selection now.
+      if (lassoPath) {
+        const poly = lassoPath;
+        setLassoPath(null);
+        if (poly.length >= 3) {
+          const picked: number[] = [];
+          for (let i = 0; i < strokes.length; i++) {
+            if (strokes[i].mode === "erase") continue;
+            if (strokeInLasso(strokes[i], poly)) picked.push(i);
+          }
+          setLassoSelection(picked.length ? picked : null);
+        } else {
+          setLassoSelection(null);
+        }
+      }
+      lassoDragRef.current = null;
       return;
     }
     if (!currentStroke) return;
@@ -456,8 +783,8 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     if (dx === 0 && dy === 0) return b;
     const angle = Math.atan2(dy, dx); // -pi..pi
     const deg = (angle * 180) / Math.PI;
-    // Tighter snap — user must be very close to axis-aligned before it locks.
-    const threshold = 2.5;
+    // Tight snap — user must be essentially axis-aligned before it locks.
+    const threshold = 1;
     // Horizontal: angle near 0 or ±180.
     if (Math.abs(deg) < threshold || Math.abs(Math.abs(deg) - 180) < threshold) {
       return { ...b, y: a.y };
@@ -517,6 +844,15 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
               className="gap-1"
             >
               <MousePointer2 className="h-4 w-4" /> Select
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "lasso" ? "default" : "outline"}
+              onClick={() => setMode("lasso")}
+              className="gap-1"
+            >
+              <Lasso className="h-4 w-4" /> Lasso
             </Button>
             <Button
               type="button"
@@ -582,7 +918,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           onPointerCancel={finishStroke}
           onPointerLeave={(e) => { if (currentStroke) finishStroke(e); }}
           style={{ touchAction: "none", display: "block", background: "#ffffff" }}
-          className={mode === "select" ? "cursor-move" : "cursor-crosshair"}
+          className={mode === "select" || mode === "lasso" ? "cursor-move" : "cursor-crosshair"}
         />
       </div>
 
