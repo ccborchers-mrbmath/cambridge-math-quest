@@ -32,6 +32,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [totalMarks, setTotalMarks] = useState<number | null>(null);
   const [isMarkingWork, setIsMarkingWork] = useState(false);
   const [isSavingAttempt, setIsSavingAttempt] = useState(false);
+  const [isEditingErrors, setIsEditingErrors] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleHint = async () => {
@@ -389,18 +390,46 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
 
                   <div>
                     <Label htmlFor="errors">Areas to improve (optional)</Label>
-                    <Textarea
-                      id="errors"
-                      placeholder="e.g., 'Need to practice integration by parts' or 'Forgot to apply chain rule'"
-                      value={natureOfErrors}
-                      onChange={(e) => setNatureOfErrors(e.target.value)}
-                      className="mt-1"
-                      rows={3}
-                    />
-                    {natureOfErrors.trim() && (
-                      <div className="mt-2 rounded-md border border-border/60 bg-secondary/30 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Preview</p>
-                        <LatexRenderer content={natureOfErrors} className="text-sm text-foreground/80 leading-relaxed" />
+                    {isEditingErrors || !natureOfErrors.trim() ? (
+                      <>
+                        <Textarea
+                          id="errors"
+                          placeholder="e.g., 'Need to practice integration by parts' or 'Forgot to apply chain rule'"
+                          value={natureOfErrors}
+                          onChange={(e) => setNatureOfErrors(e.target.value)}
+                          className="mt-1"
+                          rows={4}
+                        />
+                        {natureOfErrors.trim() && (
+                          <div className="mt-2 flex justify-end">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setIsEditingErrors(false)}
+                              className="gap-2 h-8"
+                            >
+                              <Check className="h-4 w-4" />
+                              Done editing
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="mt-1 rounded-md border border-border bg-background p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <LatexRenderer content={natureOfErrors} className="text-sm text-foreground/80 leading-relaxed flex-1" />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsEditingErrors(true)}
+                            className="gap-1 h-7 px-2 shrink-0"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
