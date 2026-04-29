@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Mode = "draw" | "line" | "select" | "lasso" | "erase";
@@ -80,6 +80,8 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   // that selection (translate / scale).
   const [lassoPath, setLassoPath] = useState<{ x: number; y: number }[] | null>(null);
   const [lassoSelection, setLassoSelection] = useState<number[] | null>(null);
+  // Cursor hint computed from pointer hover (not just current mode).
+  const [hoverCursor, setHoverCursor] = useState<string>("crosshair");
   const lassoDragRef = useRef<
     | {
         kind: "translate";
@@ -92,6 +94,10 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         // Anchor corner stays fixed; resize relative to it.
         anchorX: number;
         anchorY: number;
+        // Which axes this drag scales along. Corner handles scale both;
+        // edge handles scale only one axis.
+        scaleX: boolean;
+        scaleY: boolean;
         // Original group bounds (without padding).
         origBox: { x: number; y: number; w: number; h: number };
         origPointsByIndex: Map<number, Point[]>;
@@ -108,6 +114,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       setLassoSelection(null);
       setLassoPath(null);
     }
+    setHoverCursor(mode === "select" || mode === "lasso" ? "default" : "crosshair");
   }, [mode]);
 
   // Resize canvas to container width; tall fixed height so users have
@@ -374,9 +381,13 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         ctx.strokeRect(x, y, w, h);
         ctx.setLineDash([]);
         // Corner handles.
-        for (const [hx, hy] of [
+        const handlePts: Array<[number, number]> = [
           [x, y], [x + w, y], [x, y + h], [x + w, y + h],
-        ] as const) {
+          // Edge midpoint handles for vertical / horizontal stretching.
+          [x + w / 2, y], [x + w / 2, y + h],
+          [x, y + h / 2], [x + w, y + h / 2],
+        ];
+        for (const [hx, hy] of handlePts) {
           ctx.beginPath();
           ctx.fillStyle = "#ffffff";
           ctx.strokeStyle = "hsl(217, 91%, 60%)";
@@ -493,20 +504,26 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
   /** Which lasso-selection handle (if any) is at (x,y)? */
   const hitLassoHandle = (x: number, y: number):
-    | "tl" | "tr" | "bl" | "br" | "body" | null => {
+    | "tl" | "tr" | "bl" | "br" | "t" | "b" | "l" | "r" | "body" | null => {
     if (!lassoSelection || !lassoSelection.length) return null;
     const bb = groupBounds(lassoSelection);
     if (!bb) return null;
     const pad = 8;
     const bx = bb.x - pad, by = bb.y - pad;
     const bw = bb.w + pad * 2, bh = bb.h + pad * 2;
-    const corners: Array<["tl" | "tr" | "bl" | "br", number, number]> = [
+    const handles: Array<
+      ["tl" | "tr" | "bl" | "br" | "t" | "b" | "l" | "r", number, number]
+    > = [
       ["tl", bx, by],
       ["tr", bx + bw, by],
       ["bl", bx, by + bh],
       ["br", bx + bw, by + bh],
+      ["t", bx + bw / 2, by],
+      ["b", bx + bw / 2, by + bh],
+      ["l", bx, by + bh / 2],
+      ["r", bx + bw, by + bh / 2],
     ];
-    for (const [name, hx, hy] of corners) {
+    for (const [name, hx, hy] of handles) {
       if (Math.abs(x - hx) <= HANDLE_HALF + 2 && Math.abs(y - hy) <= HANDLE_HALF + 2) {
         return name;
       }
@@ -588,12 +605,18 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         const handle = hitLassoHandle(p.x, p.y);
         if (handle && handle !== "body") {
           const bb = groupBounds(lassoSelection)!;
-          // Anchor is the OPPOSITE corner.
+          // Anchor is the OPPOSITE side / corner so the grabbed handle moves
+          // freely while the other side stays fixed.
           let ax = bb.x, ay = bb.y;
+          let scaleX = true, scaleY = true;
           if (handle === "tl") { ax = bb.x + bb.w; ay = bb.y + bb.h; }
-          if (handle === "tr") { ax = bb.x;        ay = bb.y + bb.h; }
-          if (handle === "bl") { ax = bb.x + bb.w; ay = bb.y; }
-          if (handle === "br") { ax = bb.x;        ay = bb.y; }
+          else if (handle === "tr") { ax = bb.x;        ay = bb.y + bb.h; }
+          else if (handle === "bl") { ax = bb.x + bb.w; ay = bb.y; }
+          else if (handle === "br") { ax = bb.x;        ay = bb.y; }
+          else if (handle === "t")  { ax = bb.x;        ay = bb.y + bb.h; scaleX = false; }
+          else if (handle === "b")  { ax = bb.x;        ay = bb.y;        scaleX = false; }
+          else if (handle === "l")  { ax = bb.x + bb.w; ay = bb.y;        scaleY = false; }
+          else if (handle === "r")  { ax = bb.x;        ay = bb.y;        scaleY = false; }
           const origPts = new Map<number, Point[]>();
           const origW = new Map<number, number>();
           for (const idx of lassoSelection) {
@@ -603,6 +626,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           lassoDragRef.current = {
             kind: "scale",
             anchorX: ax, anchorY: ay,
+            scaleX, scaleY,
             origBox: bb,
             origPointsByIndex: origPts,
             origWidthsByIndex: origW,
@@ -672,6 +696,17 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         setLassoPath((prev) => prev ? [...prev, { x: cur.x, y: cur.y }] : prev);
         return;
       }
+      // Update hover cursor over selection handles when not actively dragging.
+      if (!lassoDragRef.current) {
+        const hp = eventToPoint(e);
+        const handle = hitLassoHandle(hp.x, hp.y);
+        if (handle === "tl" || handle === "br") setHoverCursor("nwse-resize");
+        else if (handle === "tr" || handle === "bl") setHoverCursor("nesw-resize");
+        else if (handle === "t" || handle === "b") setHoverCursor("ns-resize");
+        else if (handle === "l" || handle === "r") setHoverCursor("ew-resize");
+        else if (handle === "body") setHoverCursor("move");
+        else setHoverCursor("crosshair");
+      }
       // Translate or scale the current lasso selection.
       const drag = lassoDragRef.current;
       if (!drag) return;
@@ -685,26 +720,29 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           return { ...s, points: orig.map((q) => ({ ...q, x: q.x + dx, y: q.y + dy })) };
         }));
       } else {
-        // Uniform scale around the anchor corner. We use the smaller axis
-        // ratio so the group stays inside the user's drag, never overshoots
-        // either dimension, and keeps proportions.
-        const { anchorX, anchorY, origBox } = drag;
+        // Scale around the anchor. Corner handles scale both axes
+        // independently (allowing horizontal+vertical stretching); edge
+        // handles scale only one axis.
+        const { anchorX, anchorY, origBox, scaleX, scaleY } = drag;
         const targetW = Math.max(1, Math.abs(cur.x - anchorX));
         const targetH = Math.max(1, Math.abs(cur.y - anchorY));
-        const sx = origBox.w > 0 ? targetW / origBox.w : 1;
-        const sy = origBox.h > 0 ? targetH / origBox.h : 1;
-        const sUniform = Math.max(0.05, Math.min(sx, sy));
+        const rawSx = origBox.w > 0 ? targetW / origBox.w : 1;
+        const rawSy = origBox.h > 0 ? targetH / origBox.h : 1;
+        const sX = scaleX ? Math.max(0.05, rawSx) : 1;
+        const sY = scaleY ? Math.max(0.05, rawSy) : 1;
+        // Stroke width follows the average of the active scale axes.
+        const wScale = scaleX && scaleY ? (sX + sY) / 2 : (scaleX ? sX : sY);
         setStrokes((prev) => prev.map((stroke, i) => {
           const orig = drag.origPointsByIndex.get(i);
           if (!orig) return stroke;
           const origW = drag.origWidthsByIndex.get(i) ?? stroke.width;
           return {
             ...stroke,
-            width: Math.max(1, origW * sUniform),
+            width: Math.max(1, origW * wScale),
             points: orig.map((q) => ({
               ...q,
-              x: anchorX + (q.x - anchorX) * sUniform,
-              y: anchorY + (q.y - anchorY) * sUniform,
+              x: anchorX + (q.x - anchorX) * sX,
+              y: anchorY + (q.y - anchorY) * sY,
             })),
           };
         }));
@@ -860,6 +898,27 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
             <Button
               type="button"
               size="sm"
+              variant="outline"
+              onClick={() => {
+                if (!strokes.length) return;
+                const all: number[] = [];
+                for (let i = 0; i < strokes.length; i++) {
+                  if (strokes[i].mode !== "erase") all.push(i);
+                }
+                if (all.length) {
+                  setMode("lasso");
+                  setLassoPath(null);
+                  setLassoSelection(all);
+                }
+              }}
+              disabled={!strokes.length}
+              className="gap-1"
+            >
+              <BoxSelect className="h-4 w-4" /> Select all
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               variant={mode === "erase" ? "default" : "outline"}
               onClick={() => setMode("erase")}
               className="gap-1"
@@ -920,8 +979,19 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           onPointerUp={finishStroke}
           onPointerCancel={finishStroke}
           onPointerLeave={(e) => { if (currentStroke) finishStroke(e); }}
-          style={{ touchAction: "none", display: "block", background: "#ffffff" }}
-          className={mode === "select" || mode === "lasso" ? "cursor-move" : "cursor-crosshair"}
+          style={{
+            touchAction: "none",
+            display: "block",
+            background: "#ffffff",
+            cursor:
+              mode === "lasso"
+                ? hoverCursor
+                : mode === "select"
+                ? "default"
+                : mode === "erase"
+                ? "crosshair"
+                : "crosshair",
+          }}
         />
       </div>
 
