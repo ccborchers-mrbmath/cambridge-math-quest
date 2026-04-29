@@ -503,20 +503,26 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
   /** Which lasso-selection handle (if any) is at (x,y)? */
   const hitLassoHandle = (x: number, y: number):
-    | "tl" | "tr" | "bl" | "br" | "body" | null => {
+    | "tl" | "tr" | "bl" | "br" | "t" | "b" | "l" | "r" | "body" | null => {
     if (!lassoSelection || !lassoSelection.length) return null;
     const bb = groupBounds(lassoSelection);
     if (!bb) return null;
     const pad = 8;
     const bx = bb.x - pad, by = bb.y - pad;
     const bw = bb.w + pad * 2, bh = bb.h + pad * 2;
-    const corners: Array<["tl" | "tr" | "bl" | "br", number, number]> = [
+    const handles: Array<
+      ["tl" | "tr" | "bl" | "br" | "t" | "b" | "l" | "r", number, number]
+    > = [
       ["tl", bx, by],
       ["tr", bx + bw, by],
       ["bl", bx, by + bh],
       ["br", bx + bw, by + bh],
+      ["t", bx + bw / 2, by],
+      ["b", bx + bw / 2, by + bh],
+      ["l", bx, by + bh / 2],
+      ["r", bx + bw, by + bh / 2],
     ];
-    for (const [name, hx, hy] of corners) {
+    for (const [name, hx, hy] of handles) {
       if (Math.abs(x - hx) <= HANDLE_HALF + 2 && Math.abs(y - hy) <= HANDLE_HALF + 2) {
         return name;
       }
@@ -598,12 +604,18 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         const handle = hitLassoHandle(p.x, p.y);
         if (handle && handle !== "body") {
           const bb = groupBounds(lassoSelection)!;
-          // Anchor is the OPPOSITE corner.
+          // Anchor is the OPPOSITE side / corner so the grabbed handle moves
+          // freely while the other side stays fixed.
           let ax = bb.x, ay = bb.y;
+          let scaleX = true, scaleY = true;
           if (handle === "tl") { ax = bb.x + bb.w; ay = bb.y + bb.h; }
-          if (handle === "tr") { ax = bb.x;        ay = bb.y + bb.h; }
-          if (handle === "bl") { ax = bb.x + bb.w; ay = bb.y; }
-          if (handle === "br") { ax = bb.x;        ay = bb.y; }
+          else if (handle === "tr") { ax = bb.x;        ay = bb.y + bb.h; }
+          else if (handle === "bl") { ax = bb.x + bb.w; ay = bb.y; }
+          else if (handle === "br") { ax = bb.x;        ay = bb.y; }
+          else if (handle === "t")  { ax = bb.x;        ay = bb.y + bb.h; scaleX = false; }
+          else if (handle === "b")  { ax = bb.x;        ay = bb.y;        scaleX = false; }
+          else if (handle === "l")  { ax = bb.x + bb.w; ay = bb.y;        scaleY = false; }
+          else if (handle === "r")  { ax = bb.x;        ay = bb.y;        scaleY = false; }
           const origPts = new Map<number, Point[]>();
           const origW = new Map<number, number>();
           for (const idx of lassoSelection) {
@@ -613,6 +625,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           lassoDragRef.current = {
             kind: "scale",
             anchorX: ax, anchorY: ay,
+            scaleX, scaleY,
             origBox: bb,
             origPointsByIndex: origPts,
             origWidthsByIndex: origW,
