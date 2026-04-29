@@ -58,7 +58,11 @@ const StudentProgress = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setAttempts(data || []);
+      const normalized: StudentAttempt[] = (data || []).map((row: any) => ({
+        ...row,
+        mark_breakdown: Array.isArray(row.mark_breakdown) ? row.mark_breakdown : null,
+      }));
+      setAttempts(normalized);
     } catch (error) {
       console.error('Error fetching attempts:', error);
     } finally {
