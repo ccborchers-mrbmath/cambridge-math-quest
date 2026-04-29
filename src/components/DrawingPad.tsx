@@ -495,6 +495,33 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       const tol = Math.max(s.width + 8, 12);
       const tolSq = tol * tol;
       const pts = s.points;
+      // Ellipse: test distance from the click to the ellipse perimeter by
+      // sampling points around it. The ellipse spans the bbox between its
+      // two stored corner points.
+      if (s.mode === "ellipse" && pts.length >= 2) {
+        const a = pts[0];
+        const b = pts[pts.length - 1];
+        const cx = (a.x + b.x) / 2;
+        const cy = (a.y + b.y) / 2;
+        const rx = Math.max(0.5, Math.abs(b.x - a.x) / 2);
+        const ry = Math.max(0.5, Math.abs(b.y - a.y) / 2);
+        const samples = 64;
+        let prevX = cx + rx;
+        let prevY = cy;
+        let hit = false;
+        for (let k = 1; k <= samples; k++) {
+          const ang = (k / samples) * Math.PI * 2;
+          const sx = cx + rx * Math.cos(ang);
+          const sy = cy + ry * Math.sin(ang);
+          if (distSqToSegment(x, y, prevX, prevY, sx, sy) <= tolSq) {
+            hit = true;
+            break;
+          }
+          prevX = sx; prevY = sy;
+        }
+        if (hit) return i;
+        continue;
+      }
       if (pts.length === 1) {
         const d = (pts[0].x - x) ** 2 + (pts[0].y - y) ** 2;
         if (d <= tolSq) return i;
