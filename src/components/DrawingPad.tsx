@@ -117,6 +117,36 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     setHoverCursor(mode === "select" || mode === "lasso" ? "default" : "crosshair");
   }, [mode]);
 
+  // Delete / Backspace removes the current line selection or lasso selection.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      if (lassoSelection && lassoSelection.length) {
+        e.preventDefault();
+        const toRemove = new Set(lassoSelection);
+        setStrokes((prev) => prev.filter((_, i) => !toRemove.has(i)));
+        setLassoSelection(null);
+        setLassoPath(null);
+      } else if (selectedIndex != null) {
+        e.preventDefault();
+        const idx = selectedIndex;
+        setStrokes((prev) => prev.filter((_, i) => i !== idx));
+        setSelectedIndex(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lassoSelection, selectedIndex]);
+
   // Resize canvas to container width; tall fixed height so users have
   // plenty of vertical room. The container scrolls internally.
   useEffect(() => {
