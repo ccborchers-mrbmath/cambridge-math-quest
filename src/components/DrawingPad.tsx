@@ -120,7 +120,6 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   // Delete / Backspace removes the current line selection or lasso selection.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Delete" && e.key !== "Backspace") return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
       if (
@@ -130,6 +129,16 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       ) {
         return;
       }
+      // Ctrl/Cmd + Z: undo last stroke.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === "z" || e.key === "Z")) {
+        e.preventDefault();
+        setStrokes((prev) => prev.slice(0, -1));
+        setSelectedIndex(null);
+        setLassoSelection(null);
+        setLassoPath(null);
+        return;
+      }
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (lassoSelection && lassoSelection.length) {
         e.preventDefault();
         const toRemove = new Set(lassoSelection);
