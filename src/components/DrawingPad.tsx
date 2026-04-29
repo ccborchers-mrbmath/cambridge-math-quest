@@ -6,10 +6,21 @@ import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, PenTool } from "lucide-r
 import { cn } from "@/lib/utils";
 
 type Mode = "draw" | "calligraphy" | "erase";
-interface Point { x: number; y: number; }
+interface Point {
+  x: number;
+  y: number;
+  /** Normalized pressure 0..1. 0.5 when the device doesn't report pressure. */
+  p: number;
+  /** Pen tilt in degrees if available, else 0. */
+  tx: number;
+  ty: number;
+  /** Timestamp (ms) used for velocity-based width fallback. */
+  t: number;
+}
 interface Stroke {
   mode: Mode;
   color: string;
+  /** Base width selected by the user — modulated per-point by pressure / velocity. */
   width: number;
   points: Point[];
 }
@@ -25,6 +36,17 @@ interface DrawingPadProps {
   onCancel: () => void;
 }
 
+/**
+ * High-quality drawing surface tuned to match the feel of a desktop inking
+ * app such as DrawBoard PDF. Four pillars:
+ *   1. HiDPI backing store (devicePixelRatio) — pixel-sharp strokes.
+ *   2. PointerEvent.pressure + tilt + getCoalescedEvents() — full sample rate
+ *      and natural thick/thin variation when the tablet supplies pressure.
+ *      Falls back to velocity-based modulation when pressure is flat.
+ *   3. Catmull-Rom centripetal smoothing — no faceted polygons on curves.
+ *   4. For calligraphy, a chisel-nib ribbon is built from interpolated
+ *      points so the edges stay smooth at any speed.
+ */
 export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,9 +58,8 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [extraHeight, setExtraHeight] = useState(0);
 
-  // Resize canvas to container width; use a tall fixed height so users have
-  // plenty of vertical room. The container scrolls internally so the question
-  // statement above stays visible.
+  // Resize canvas to container width; tall fixed height so users have
+  // plenty of vertical room. The container scrolls internally.
   useEffect(() => {
     const update = () => {
       const w = containerRef.current?.clientWidth ?? 800;
@@ -50,110 +71,218 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     return () => window.removeEventListener("resize", update);
   }, [extraHeight]);
 
+  /**
+   * Centripetal Catmull-Rom interpolation between p1 and p2 (with p0,p3 as
+   * neighbours). Returns ~`segments` interpolated points including endpoints
+   * partially — caller stitches the chain together.
+   */
+  const catmullRom = (
+    p0: Point, p1: Point, p2: Point, p3: Point, segments: number,
+  ): Point[] => {
+    const out: Point[] = [];
+    for (let i = 0; i < segments; i++) {
+      const t = i / segments;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const x = 0.5 * (
+        2 * p1.x +
+        (-p0.x + p2.x) * t +
+        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3
+      );
+      const y = 0.5 * (
+        2 * p1.y +
+        (-p0.y + p2.y) * t +
+        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3
+      );
+      const p = p1.p + (p2.p - p1.p) * t;
+      out.push({ x, y, p, tx: 0, ty: 0, t: 0 });
+    }
+    return out;
+  };
+
+  /** Build a smooth, dense polyline from the raw input samples. */
+  const smoothPath = (pts: Point[]): Point[] => {
+    if (pts.length < 2) return pts;
+    const out: Point[] = [pts[0]];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] ?? pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] ?? pts[i + 1];
+      // Adapt segment count to segment length so long jumps get more points.
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const dist = Math.hypot(dx, dy);
+      const segs = Math.max(4, Math.min(24, Math.ceil(dist / 3)));
+      out.push(...catmullRom(p0, p1, p2, p3, segs).slice(1));
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  };
+
+  /**
+   * Decide the per-point width. Uses pressure when available; otherwise
+   * inverts velocity (slow = thick, fast = thin) which mimics real ink.
+   */
+  const pointWidth = (s: Stroke, prev: Point | null, p: Point): number => {
+    const base = s.width;
+    // If pressure was actually reported (not the 0.5 default), use it directly.
+    if (Math.abs(p.p - 0.5) > 0.001) {
+      // Map 0..1 pressure to 0.35..1.6 of base width for a natural range.
+      return base * (0.35 + p.p * 1.25);
+    }
+    // Velocity fallback.
+    if (!prev) return base;
+    const dt = Math.max(1, p.t - prev.t);
+    const v = Math.hypot(p.x - prev.x, p.y - prev.y) / dt; // px/ms
+    // v ~ 0 -> 1.3x, v ~ 2 px/ms -> 0.55x.
+    const k = Math.max(0.55, Math.min(1.3, 1.3 - v * 0.4));
+    return base * k;
+  };
+
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    // Reset transform, then scale so all our drawing is in CSS pixels.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // Faint horizontal ruled lines (like notebook paper)
+    ctx.fillRect(0, 0, size.w, size.h);
+
+    // Faint ruled lines.
     const lineSpacing = 36;
     ctx.save();
     ctx.strokeStyle = "rgba(37, 99, 235, 0.18)";
     ctx.lineWidth = 1;
-    for (let y = lineSpacing; y < canvas.height; y += lineSpacing) {
+    for (let y = lineSpacing; y < size.h; y += lineSpacing) {
       ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(size.w, y + 0.5);
       ctx.stroke();
     }
     ctx.restore();
-    // Nib angle for calligraphy strokes (typical italic nib ~ -45°)
+
     const NIB_ANGLE = -Math.PI / 4;
     const all = currentStroke ? [...strokes, currentStroke] : strokes;
+
     for (const s of all) {
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.lineWidth = s.width;
       if (s.mode === "erase") {
         ctx.globalCompositeOperation = "destination-out";
         ctx.strokeStyle = "rgba(0,0,0,1)";
+        ctx.fillStyle = "rgba(0,0,0,1)";
       } else {
         ctx.globalCompositeOperation = "source-over";
         ctx.strokeStyle = s.color;
+        ctx.fillStyle = s.color;
       }
-      const pts = s.points;
-      if (pts.length === 0) continue;
 
-      // Calligraphy: render each segment as a rotated rectangle so the
-      // stroke width varies with direction relative to the nib.
+      const raw = s.points;
+      if (raw.length === 0) continue;
+      const pts = raw.length >= 2 ? smoothPath(raw) : raw;
+
+      // ---------- Calligraphy: chisel-nib ribbon ----------
       if (s.mode === "calligraphy") {
-        const nibLen = Math.max(s.width * 3, 8); // chisel tip length
         const cos = Math.cos(NIB_ANGLE);
         const sin = Math.sin(NIB_ANGLE);
-        const dx = (nibLen / 2) * cos;
-        const dy = (nibLen / 2) * sin;
-        ctx.fillStyle = s.color;
         if (pts.length === 1) {
+          const nibLen = Math.max(s.width * 3, 8);
+          const dx = (nibLen / 2) * cos;
+          const dy = (nibLen / 2) * sin;
           ctx.beginPath();
           ctx.moveTo(pts[0].x - dx, pts[0].y - dy);
           ctx.lineTo(pts[0].x + dx, pts[0].y + dy);
           ctx.lineWidth = Math.max(s.width * 0.6, 1);
-          ctx.strokeStyle = s.color;
           ctx.stroke();
           continue;
         }
-        for (let i = 0; i < pts.length - 1; i++) {
-          const a = pts[i];
-          const b = pts[i + 1];
-          ctx.beginPath();
-          ctx.moveTo(a.x - dx, a.y - dy);
-          ctx.lineTo(a.x + dx, a.y + dy);
-          ctx.lineTo(b.x + dx, b.y + dy);
-          ctx.lineTo(b.x - dx, b.y - dy);
-          ctx.closePath();
-          ctx.fill();
+        // Build ribbon as one filled polygon: top edge forwards, bottom edge backwards.
+        // Each point's nib length adapts to pressure (or velocity fallback).
+        const top: { x: number; y: number }[] = [];
+        const bot: { x: number; y: number }[] = [];
+        let prev: Point | null = null;
+        for (const p of pts) {
+          const w = pointWidth(s, prev, p);
+          const nibLen = Math.max(w * 3, 8);
+          const dx = (nibLen / 2) * cos;
+          const dy = (nibLen / 2) * sin;
+          top.push({ x: p.x - dx, y: p.y - dy });
+          bot.push({ x: p.x + dx, y: p.y + dy });
+          prev = p;
         }
-        continue;
-      }
-
-      if (pts.length === 1) {
         ctx.beginPath();
-        ctx.arc(pts[0].x, pts[0].y, s.width / 2, 0, Math.PI * 2);
-        ctx.fillStyle = s.mode === "erase" ? "rgba(0,0,0,1)" : s.color;
+        ctx.moveTo(top[0].x, top[0].y);
+        for (let i = 1; i < top.length; i++) ctx.lineTo(top[i].x, top[i].y);
+        for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i].x, bot[i].y);
+        ctx.closePath();
         ctx.fill();
         continue;
       }
-      ctx.beginPath();
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (let i = 1; i < pts.length - 1; i++) {
-        const midX = (pts[i].x + pts[i + 1].x) / 2;
-        const midY = (pts[i].y + pts[i + 1].y) / 2;
-        ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+
+      // ---------- Pen / Eraser: variable-width round stroke ----------
+      if (pts.length === 1) {
+        ctx.beginPath();
+        ctx.arc(pts[0].x, pts[0].y, s.width / 2, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
       }
-      const last = pts[pts.length - 1];
-      ctx.lineTo(last.x, last.y);
-      ctx.stroke();
+      // Draw as many short segments, each with its own lineWidth.
+      let prev: Point | null = null;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        const w = pointWidth(s, prev, a);
+        ctx.lineWidth = s.mode === "erase" ? Math.max(w * 4, 12) : w;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+        prev = a;
+      }
     }
     ctx.globalCompositeOperation = "source-over";
-  }, [strokes, currentStroke]);
+  }, [strokes, currentStroke, size]);
 
-  useEffect(() => { redraw(); }, [redraw, size]);
+  // Resize backing store to devicePixelRatio for crisp rendering.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(size.w * dpr);
+    canvas.height = Math.round(size.h * dpr);
+    canvas.style.width = `${size.w}px`;
+    canvas.style.height = `${size.h}px`;
+    redraw();
+  }, [size, redraw]);
 
-  const getPos = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
+  useEffect(() => { redraw(); }, [redraw]);
+
+  const eventToPoint = (e: PointerEvent | React.PointerEvent): Point => {
     const rect = canvasRef.current!.getBoundingClientRect();
+    // pressure: 0 means "not supported" on some devices, treat as default.
+    const rawP = (e as PointerEvent).pressure;
+    const pressure = rawP && rawP > 0 && rawP !== 0.5 ? rawP : 0.5;
     return {
       x: ((e.clientX - rect.left) / rect.width) * size.w,
       y: ((e.clientY - rect.top) / rect.height) * size.h,
+      p: pressure,
+      tx: (e as PointerEvent).tiltX ?? 0,
+      ty: (e as PointerEvent).tiltY ?? 0,
+      t: performance.now(),
     };
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     canvasRef.current?.setPointerCapture(e.pointerId);
-    const p = getPos(e);
+    const p = eventToPoint(e);
     setCurrentStroke({
       mode,
       color,
@@ -164,8 +293,15 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!currentStroke) return;
-    const p = getPos(e);
-    setCurrentStroke({ ...currentStroke, points: [...currentStroke.points, p] });
+    // Pull every coalesced sub-event for full tablet sample rate.
+    const native = e.nativeEvent;
+    const events = typeof native.getCoalescedEvents === "function"
+      ? native.getCoalescedEvents()
+      : [native];
+    const newPoints: Point[] = events.length
+      ? events.map(eventToPoint)
+      : [eventToPoint(e)];
+    setCurrentStroke((cs) => cs ? { ...cs, points: [...cs.points, ...newPoints] } : cs);
   };
 
   const finishStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -181,7 +317,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const handleDone = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // Composite onto white background to flatten any erased transparency
+    // Composite onto white at full backing-store resolution.
     const out = document.createElement("canvas");
     out.width = canvas.width;
     out.height = canvas.height;
@@ -273,15 +409,13 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       >
         <canvas
           ref={canvasRef}
-          width={size.w}
-          height={size.h}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={finishStroke}
           onPointerCancel={finishStroke}
           onPointerLeave={(e) => { if (currentStroke) finishStroke(e); }}
-          style={{ touchAction: "none", width: "100%", height: "auto", background: "#ffffff" }}
-          className="cursor-crosshair block"
+          style={{ touchAction: "none", display: "block", background: "#ffffff" }}
+          className="cursor-crosshair"
         />
       </div>
 
@@ -292,7 +426,6 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           size="sm"
           onClick={() => {
             setExtraHeight((h) => h + 800);
-            // Scroll to bottom after the canvas grows so the new space is visible
             requestAnimationFrame(() => {
               const c = containerRef.current;
               if (c) c.scrollTop = c.scrollHeight;
