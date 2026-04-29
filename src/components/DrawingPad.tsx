@@ -345,7 +345,9 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       ctx.save();
       ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = "hsl(217, 91%, 60%)";
-      ctx.fillStyle = "hsl(217, 91%, 60% / 0.08)";
+      // Use rgba — the canvas 2D parser doesn't accept the modern
+      // hsl(... / alpha) slash-alpha syntax in all browsers.
+      ctx.fillStyle = "rgba(59, 130, 246, 0.08)";
       ctx.lineWidth = 1.5;
       ctx.setLineDash([5, 4]);
       ctx.beginPath();
