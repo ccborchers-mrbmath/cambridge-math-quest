@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Mode = "draw" | "line" | "select" | "lasso" | "erase";
@@ -80,6 +80,8 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   // that selection (translate / scale).
   const [lassoPath, setLassoPath] = useState<{ x: number; y: number }[] | null>(null);
   const [lassoSelection, setLassoSelection] = useState<number[] | null>(null);
+  // Cursor hint computed from pointer hover (not just current mode).
+  const [hoverCursor, setHoverCursor] = useState<string>("crosshair");
   const lassoDragRef = useRef<
     | {
         kind: "translate";
@@ -92,6 +94,10 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         // Anchor corner stays fixed; resize relative to it.
         anchorX: number;
         anchorY: number;
+        // Which axes this drag scales along. Corner handles scale both;
+        // edge handles scale only one axis.
+        scaleX: boolean;
+        scaleY: boolean;
         // Original group bounds (without padding).
         origBox: { x: number; y: number; w: number; h: number };
         origPointsByIndex: Map<number, Point[]>;
@@ -374,9 +380,13 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         ctx.strokeRect(x, y, w, h);
         ctx.setLineDash([]);
         // Corner handles.
-        for (const [hx, hy] of [
+        const handlePts: Array<[number, number]> = [
           [x, y], [x + w, y], [x, y + h], [x + w, y + h],
-        ] as const) {
+          // Edge midpoint handles for vertical / horizontal stretching.
+          [x + w / 2, y], [x + w / 2, y + h],
+          [x, y + h / 2], [x + w, y + h / 2],
+        ];
+        for (const [hx, hy] of handlePts) {
           ctx.beginPath();
           ctx.fillStyle = "#ffffff";
           ctx.strokeStyle = "hsl(217, 91%, 60%)";
