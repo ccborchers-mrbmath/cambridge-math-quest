@@ -820,8 +820,26 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         const targetH = Math.max(1, Math.abs(cur.y - anchorY));
         const rawSx = origBox.w > 0 ? targetW / origBox.w : 1;
         const rawSy = origBox.h > 0 ? targetH / origBox.h : 1;
-        const sX = scaleX ? Math.max(0.05, rawSx) : 1;
-        const sY = scaleY ? Math.max(0.05, rawSy) : 1;
+        let sX = scaleX ? Math.max(0.05, rawSx) : 1;
+        let sY = scaleY ? Math.max(0.05, rawSy) : 1;
+        // Circle snap: if the only selected stroke is an ellipse and a
+        // corner handle (both axes) is being dragged, snap to a perfect
+        // circle when the resulting width/height are within ~5%.
+        if (
+          scaleX && scaleY &&
+          lassoSelection &&
+          lassoSelection.length === 1 &&
+          strokes[lassoSelection[0]]?.mode === "ellipse"
+        ) {
+          const newW = origBox.w * sX;
+          const newH = origBox.h * sY;
+          const big = Math.max(newW, newH);
+          if (big > 4 && Math.abs(newW - newH) / big <= 0.05) {
+            const targetSize = (newW + newH) / 2;
+            sX = origBox.w > 0 ? targetSize / origBox.w : sX;
+            sY = origBox.h > 0 ? targetSize / origBox.h : sY;
+          }
+        }
         // Stroke width follows the average of the active scale axes.
         const wScale = scaleX && scaleY ? (sX + sY) / 2 : (scaleX ? sX : sY);
         setStrokes((prev) => prev.map((stroke, i) => {
