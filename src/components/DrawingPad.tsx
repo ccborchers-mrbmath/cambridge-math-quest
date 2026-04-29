@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Mode = "draw" | "line" | "select" | "lasso" | "erase";
+type Mode = "draw" | "line" | "ellipse" | "select" | "lasso" | "erase";
 interface Point {
   x: number;
   y: number;
