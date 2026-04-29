@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, PenTool } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Mode = "draw" | "calligraphy" | "erase";
+type Mode = "draw" | "erase";
 interface Point {
   x: number;
   y: number;
@@ -44,8 +44,8 @@ interface DrawingPadProps {
  *      and natural thick/thin variation when the tablet supplies pressure.
  *      Falls back to velocity-based modulation when pressure is flat.
  *   3. Catmull-Rom centripetal smoothing — no faceted polygons on curves.
- *   4. For calligraphy, a chisel-nib ribbon is built from interpolated
- *      points so the edges stay smooth at any speed.
+ *   4. Pen rendered as a single filled ribbon polygon (not many stroked
+ *      segments) so the edges are smoothly anti-aliased.
  */
 export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -171,7 +171,6 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     }
     ctx.restore();
 
-    const NIB_ANGLE = -Math.PI / 4;
     const all = currentStroke ? [...strokes, currentStroke] : strokes;
 
     for (const s of all) {
@@ -210,42 +209,6 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         }
         return sum / n;
       });
-
-      // ---------- Calligraphy: chisel-nib ribbon ----------
-      if (s.mode === "calligraphy") {
-        const cos = Math.cos(NIB_ANGLE);
-        const sin = Math.sin(NIB_ANGLE);
-        if (pts.length === 1) {
-          const nibLen = Math.max(s.width * 3, 8);
-          const dx = (nibLen / 2) * cos;
-          const dy = (nibLen / 2) * sin;
-          ctx.beginPath();
-          ctx.moveTo(pts[0].x - dx, pts[0].y - dy);
-          ctx.lineTo(pts[0].x + dx, pts[0].y + dy);
-          ctx.lineWidth = Math.max(s.width * 0.6, 1);
-          ctx.stroke();
-          continue;
-        }
-        // Build ribbon as one filled polygon: top edge forwards, bottom edge backwards.
-        // Each point's nib length adapts to the smoothed per-point width.
-        const top: { x: number; y: number }[] = [];
-        const bot: { x: number; y: number }[] = [];
-        for (let i = 0; i < pts.length; i++) {
-          const p = pts[i];
-          const nibLen = Math.max(widths[i] * 3, 8);
-          const dx = (nibLen / 2) * cos;
-          const dy = (nibLen / 2) * sin;
-          top.push({ x: p.x - dx, y: p.y - dy });
-          bot.push({ x: p.x + dx, y: p.y + dy });
-        }
-        ctx.beginPath();
-        ctx.moveTo(top[0].x, top[0].y);
-        for (let i = 1; i < top.length; i++) ctx.lineTo(top[i].x, top[i].y);
-        for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i].x, bot[i].y);
-        ctx.closePath();
-        ctx.fill();
-        continue;
-      }
 
       // ---------- Pen / Eraser: variable-width ribbon (filled polygon) ----------
       // Drawing as one continuous filled polygon (instead of many short
@@ -384,15 +347,6 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
               className="gap-1"
             >
               <Pencil className="h-4 w-4" /> Pen
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={mode === "calligraphy" ? "default" : "outline"}
-              onClick={() => setMode("calligraphy")}
-              className="gap-1"
-            >
-              <PenTool className="h-4 w-4" /> Calligraphy
             </Button>
             <Button
               type="button"
