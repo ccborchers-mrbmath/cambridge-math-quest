@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award } from 'lucide-react';
+import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X } from 'lucide-react';
 import { LatexRenderer } from '@/components/LatexRenderer';
 import { getAllCurriculumSubtopics, getMasteredSubtopicCodes } from '@/lib/curriculum';
 
@@ -24,6 +24,7 @@ interface StudentAttempt {
   nature_of_errors: string | null;
   image_url: string | null;
   ai_feedback: string | null;
+  mark_breakdown: Array<{ label: string; earned: boolean; note: string }> | null;
   created_at: string;
 }
 
@@ -57,7 +58,11 @@ const StudentProgress = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setAttempts(data || []);
+      const normalized: StudentAttempt[] = (data || []).map((row: any) => ({
+        ...row,
+        mark_breakdown: Array.isArray(row.mark_breakdown) ? row.mark_breakdown : null,
+      }));
+      setAttempts(normalized);
     } catch (error) {
       console.error('Error fetching attempts:', error);
     } finally {
@@ -263,7 +268,9 @@ const StudentProgress = () => {
                         </span>
                       </TableCell>
                       <TableCell className="max-w-xs">
-                        {attempt.nature_of_errors || '-'}
+                        {attempt.nature_of_errors ? (
+                          <LatexRenderer content={attempt.nature_of_errors} className="text-sm text-foreground/80" />
+                        ) : '-'}
                       </TableCell>
                       <TableCell>
                         {attempt.image_url ? (
@@ -321,6 +328,22 @@ const StudentProgress = () => {
                                   content={attempt.ai_feedback}
                                   className="text-sm text-foreground/80 leading-relaxed"
                                 />
+                                {attempt.mark_breakdown && attempt.mark_breakdown.length > 0 && (
+                                  <div className="mt-5 pt-4 border-t border-border/60">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Mark breakdown</p>
+                                    <ul className="space-y-1.5">
+                                      {attempt.mark_breakdown.map((m, i) => (
+                                        <li key={i} className="flex items-start gap-2 text-sm">
+                                          <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${m.earned ? 'bg-primary/15 text-primary' : 'bg-destructive/15 text-destructive'}`}>
+                                            {m.earned ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                                          </span>
+                                          <span className="font-mono text-xs font-semibold text-foreground/80 w-10 shrink-0 mt-0.5">{m.label}</span>
+                                          <LatexRenderer content={m.note || ''} className="text-foreground/80" />
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                               </div>
                             </DialogContent>
                           </Dialog>

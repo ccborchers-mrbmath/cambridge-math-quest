@@ -48,6 +48,7 @@ export type Database = {
           created_at: string
           id: string
           image_url: string | null
+          mark_breakdown: Json | null
           nature_of_errors: string | null
           paper_number: number
           percentage_attained: number | null
@@ -65,6 +66,7 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          mark_breakdown?: Json | null
           nature_of_errors?: string | null
           paper_number: number
           percentage_attained?: number | null
@@ -82,6 +84,7 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          mark_breakdown?: Json | null
           nature_of_errors?: string | null
           paper_number?: number
           percentage_attained?: number | null

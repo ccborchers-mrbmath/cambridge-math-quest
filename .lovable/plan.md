@@ -1,41 +1,121 @@
 
+# Marking prompt v2 + proper maths rendering
+
 ## Goal
-On `/progress`, show a new card displaying **curriculum mastery** = (unique subtopics where the student scored 100%) ÷ (total subtopics in the curriculum), as a percentage with a progress bar and a count (e.g. "42 / 187 subtopics mastered — 22%").
 
-## Approach
+Make the AI marker behave more like a real Cambridge 9709 P3 examiner — anchored to the official mark scheme, awarding marks step-by-step rather than guessing a percentage — and make every mathematical expression in its feedback render as properly typeset maths (like a printed exam paper or textbook), not as plain ASCII like `x^2 + 3x`.
 
-### Why subtopic-code based, not raw string
-Subtopics in `src/data/questions.ts` are stored as comma-separated strings, each prefixed with a syllabus code, e.g. `"7.2 Partial fractions"`, `"8.5 The use of partial fractions in integration"`. The same subtopic sometimes appears with slightly different wording across years. Using the **leading numeric code** (`7.2`, `8.5`, `11.5`, etc.) as the canonical ID gives a stable, dedup-safe key — much more reliable than matching the full text.
+We're not changing the AI provider (still Lovable AI / Gemini) and we're not changing the UI flow. Just the prompt and a small rendering touch-up for one spot that currently shows raw text.
 
-### Helper module: `src/lib/curriculum.ts` (new)
-Pure utility, no DB calls. Exports:
-- `parseSubtopics(raw: string | null): { code: string; label: string }[]` — splits on comma, trims, extracts the leading code (regex `^(\d+\.\d+)\s+(.*)$`); falls back to using the whole string as both code and label if no code is present.
-- `getAllCurriculumSubtopics()` — iterates `questionsDatabase`, parses every `subtopics` field, returns a deduped `Map<code, label>` of every subtopic that has ever appeared. This is the **denominator** ("total subtopics in the curriculum" gleaned from the question index, as you suggested).
-- `getMasteredSubtopicCodes(attempts)` — given the student's `student_attempts` rows, returns a `Set<string>` of subtopic codes for which the student has **at least one attempt with `percentage_attained === 100`**. Looks up each mastered attempt's `subtopic` field, parses it, and adds every code found.
+---
 
-### UI changes in `src/pages/StudentProgress.tsx`
-- Compute `totalSubtopics`, `masteredSubtopics`, and `masteryPct` using the helpers above.
-- Change the stats grid from 3 columns to **4 columns** on `md+` screens, adding a new "Curriculum Mastery" card alongside Questions Attempted / Average Score / Topics Covered.
-- The new card shows:
-  - Big number: `{masteryPct}%`
-  - Below it: `{mastered} / {total} subtopics mastered`
-  - A thin `<Progress value={masteryPct} />` bar (already imported via shadcn `ui/progress`)
-  - Icon: `Award` from lucide-react
-- No backend / schema changes needed — all derivable from existing `student_attempts.percentage_attained` + `student_attempts.subtopic` and the static `questionsDatabase`.
+## What changes
 
-### Edge cases handled
-- Attempts with `subtopic === null` are simply ignored for mastery (can't credit an unknown subtopic).
-- Attempts with multiple subtopics (comma-separated) credit **all** their codes when scored 100% — matches how the question is tagged.
-- `totalSubtopics === 0` guard to avoid divide-by-zero before any data loads.
+### 1. Replace the system prompt in `supabase/functions/mark-work/index.ts`
 
-## Possible refinements (not in this change unless you want them)
-1. **Stricter mastery rule** — require 2 separate 100% attempts on a subtopic before counting it as "mastered" (reduces lucky-guess inflation).
-2. **Partial-credit weighting** — give 0.5 credit for ≥80%, 1.0 for 100%, so the bar moves earlier and rewards near-mastery.
-3. **Per-topic breakdown** — a collapsible list grouping mastered/unmastered subtopics under their parent topic, so students can see *what* to work on next.
-4. **Hardcode the official 9709 P3 subtopic list** instead of gleaning from the question index — would catch subtopics that have never appeared in a past paper (currently they're invisible to the calculation).
+The new prompt will instruct the AI to:
 
-Happy to fold any of these in — just say the word. Otherwise I'll ship the simple version above.
+1. **Read the mark scheme as the source of truth.** Identify each mark allocation (M1, A1, B1, etc.) shown in the mark scheme image and treat those as a checklist.
+2. **Award marks step-by-step.** For each mark in the scheme, decide whether the student earned it (with brief reasoning), instead of producing a single overall guess.
+3. **Respect Cambridge mark conventions.**
+   - **M marks** (method) — awarded for a correct method even if the arithmetic is wrong.
+   - **A marks** (accuracy) — depend on a correct preceding M.
+   - **B marks** (independent) — awarded outright when the stated result appears.
+   - **Follow-through (FT/√)** — if the mark scheme allows FT, award accuracy marks based on the student's own (incorrect) earlier value, provided the method is correct from that point.
+4. **Compute the percentage from the marks, not vibes.** `percentageAttained = round(marks_awarded / total_marks × 100)`.
+5. **Give structured, encouraging feedback** — what they did well, where they lost marks, and one concrete next step.
+6. **Format every mathematical expression in LaTeX** so the front-end renders it as proper maths:
+   - Inline: `$x^2 + 3x$`, `$\sin\theta$`, `$\frac{dy}{dx}$`
+   - Display (own line): `$$\int_0^1 e^{-x^2}\,dx$$`
+   - Never write maths as plain text like `x^2`, `sqrt(3)`, `integral of`, `pi`, `>=`, etc.
+   - Use proper symbols: `\pi`, `\theta`, `\sqrt{3}`, `\geq`, `\to`, `\ln`, `\sin`, etc.
+7. **Set the temperature low** (around `0.2`) so marking is consistent — the same submission shouldn't get wildly different scores on re-runs.
 
-## Files
-- **NEW** `src/lib/curriculum.ts`
-- **EDIT** `src/pages/StudentProgress.tsx`
+The JSON return shape stays the same so nothing downstream breaks:
+
+```json
+{
+  "percentageAttained": 75,
+  "natureOfErrors": "Lost A1 in part (ii): differentiated $\\sin 2x$ as $\\cos 2x$ instead of $2\\cos 2x$.",
+  "feedback": "Strong work on part (i)... Key fix: when differentiating $\\sin(kx)$, remember $\\frac{d}{dx}\\sin(kx) = k\\cos(kx)$..."
+}
+```
+
+### 2. Add a `markBreakdown` field (optional but recommended)
+
+Extend the JSON shape to include a per-mark breakdown so students see exactly which marks they earned and lost:
+
+```json
+"markBreakdown": [
+  { "label": "M1", "earned": true,  "note": "Correct use of product rule" },
+  { "label": "A1", "earned": false, "note": "Sign error in second term" },
+  { "label": "B1", "earned": true,  "note": "" }
+]
+```
+
+This is shown in the "AI feedback" card under the existing feedback text, as a small list. It's optional — if the AI doesn't return it, the UI just skips that section.
+
+### 3. Make sure all feedback fields render maths
+
+- `aiFeedback` — already rendered via `LatexRenderer` in both `QuestionDisplay.tsx` and `StudentProgress.tsx`. No change needed.
+- `natureOfErrors` — currently shown:
+  - In `QuestionDisplay.tsx` inside an editable `<Textarea>` (kept as-is so the student can edit it; raw `$...$` is acceptable here).
+  - In `StudentProgress.tsx` as plain text in a table cell. **Change this to use `LatexRenderer`** so it displays properly.
+- `markBreakdown` notes — render each note via `LatexRenderer`.
+
+### 4. Increase `max_tokens`
+
+Bump from `700` to ~`1200` to give room for the per-mark breakdown plus structured feedback.
+
+---
+
+## What this will feel like to the student
+
+Before:
+> Score: 60%. You made some errors with differentiation. Practice more chain rule.
+
+After:
+> **Score: 75% (6/8 marks)**
+>
+> **Mark breakdown:**
+> - M1 ✓ Correct setup of $\frac{dy}{dx}$ using the product rule
+> - A1 ✓ Correct first term $2x\sin(3x)$
+> - A1 ✗ Second term should be $3x^2\cos(3x)$, you wrote $x^2\cos(3x)$ — missing factor of 3 from chain rule
+> - B1 ✓ Correctly evaluated at $x = \tfrac{\pi}{6}$
+>
+> **Feedback:** Your method is sound — you recognised this needed the product rule and applied it cleanly. The one slip was forgetting to multiply by the inner derivative when differentiating $\sin(3x)$. Remember: $\frac{d}{dx}\sin(kx) = k\cos(kx)$. Try Q4 from 2022 May/Jun P3 next — same skill, slightly different setup.
+
+Maths appears as proper notation (fractions stacked, π as the symbol, etc.) — same as a textbook.
+
+---
+
+## Technical notes
+
+**Files to change:**
+- `supabase/functions/mark-work/index.ts` — new system prompt, `temperature: 0.2`, `max_tokens: 1200`, parse optional `markBreakdown` from response, return it.
+- `src/components/QuestionDisplay.tsx` — accept and render `markBreakdown` under the AI feedback card.
+- `src/pages/StudentProgress.tsx` — wrap the "Areas to Improve" cell content in `LatexRenderer`. Optionally surface `markBreakdown` in the AI feedback dialog.
+- Database (`student_attempts` table) — **no schema change needed** for the prompt rewrite itself. If we want to persist the per-mark breakdown for later review on the progress page, we'd add a `mark_breakdown jsonb` column. I'd suggest **yes**, since one of the app's core features is performance tracking and this is the richest signal we'd have.
+
+**Edge function deploy:** automatic on save — no manual deploy step.
+
+**Risk / things to watch:**
+- The AI may not always reliably extract every M/A/B label from a mark scheme image, especially older papers with handwritten-style scans. The prompt will tell it to fall back gracefully (use whatever marks it can identify; if none, mark holistically and say so in feedback).
+- LaTeX rendering: `LatexRenderer` already handles malformed expressions safely (`throwOnError: false`), so a bad expression shows as `$x^2$` literal rather than crashing.
+
+---
+
+## Out of scope (kept for later)
+
+- Comparing AI outputs across multiple models side-by-side
+- Adding your own Gemini API key
+- Subscription / payments
+- Letting the student override the AI's mark and have that correction feed back into prompt tuning
+
+---
+
+## Open question before I build
+
+Do you want me to **add the `mark_breakdown` column to the database** so the per-mark detail is saved with each attempt and visible later on the Progress page? Or keep it ephemeral (shown once after marking, then gone)?
+
+I'd recommend saving it — it makes the progress history far more useful for diagnosing patterns ("you keep losing A1 marks on chain-rule questions"). But it's a one-line decision either way.

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil } from "lucide-react";
+import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
@@ -27,6 +27,9 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [percentageAttained, setPercentageAttained] = useState<string>("");
   const [natureOfErrors, setNatureOfErrors] = useState<string>("");
   const [aiFeedback, setAiFeedback] = useState<string>("");
+  const [markBreakdown, setMarkBreakdown] = useState<Array<{ label: string; earned: boolean; note: string }>>([]);
+  const [marksAwarded, setMarksAwarded] = useState<number | null>(null);
+  const [totalMarks, setTotalMarks] = useState<number | null>(null);
   const [isMarkingWork, setIsMarkingWork] = useState(false);
   const [isSavingAttempt, setIsSavingAttempt] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,6 +119,9 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       setPercentageAttained(String(data.percentageAttained ?? ""));
       setNatureOfErrors(data.natureOfErrors ?? "");
       setAiFeedback(data.feedback ?? "");
+      setMarkBreakdown(Array.isArray(data.markBreakdown) ? data.markBreakdown : []);
+      setMarksAwarded(typeof data.marksAwarded === 'number' ? data.marksAwarded : null);
+      setTotalMarks(typeof data.totalMarks === 'number' ? data.totalMarks : null);
       toast.success("AI marking complete");
     } catch (error) {
       console.error('Error marking work:', error);
@@ -153,6 +159,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           nature_of_errors: natureOfErrors || null,
           image_url: uploadedImage,
           ai_feedback: aiFeedback || null,
+          mark_breakdown: markBreakdown.length > 0 ? markBreakdown : null,
         });
 
       if (error) throw error;
@@ -163,6 +170,9 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       setPercentageAttained("");
       setNatureOfErrors("");
       setAiFeedback("");
+      setMarkBreakdown([]);
+      setMarksAwarded(null);
+      setTotalMarks(null);
     } catch (error) {
       console.error('Error saving attempt:', error);
       toast.error("Failed to save attempt. Please try again.");
@@ -392,7 +402,28 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                   {aiFeedback && (
                     <Card className="p-4 bg-secondary/50 border-border">
                       <Label>AI feedback</Label>
+                      {(marksAwarded !== null && totalMarks !== null && totalMarks > 0) && (
+                        <p className="mt-1 text-sm font-medium text-foreground">
+                          Score: {marksAwarded} / {totalMarks} marks
+                        </p>
+                      )}
                       <LatexRenderer content={aiFeedback} className="mt-2 text-sm text-foreground/80 leading-relaxed" />
+                      {markBreakdown.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-border/60">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Mark breakdown</p>
+                          <ul className="space-y-1.5">
+                            {markBreakdown.map((m, i) => (
+                              <li key={i} className="flex items-start gap-2 text-sm">
+                                <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${m.earned ? 'bg-primary/15 text-primary' : 'bg-destructive/15 text-destructive'}`}>
+                                  {m.earned ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                                </span>
+                                <span className="font-mono text-xs font-semibold text-foreground/80 w-10 shrink-0 mt-0.5">{m.label}</span>
+                                <LatexRenderer content={m.note || ''} className="text-foreground/80" />
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </Card>
                   )}
                 </div>

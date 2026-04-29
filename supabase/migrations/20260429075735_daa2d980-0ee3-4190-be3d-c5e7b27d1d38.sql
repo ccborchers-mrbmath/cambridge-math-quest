@@ -1,0 +1,1 @@
+ALTER TABLE public.student_attempts ADD COLUMN mark_breakdown jsonb;

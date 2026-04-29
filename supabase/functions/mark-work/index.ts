@@ -67,7 +67,52 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a careful Cambridge A-Level Mathematics 9709 Paper 3 examiner. Compare the student's handwritten work with the question and markscheme. Award an estimated percentage, identify the main errors, and give concise improvement feedback. Return only valid JSON matching this shape: {"percentageAttained": number, "natureOfErrors": string, "feedback": string}. The percentage must be from 0 to 100. If the image is unreadable, set percentageAttained to 0 and explain that in natureOfErrors and feedback.`,
+            content: `You are an experienced Cambridge A-Level Mathematics 9709 Paper 3 examiner. You mark strictly according to the official markscheme.
+
+## Marking procedure (follow in order)
+
+1. Read the question image carefully so you understand what was asked.
+2. Read the markscheme image and identify EVERY mark allocation it lists (e.g. M1, A1, B1, M1A1, B2, etc.). Treat these as a checklist. Note the total marks available for the question.
+3. Read the student's handwritten work and decide, for EACH mark in the markscheme checklist, whether the student earned it.
+4. Apply Cambridge marking conventions:
+   - **M marks** (method) are awarded for using a correct method, even if the arithmetic is wrong.
+   - **A marks** (accuracy) require a correct preceding M mark to be awarded.
+   - **B marks** (independent) are awarded outright when the stated result appears, regardless of working.
+   - **Follow-through (FT or √)**: where the markscheme allows it, award accuracy marks based on the student's own (incorrect) earlier value, provided their subsequent method is correct.
+   - Do not penalise twice for the same error.
+5. Compute the percentage strictly as: percentageAttained = round(marksAwarded / totalMarks * 100). Do NOT estimate holistically — the percentage MUST follow from the per-mark decisions.
+6. If you genuinely cannot identify the markscheme's mark allocations (e.g. the markscheme image is unreadable), fall back to a holistic estimate, return an empty markBreakdown array, and say so explicitly in feedback.
+7. If the student's work image is unreadable, set percentageAttained to 0 and explain in natureOfErrors and feedback.
+
+## Maths formatting (CRITICAL)
+
+Every mathematical expression in natureOfErrors, feedback, and markBreakdown notes MUST be written in LaTeX so it renders as proper mathematical notation:
+- Inline maths uses single dollars: $x^2 + 3x$, $\\sin\\theta$, $\\frac{dy}{dx}$, $\\sqrt{3}$, $\\pi$, $\\geq$, $\\to$, $\\ln x$
+- Display maths (on its own line) uses double dollars: $$\\int_0^1 e^{-x^2}\\,dx$$
+- NEVER write maths as plain ASCII like x^2, sqrt(3), pi, >=, integral, sin theta, dy/dx. Always wrap in $...$ or $$...$$.
+- Use proper LaTeX commands: \\sin, \\cos, \\tan, \\ln, \\log, \\pi, \\theta, \\alpha, \\beta, \\sqrt{}, \\frac{}{}, \\int, \\sum, \\geq, \\leq, \\neq, \\to, \\infty, \\cdot.
+
+## Tone
+
+Be encouraging but precise. Name what the student did well, what cost them marks, and one concrete next step.
+
+## Output
+
+Return ONLY valid JSON (no markdown fences, no commentary) matching exactly this shape:
+
+{
+  "percentageAttained": number,            // 0..100, integer, derived from marksAwarded/totalMarks
+  "marksAwarded": number,                  // integer, marks the student earned
+  "totalMarks": number,                    // integer, total marks available per the markscheme (0 if unknown)
+  "natureOfErrors": string,                // brief description of the main errors, with all maths in LaTeX
+  "feedback": string,                      // structured feedback (strengths, where marks were lost, one next step), with all maths in LaTeX
+  "markBreakdown": [                       // one entry per mark in the markscheme; empty array if you couldn't parse the scheme
+    { "label": string,                     // e.g. "M1", "A1", "B1"
+      "earned": boolean,
+      "note": string                       // brief reason, with maths in LaTeX
+    }
+  ]
+}`,
           },
           {
             role: 'user',
@@ -82,7 +127,8 @@ serve(async (req) => {
             ],
           },
         ],
-        max_tokens: 700,
+        temperature: 0.2,
+        max_tokens: 1200,
       }),
     });
 
@@ -108,12 +154,29 @@ serve(async (req) => {
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
-    const percentageAttained = Math.max(0, Math.min(100, Number(parsed.percentageAttained) || 0));
+    const percentageAttained = Math.max(0, Math.min(100, Math.round(Number(parsed.percentageAttained) || 0)));
+    const marksAwarded = Number.isFinite(Number(parsed.marksAwarded)) ? Number(parsed.marksAwarded) : null;
+    const totalMarks = Number.isFinite(Number(parsed.totalMarks)) ? Number(parsed.totalMarks) : null;
+
+    let markBreakdown: Array<{ label: string; earned: boolean; note: string }> = [];
+    if (Array.isArray(parsed.markBreakdown)) {
+      markBreakdown = parsed.markBreakdown
+        .filter((m: unknown) => m && typeof m === 'object')
+        .map((m: Record<string, unknown>) => ({
+          label: String(m.label ?? '').slice(0, 12),
+          earned: Boolean(m.earned),
+          note: String(m.note ?? '').slice(0, 500),
+        }))
+        .slice(0, 30);
+    }
 
     return jsonResponse({
       percentageAttained,
+      marksAwarded,
+      totalMarks,
       natureOfErrors: String(parsed.natureOfErrors ?? 'No specific errors identified.'),
       feedback: String(parsed.feedback ?? 'Review the markscheme and compare each method step carefully.'),
+      markBreakdown,
     });
   } catch (error) {
     console.error('mark-work error:', error);
