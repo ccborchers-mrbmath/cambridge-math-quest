@@ -228,7 +228,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         st += pts[j].t * w;
         sw += w;
       }
-      filtered.push({ x: sx / sw, y: sy / sw, p: sp / sw, t: st / sw });
+      filtered.push({ x: sx / sw, y: sy / sw, p: sp / sw, t: st / sw, tx: 0, ty: 0 });
     }
 
     // ---- Step 2: Catmull-Rom interpolation between the cleaned samples ----
