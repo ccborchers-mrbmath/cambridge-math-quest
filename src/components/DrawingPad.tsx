@@ -850,6 +850,16 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         const r = Math.max(Math.abs(dx), Math.abs(dy));
         endX = start.x + Math.sign(dx || 1) * r;
         endY = start.y + Math.sign(dy || 1) * r;
+      } else {
+        // Auto-snap to a circle when width and height are within ~5%.
+        const w = Math.abs(cur.x - start.x);
+        const h = Math.abs(cur.y - start.y);
+        const big = Math.max(w, h);
+        if (big > 4 && Math.abs(w - h) / big <= 0.05) {
+          const r = (w + h) / 2;
+          endX = start.x + Math.sign(cur.x - start.x || 1) * r;
+          endY = start.y + Math.sign(cur.y - start.y || 1) * r;
+        }
       }
       const end: Point = { ...cur, x: endX, y: endY, p: 0.5 };
       setCurrentStroke((cs) => cs ? { ...cs, points: [start, end] } : cs);
@@ -910,10 +920,22 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     // tapped without dragging, drop the stroke instead of committing a dot.
     if (currentStroke.mode === "ellipse") {
       const start = currentStroke.points[0];
-      const end = currentStroke.points[currentStroke.points.length - 1] ?? start;
+      let end = currentStroke.points[currentStroke.points.length - 1] ?? start;
       if (Math.abs(end.x - start.x) < 2 && Math.abs(end.y - start.y) < 2) {
         setCurrentStroke(null);
         return;
+      }
+      // Final snap-to-circle when nearly equal axes.
+      const w = Math.abs(end.x - start.x);
+      const h = Math.abs(end.y - start.y);
+      const big = Math.max(w, h);
+      if (big > 4 && Math.abs(w - h) / big <= 0.05) {
+        const r = (w + h) / 2;
+        end = {
+          ...end,
+          x: start.x + Math.sign(end.x - start.x || 1) * r,
+          y: start.y + Math.sign(end.y - start.y || 1) * r,
+        };
       }
       toCommit = {
         ...currentStroke,
