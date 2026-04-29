@@ -402,7 +402,28 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                   {aiFeedback && (
                     <Card className="p-4 bg-secondary/50 border-border">
                       <Label>AI feedback</Label>
+                      {(marksAwarded !== null && totalMarks !== null && totalMarks > 0) && (
+                        <p className="mt-1 text-sm font-medium text-foreground">
+                          Score: {marksAwarded} / {totalMarks} marks
+                        </p>
+                      )}
                       <LatexRenderer content={aiFeedback} className="mt-2 text-sm text-foreground/80 leading-relaxed" />
+                      {markBreakdown.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-border/60">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Mark breakdown</p>
+                          <ul className="space-y-1.5">
+                            {markBreakdown.map((m, i) => (
+                              <li key={i} className="flex items-start gap-2 text-sm">
+                                <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${m.earned ? 'bg-primary/15 text-primary' : 'bg-destructive/15 text-destructive'}`}>
+                                  {m.earned ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                                </span>
+                                <span className="font-mono text-xs font-semibold text-foreground/80 w-10 shrink-0 mt-0.5">{m.label}</span>
+                                <LatexRenderer content={m.note || ''} className="text-foreground/80" />
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </Card>
                   )}
                 </div>
