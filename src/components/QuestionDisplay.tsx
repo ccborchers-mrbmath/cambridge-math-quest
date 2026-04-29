@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil } from "lucide-react";
+import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
@@ -27,6 +27,9 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [percentageAttained, setPercentageAttained] = useState<string>("");
   const [natureOfErrors, setNatureOfErrors] = useState<string>("");
   const [aiFeedback, setAiFeedback] = useState<string>("");
+  const [markBreakdown, setMarkBreakdown] = useState<Array<{ label: string; earned: boolean; note: string }>>([]);
+  const [marksAwarded, setMarksAwarded] = useState<number | null>(null);
+  const [totalMarks, setTotalMarks] = useState<number | null>(null);
   const [isMarkingWork, setIsMarkingWork] = useState(false);
   const [isSavingAttempt, setIsSavingAttempt] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,6 +119,9 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       setPercentageAttained(String(data.percentageAttained ?? ""));
       setNatureOfErrors(data.natureOfErrors ?? "");
       setAiFeedback(data.feedback ?? "");
+      setMarkBreakdown(Array.isArray(data.markBreakdown) ? data.markBreakdown : []);
+      setMarksAwarded(typeof data.marksAwarded === 'number' ? data.marksAwarded : null);
+      setTotalMarks(typeof data.totalMarks === 'number' ? data.totalMarks : null);
       toast.success("AI marking complete");
     } catch (error) {
       console.error('Error marking work:', error);
@@ -153,6 +159,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           nature_of_errors: natureOfErrors || null,
           image_url: uploadedImage,
           ai_feedback: aiFeedback || null,
+          mark_breakdown: markBreakdown.length > 0 ? markBreakdown : null,
         });
 
       if (error) throw error;
@@ -163,6 +170,9 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       setPercentageAttained("");
       setNatureOfErrors("");
       setAiFeedback("");
+      setMarkBreakdown([]);
+      setMarksAwarded(null);
+      setTotalMarks(null);
     } catch (error) {
       console.error('Error saving attempt:', error);
       toast.error("Failed to save attempt. Please try again.");
