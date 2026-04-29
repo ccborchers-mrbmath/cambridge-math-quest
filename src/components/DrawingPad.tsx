@@ -286,6 +286,20 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
       const raw = s.points;
       if (raw.length === 0) continue;
+      // ---------- Ellipse: stroke an ellipse fitted to the 2-point bbox ----------
+      if (s.mode === "ellipse" && raw.length >= 2) {
+        const a = raw[0];
+        const b = raw[raw.length - 1];
+        const cx = (a.x + b.x) / 2;
+        const cy = (a.y + b.y) / 2;
+        const rx = Math.max(0.5, Math.abs(b.x - a.x) / 2);
+        const ry = Math.max(0.5, Math.abs(b.y - a.y) / 2);
+        ctx.lineWidth = Math.max(1, s.width);
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        continue;
+      }
       const pts = raw.length >= 2 ? smoothPath(raw) : raw;
 
       // Pre-compute and smooth widths along the path so taper transitions are
