@@ -667,6 +667,18 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       }
       setSelectedIndex(hit);
       if (hit !== null) {
+        // Ellipses use the lasso-style 8-handle resize UI (the same
+        // bounding-box grips as ink and lasso groups). Promote the click
+        // into a single-stroke lasso selection so the user can drag the
+        // handles to reshape it.
+        if (strokes[hit].mode === "ellipse") {
+          setSelectedIndex(null);
+          setMode("lasso");
+          setLassoPath(null);
+          setLassoSelection([hit]);
+          dragRef.current = null;
+          return;
+        }
         dragRef.current = {
           kind: "translate",
           startX: p.x,
