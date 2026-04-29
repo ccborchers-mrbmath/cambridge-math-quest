@@ -397,6 +397,12 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                       className="mt-1"
                       rows={3}
                     />
+                    {natureOfErrors.trim() && (
+                      <div className="mt-2 rounded-md border border-border/60 bg-secondary/30 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Preview</p>
+                        <LatexRenderer content={natureOfErrors} className="text-sm text-foreground/80 leading-relaxed" />
+                      </div>
+                    )}
                   </div>
 
                   {aiFeedback && (
