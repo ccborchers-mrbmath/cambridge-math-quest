@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Mode = "draw" | "line" | "select" | "lasso" | "erase";
+type Mode = "draw" | "line" | "ellipse" | "select" | "lasso" | "erase";
 interface Point {
   x: number;
   y: number;
@@ -286,6 +286,20 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
       const raw = s.points;
       if (raw.length === 0) continue;
+      // ---------- Ellipse: stroke an ellipse fitted to the 2-point bbox ----------
+      if (s.mode === "ellipse" && raw.length >= 2) {
+        const a = raw[0];
+        const b = raw[raw.length - 1];
+        const cx = (a.x + b.x) / 2;
+        const cy = (a.y + b.y) / 2;
+        const rx = Math.max(0.5, Math.abs(b.x - a.x) / 2);
+        const ry = Math.max(0.5, Math.abs(b.y - a.y) / 2);
+        ctx.lineWidth = Math.max(1, s.width);
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        continue;
+      }
       const pts = raw.length >= 2 ? smoothPath(raw) : raw;
 
       // Pre-compute and smooth widths along the path so taper transitions are
@@ -797,6 +811,23 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       setCurrentStroke((cs) => cs ? { ...cs, points: [start, snapped] } : cs);
       return;
     }
+    // Ellipse mode: keep just two points marking the bounding-box corners.
+    // Hold Shift to constrain to a circle.
+    if (currentStroke.mode === "ellipse") {
+      const start = currentStroke.points[0];
+      const cur = eventToPoint(e);
+      let endX = cur.x, endY = cur.y;
+      if (e.shiftKey) {
+        const dx = cur.x - start.x;
+        const dy = cur.y - start.y;
+        const r = Math.max(Math.abs(dx), Math.abs(dy));
+        endX = start.x + Math.sign(dx || 1) * r;
+        endY = start.y + Math.sign(dy || 1) * r;
+      }
+      const end: Point = { ...cur, x: endX, y: endY, p: 0.5 };
+      setCurrentStroke((cs) => cs ? { ...cs, points: [start, end] } : cs);
+      return;
+    }
     // Pull every coalesced sub-event for full tablet sample rate.
     const native = e.nativeEvent;
     const events = typeof native.getCoalescedEvents === "function"
@@ -847,6 +878,20 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       const flatStart = { ...start, p: 0.5 };
       const flatEnd = { ...snapped, p: 0.5 };
       toCommit = { ...currentStroke, points: [flatStart, flatEnd] };
+    }
+    // Ellipse: ensure exactly two points (bbox corners). If the user just
+    // tapped without dragging, drop the stroke instead of committing a dot.
+    if (currentStroke.mode === "ellipse") {
+      const start = currentStroke.points[0];
+      const end = currentStroke.points[currentStroke.points.length - 1] ?? start;
+      if (Math.abs(end.x - start.x) < 2 && Math.abs(end.y - start.y) < 2) {
+        setCurrentStroke(null);
+        return;
+      }
+      toCommit = {
+        ...currentStroke,
+        points: [{ ...start, p: 0.5 }, { ...end, p: 0.5 }],
+      };
     }
     setStrokes((prev) => [...prev, toCommit]);
     setCurrentStroke(null);
@@ -915,6 +960,15 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
               className="gap-1"
             >
               <Minus className="h-4 w-4" /> Line
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "ellipse" ? "default" : "outline"}
+              onClick={() => setMode("ellipse")}
+              className="gap-1"
+            >
+              <Circle className="h-4 w-4" /> Ellipse
             </Button>
             <Button
               type="button"
