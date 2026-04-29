@@ -879,6 +879,20 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       const flatEnd = { ...snapped, p: 0.5 };
       toCommit = { ...currentStroke, points: [flatStart, flatEnd] };
     }
+    // Ellipse: ensure exactly two points (bbox corners). If the user just
+    // tapped without dragging, drop the stroke instead of committing a dot.
+    if (currentStroke.mode === "ellipse") {
+      const start = currentStroke.points[0];
+      const end = currentStroke.points[currentStroke.points.length - 1] ?? start;
+      if (Math.abs(end.x - start.x) < 2 && Math.abs(end.y - start.y) < 2) {
+        setCurrentStroke(null);
+        return;
+      }
+      toCommit = {
+        ...currentStroke,
+        points: [{ ...start, p: 0.5 }, { ...end, p: 0.5 }],
+      };
+    }
     setStrokes((prev) => [...prev, toCommit]);
     setCurrentStroke(null);
   };
