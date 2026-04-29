@@ -152,6 +152,9 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.scale(dpr, dpr);
+    // Maximize anti-aliasing quality for the rasterizer.
+    ctx.imageSmoothingEnabled = true;
+    (ctx as any).imageSmoothingQuality = "high";
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, size.w, size.h);
 
@@ -188,6 +191,26 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       if (raw.length === 0) continue;
       const pts = raw.length >= 2 ? smoothPath(raw) : raw;
 
+      // Pre-compute and smooth widths along the path so taper transitions are
+      // gradual rather than stepping. A 5-tap moving average kills the
+      // jaggies that come from per-sample width jitter.
+      const rawWidths: number[] = [];
+      {
+        let prev: Point | null = null;
+        for (const p of pts) {
+          rawWidths.push(pointWidth(s, prev, p));
+          prev = p;
+        }
+      }
+      const widths: number[] = rawWidths.map((_, i) => {
+        let sum = 0, n = 0;
+        for (let k = -2; k <= 2; k++) {
+          const j = i + k;
+          if (j >= 0 && j < rawWidths.length) { sum += rawWidths[j]; n++; }
+        }
+        return sum / n;
+      });
+
       // ---------- Calligraphy: chisel-nib ribbon ----------
       if (s.mode === "calligraphy") {
         const cos = Math.cos(NIB_ANGLE);
@@ -204,18 +227,16 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           continue;
         }
         // Build ribbon as one filled polygon: top edge forwards, bottom edge backwards.
-        // Each point's nib length adapts to pressure (or velocity fallback).
+        // Each point's nib length adapts to the smoothed per-point width.
         const top: { x: number; y: number }[] = [];
         const bot: { x: number; y: number }[] = [];
-        let prev: Point | null = null;
-        for (const p of pts) {
-          const w = pointWidth(s, prev, p);
-          const nibLen = Math.max(w * 3, 8);
+        for (let i = 0; i < pts.length; i++) {
+          const p = pts[i];
+          const nibLen = Math.max(widths[i] * 3, 8);
           const dx = (nibLen / 2) * cos;
           const dy = (nibLen / 2) * sin;
           top.push({ x: p.x - dx, y: p.y - dy });
           bot.push({ x: p.x + dx, y: p.y + dy });
-          prev = p;
         }
         ctx.beginPath();
         ctx.moveTo(top[0].x, top[0].y);
@@ -226,26 +247,48 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         continue;
       }
 
-      // ---------- Pen / Eraser: variable-width round stroke ----------
+      // ---------- Pen / Eraser: variable-width ribbon (filled polygon) ----------
+      // Drawing as one continuous filled polygon (instead of many short
+      // stroked segments with different lineWidths) eliminates the visible
+      // "steps" between segments and gives properly anti-aliased edges.
       if (pts.length === 1) {
         ctx.beginPath();
-        ctx.arc(pts[0].x, pts[0].y, s.width / 2, 0, Math.PI * 2);
+        ctx.arc(pts[0].x, pts[0].y, widths[0] / 2, 0, Math.PI * 2);
         ctx.fill();
         continue;
       }
-      // Draw as many short segments, each with its own lineWidth.
-      let prev: Point | null = null;
-      for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i];
-        const b = pts[i + 1];
-        const w = pointWidth(s, prev, a);
-        ctx.lineWidth = s.mode === "erase" ? Math.max(w * 4, 12) : w;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-        prev = a;
+      const eraseMul = s.mode === "erase" ? 4 : 1;
+      const left: { x: number; y: number }[] = [];
+      const right: { x: number; y: number }[] = [];
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        // Tangent from neighbouring points; perpendicular gives ribbon offset.
+        const a = pts[Math.max(0, i - 1)];
+        const b = pts[Math.min(pts.length - 1, i + 1)];
+        let nx = -(b.y - a.y);
+        let ny = (b.x - a.x);
+        const len = Math.hypot(nx, ny) || 1;
+        nx /= len; ny /= len;
+        const halfW = (widths[i] * eraseMul) / 2;
+        left.push({ x: p.x + nx * halfW, y: p.y + ny * halfW });
+        right.push({ x: p.x - nx * halfW, y: p.y - ny * halfW });
       }
+      ctx.beginPath();
+      // Round cap at the start.
+      ctx.arc(pts[0].x, pts[0].y, (widths[0] * eraseMul) / 2, 0, Math.PI * 2);
+      ctx.fill();
+      // Round cap at the end.
+      ctx.beginPath();
+      const lastW = (widths[widths.length - 1] * eraseMul) / 2;
+      ctx.arc(pts[pts.length - 1].x, pts[pts.length - 1].y, lastW, 0, Math.PI * 2);
+      ctx.fill();
+      // Ribbon body.
+      ctx.beginPath();
+      ctx.moveTo(left[0].x, left[0].y);
+      for (let i = 1; i < left.length; i++) ctx.lineTo(left[i].x, left[i].y);
+      for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i].x, right[i].y);
+      ctx.closePath();
+      ctx.fill();
     }
     ctx.globalCompositeOperation = "source-over";
   }, [strokes, currentStroke, size]);
