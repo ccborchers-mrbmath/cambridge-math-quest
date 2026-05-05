@@ -1240,7 +1240,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
                 ? "default"
                 : mode === "erase"
                 ? "crosshair"
-                : `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M2 22l3-1 12-12a2.83 2.83 0 0 0-2-2a2.83 2.83 0 0 0-2 0L3 19l-1 3z' fill='white'/><path d='M13 5l4 4'/></svg>") 2 22, crosshair`,
+                : `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M2 22l3-1 12-12a2.83 2.83 0 0 0-2-2L3 19a2 2 0 0 0-1 3z' fill='white'/><path d='M13 5l4 4'/></svg>") 2 22, crosshair`,
           }}
         />
       </div>
