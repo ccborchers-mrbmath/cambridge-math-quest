@@ -312,24 +312,12 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     return base * k;
   };
 
-  const redraw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    const renderScale = Math.min(dpr * zoom, dpr * 3);
-    // Reset transform, then scale so all our drawing is in CSS pixels.
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(renderScale, renderScale);
-    // Maximize anti-aliasing quality for the rasterizer.
+  // Paints background + ruled lines onto an already-scaled context.
+  const paintBackground = useCallback((ctx: CanvasRenderingContext2D) => {
     ctx.imageSmoothingEnabled = true;
     (ctx as any).imageSmoothingQuality = "high";
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, size.w, size.h);
-
-    // Faint ruled lines.
     const lineSpacing = 36;
     ctx.save();
     ctx.strokeStyle = "rgba(37, 99, 235, 0.18)";
@@ -341,153 +329,182 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       ctx.stroke();
     }
     ctx.restore();
+  }, [size]);
 
-    const all = currentStroke ? [...strokes, currentStroke] : strokes;
+  // Paints a single stroke onto an already-scaled context. Used both for
+  // building the committed cache and for painting the live in-progress
+  // stroke each frame. `isLive=true` tells perfect-freehand to leave the
+  // end open (no closing taper) until the user lifts.
+  const drawSingleStroke = useCallback((
+    ctx: CanvasRenderingContext2D,
+    s: Stroke,
+    isLive: boolean,
+  ) => {
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    if (s.mode === "erase") {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.strokeStyle = "rgba(0,0,0,1)";
+      ctx.fillStyle = "rgba(0,0,0,1)";
+    } else {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = s.color;
+      ctx.fillStyle = s.color;
+    }
 
-    for (const s of all) {
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      if (s.mode === "erase") {
-        ctx.globalCompositeOperation = "destination-out";
-        ctx.strokeStyle = "rgba(0,0,0,1)";
-        ctx.fillStyle = "rgba(0,0,0,1)";
-      } else {
-        ctx.globalCompositeOperation = "source-over";
-        ctx.strokeStyle = s.color;
-        ctx.fillStyle = s.color;
-      }
-
-      const raw = s.points;
-      if (raw.length === 0) continue;
-      // ---------- Ellipse: stroke an ellipse fitted to the 2-point bbox ----------
-      if (s.mode === "ellipse" && raw.length >= 2) {
-        const a = raw[0];
-        const b = raw[raw.length - 1];
-        const cx = (a.x + b.x) / 2;
-        const cy = (a.y + b.y) / 2;
-        const rx = Math.max(0.5, Math.abs(b.x - a.x) / 2);
-        const ry = Math.max(0.5, Math.abs(b.y - a.y) / 2);
-        ctx.lineWidth = Math.max(1, s.width);
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        continue;
-      }
-      // ---------- Pen: perfect-freehand outline ----------
-      // For ink strokes we hand the raw pointer samples (with pressure) to
-      // perfect-freehand, which returns a closed polygon outline of the
-      // stroke including proper start/end tapers, smoothing, and pressure-
-      // modulated thickness. We then fill that polygon with a smooth path.
-      if (s.mode === "draw" || s.mode === "line") {
-        const usePressure =
-          s.mode === "draw" &&
-          raw.some((p) => Math.abs(p.p - 0.5) > 0.001);
-        const inputPts = raw.map((p) => [p.x, p.y, usePressure ? p.p : 0.5]);
-        const outline = getStroke(inputPts, {
-          size: s.width * 1.6,
-          thinning: usePressure ? 0.55 : 0.35,
-          smoothing: 0.6,
-          streamline: 0.45,
-          easing: (t) => t,
-          simulatePressure: !usePressure,
-          last: s !== currentStroke,
-          start: { taper: 0, cap: true },
-          end: { taper: 0, cap: true },
-        });
-        if (outline.length < 2) continue;
-        ctx.beginPath();
-        ctx.moveTo(outline[0][0], outline[0][1]);
-        for (let i = 1; i < outline.length; i++) {
-          const [x0, y0] = outline[i - 1];
-          const [x1, y1] = outline[i];
-          ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
-        }
-        ctx.closePath();
-        ctx.fill();
-        continue;
-      }
-      // ---------- Eraser: variable-width ribbon (existing path) ----------
-      const pts = raw.length >= 2 ? smoothPath(raw) : raw;
-
-      // Pre-compute and smooth widths along the path so taper transitions are
-      // gradual rather than stepping. A 5-tap moving average kills the
-      // jaggies that come from per-sample width jitter.
-      const rawWidths: number[] = [];
-      {
-        let prev: Point | null = null;
-        for (const p of pts) {
-          rawWidths.push(pointWidth(s, prev, p));
-          prev = p;
-        }
-      }
-      const widths: number[] = rawWidths.map((_, i) => {
-        let sum = 0, n = 0;
-        for (let k = -2; k <= 2; k++) {
-          const j = i + k;
-          if (j >= 0 && j < rawWidths.length) { sum += rawWidths[j]; n++; }
-        }
-        return sum / n;
+    const raw = s.points;
+    if (raw.length === 0) return;
+    // Ellipse: stroke fitted to the 2-point bbox.
+    if (s.mode === "ellipse" && raw.length >= 2) {
+      const a = raw[0];
+      const b = raw[raw.length - 1];
+      const cx = (a.x + b.x) / 2;
+      const cy = (a.y + b.y) / 2;
+      const rx = Math.max(0.5, Math.abs(b.x - a.x) / 2);
+      const ry = Math.max(0.5, Math.abs(b.y - a.y) / 2);
+      ctx.lineWidth = Math.max(1, s.width);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      return;
+    }
+    // Pen / line: perfect-freehand outline.
+    if (s.mode === "draw" || s.mode === "line") {
+      const usePressure =
+        s.mode === "draw" &&
+        raw.some((p) => Math.abs(p.p - 0.5) > 0.001);
+      const inputPts = raw.map((p) => [p.x, p.y, usePressure ? p.p : 0.5]);
+      const outline = getStroke(inputPts, {
+        size: s.width * 1.6,
+        thinning: usePressure ? 0.55 : 0.35,
+        smoothing: 0.6,
+        streamline: 0.45,
+        easing: (t) => t,
+        simulatePressure: !usePressure,
+        last: !isLive,
+        start: { taper: 0, cap: true },
+        end: { taper: 0, cap: true },
       });
-
-      // ---------- Pen / Eraser: variable-width ribbon (filled polygon) ----------
-      // Drawing as one continuous filled polygon (instead of many short
-      // stroked segments with different lineWidths) eliminates the visible
-      // "steps" between segments and gives properly anti-aliased edges.
-      if (pts.length === 1) {
-        ctx.beginPath();
-        ctx.arc(pts[0].x, pts[0].y, widths[0] / 2, 0, Math.PI * 2);
-        ctx.fill();
-        continue;
+      if (outline.length < 2) return;
+      ctx.beginPath();
+      ctx.moveTo(outline[0][0], outline[0][1]);
+      for (let i = 1; i < outline.length; i++) {
+        const [x0, y0] = outline[i - 1];
+        const [x1, y1] = outline[i];
+        ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
       }
-      const eraseMul = s.mode === "erase" ? 4 : 1;
-      const left: { x: number; y: number }[] = [];
-      const right: { x: number; y: number }[] = [];
-      for (let i = 0; i < pts.length; i++) {
-        const p = pts[i];
-        // Tangent from neighbouring points; perpendicular gives ribbon offset.
-        const a = pts[Math.max(0, i - 1)];
-        const b = pts[Math.min(pts.length - 1, i + 1)];
-        let nx = -(b.y - a.y);
-        let ny = (b.x - a.x);
-        const len = Math.hypot(nx, ny) || 1;
-        nx /= len; ny /= len;
-        const halfW = (widths[i] * eraseMul) / 2;
-        left.push({ x: p.x + nx * halfW, y: p.y + ny * halfW });
-        right.push({ x: p.x - nx * halfW, y: p.y - ny * halfW });
-      }
-      ctx.beginPath();
-      // Round cap at the start.
-      ctx.arc(pts[0].x, pts[0].y, (widths[0] * eraseMul) / 2, 0, Math.PI * 2);
-      ctx.fill();
-      // Round cap at the end.
-      ctx.beginPath();
-      const lastW = (widths[widths.length - 1] * eraseMul) / 2;
-      ctx.arc(pts[pts.length - 1].x, pts[pts.length - 1].y, lastW, 0, Math.PI * 2);
-      ctx.fill();
-      // Ribbon body.
-      // Ribbon body — connect offset points with quadratic curves (using
-      // each point as a control and the midpoint to the next as the on-curve
-      // anchor). This eliminates the tiny facets you get from straight
-      // `lineTo` segments and gives the ink a glassy, printed-stroke edge.
-      const traceSmooth = (path: { x: number; y: number }[]) => {
-        if (path.length < 2) return;
-        ctx.lineTo(path[0].x, path[0].y);
-        for (let i = 0; i < path.length - 1; i++) {
-          const mx = (path[i].x + path[i + 1].x) / 2;
-          const my = (path[i].y + path[i + 1].y) / 2;
-          ctx.quadraticCurveTo(path[i].x, path[i].y, mx, my);
-        }
-        const last = path[path.length - 1];
-        ctx.lineTo(last.x, last.y);
-      };
-      ctx.beginPath();
-      ctx.moveTo(left[0].x, left[0].y);
-      traceSmooth(left);
-      const rightReversed = right.slice().reverse();
-      traceSmooth(rightReversed);
       ctx.closePath();
       ctx.fill();
+      return;
     }
+    // Eraser: variable-width ribbon.
+    const pts = raw.length >= 2 ? smoothPath(raw) : raw;
+    const rawWidths: number[] = [];
+    {
+      let prev: Point | null = null;
+      for (const p of pts) {
+        rawWidths.push(pointWidth(s, prev, p));
+        prev = p;
+      }
+    }
+    const widths: number[] = rawWidths.map((_, i) => {
+      let sum = 0, n = 0;
+      for (let k = -2; k <= 2; k++) {
+        const j = i + k;
+        if (j >= 0 && j < rawWidths.length) { sum += rawWidths[j]; n++; }
+      }
+      return sum / n;
+    });
+    if (pts.length === 1) {
+      ctx.beginPath();
+      ctx.arc(pts[0].x, pts[0].y, widths[0] / 2, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+    const eraseMul = s.mode === "erase" ? 4 : 1;
+    const left: { x: number; y: number }[] = [];
+    const right: { x: number; y: number }[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const a = pts[Math.max(0, i - 1)];
+      const b = pts[Math.min(pts.length - 1, i + 1)];
+      let nx = -(b.y - a.y);
+      let ny = (b.x - a.x);
+      const len = Math.hypot(nx, ny) || 1;
+      nx /= len; ny /= len;
+      const halfW = (widths[i] * eraseMul) / 2;
+      left.push({ x: p.x + nx * halfW, y: p.y + ny * halfW });
+      right.push({ x: p.x - nx * halfW, y: p.y - ny * halfW });
+    }
+    ctx.beginPath();
+    ctx.arc(pts[0].x, pts[0].y, (widths[0] * eraseMul) / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    const lastW = (widths[widths.length - 1] * eraseMul) / 2;
+    ctx.arc(pts[pts.length - 1].x, pts[pts.length - 1].y, lastW, 0, Math.PI * 2);
+    ctx.fill();
+    const traceSmooth = (path: { x: number; y: number }[]) => {
+      if (path.length < 2) return;
+      ctx.lineTo(path[0].x, path[0].y);
+      for (let i = 0; i < path.length - 1; i++) {
+        const mx = (path[i].x + path[i + 1].x) / 2;
+        const my = (path[i].y + path[i + 1].y) / 2;
+        ctx.quadraticCurveTo(path[i].x, path[i].y, mx, my);
+      }
+      const last = path[path.length - 1];
+      ctx.lineTo(last.x, last.y);
+    };
+    ctx.beginPath();
+    ctx.moveTo(left[0].x, left[0].y);
+    traceSmooth(left);
+    const rightReversed = right.slice().reverse();
+    traceSmooth(rightReversed);
+    ctx.closePath();
+    ctx.fill();
+  }, []);
+
+  const redraw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const renderScale = Math.min(dpr * zoom, dpr * 3);
+
+    // (Re)build the offscreen committed cache when needed. This is the key
+    // performance win: every committed stroke is rasterised once into this
+    // image, and per-frame live drawing only paints the active stroke on
+    // top of a single drawImage() blit.
+    if (committedDirtyRef.current || !committedCanvasRef.current) {
+      const cache = committedCanvasRef.current ?? document.createElement("canvas");
+      committedCanvasRef.current = cache;
+      if (cache.width !== canvas.width || cache.height !== canvas.height) {
+        cache.width = canvas.width;
+        cache.height = canvas.height;
+      }
+      const cctx = cache.getContext("2d");
+      if (cctx) {
+        cctx.setTransform(1, 0, 0, 1, 0, 0);
+        cctx.clearRect(0, 0, cache.width, cache.height);
+        cctx.scale(renderScale, renderScale);
+        paintBackground(cctx);
+        for (const s of strokes) drawSingleStroke(cctx, s, false);
+        cctx.globalCompositeOperation = "source-over";
+      }
+      committedDirtyRef.current = false;
+    }
+
+    // Live frame: blit the cache, then paint the in-progress stroke + overlays.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cache = committedCanvasRef.current;
+    if (cache) ctx.drawImage(cache, 0, 0);
+    ctx.scale(renderScale, renderScale);
+    ctx.imageSmoothingEnabled = true;
+    (ctx as any).imageSmoothingQuality = "high";
+
+    const cur = currentStrokeRef.current;
+    if (cur) drawSingleStroke(ctx, cur, true);
     ctx.globalCompositeOperation = "source-over";
 
     // Selection highlight: draw a dashed bounding box around the selected stroke.
@@ -575,7 +592,26 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         ctx.restore();
       }
     }
-  }, [strokes, currentStroke, size, selectedIndex, lassoPath, lassoSelection, zoom]);
+  }, [strokes, size, selectedIndex, lassoPath, lassoSelection, zoom, paintBackground, drawSingleStroke]);
+
+  // Mark the committed cache as stale whenever the committed strokes list,
+  // the canvas size, or the render scale changes. The cache will be rebuilt
+  // on the next redraw.
+  useEffect(() => {
+    committedDirtyRef.current = true;
+  }, [strokes, size, zoom]);
+
+  // rAF-batched redraw. Multiple pointer-move events between frames coalesce
+  // into a single repaint, which is what keeps inking fluid on touch.
+  const redrawRef = useRef(redraw);
+  useEffect(() => { redrawRef.current = redraw; }, [redraw]);
+  const scheduleRedraw = useCallback(() => {
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      redrawRef.current();
+    });
+  }, []);
 
   // Visual constants used by the selection overlay.
   const HANDLE_HALF = 7;
