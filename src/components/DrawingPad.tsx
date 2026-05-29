@@ -1338,6 +1338,22 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-1">
+              <Button type="button" size="sm" variant="outline" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out" className="px-2">
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <button
+                type="button"
+                onClick={() => { setZoom(1); requestAnimationFrame(() => { const c = containerRef.current; if (c) { c.scrollLeft = 0; } }); }}
+                className="text-xs text-muted-foreground tabular-nums w-10 text-center hover:text-foreground"
+                aria-label="Reset zoom"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <Button type="button" size="sm" variant="outline" onClick={() => zoomBy(1.25)} aria-label="Zoom in" className="px-2">
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+            </div>
             <Button type="button" size="sm" variant="outline" onClick={undo} disabled={!strokes.length} className="gap-1">
               <Undo2 className="h-4 w-4" /> Undo
             </Button>
