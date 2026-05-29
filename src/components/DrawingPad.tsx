@@ -753,6 +753,14 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length < 2) return;
+      // If the stylus is currently in use, treat any touches as palm
+      // contact and ignore them entirely — no pinch/zoom either.
+      if (
+        penSeenRef.current &&
+        performance.now() - lastPenAtRef.current < PALM_REJECT_COOLDOWN_MS
+      ) {
+        return;
+      }
       e.preventDefault();
       // Abandon any in-progress finger stroke.
       setCurrentStroke(null);
