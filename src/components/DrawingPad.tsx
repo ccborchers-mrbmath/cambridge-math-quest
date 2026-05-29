@@ -982,6 +982,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === "pen") lastPenAtRef.current = performance.now();
     if (gestureRef.current) return;
     // Select-mode drag: either translate the stroke, or (for a line)
     // move just one of its endpoints.
