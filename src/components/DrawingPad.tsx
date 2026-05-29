@@ -78,6 +78,17 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   // Track active touch pointers so we can cancel an in-progress finger
   // stroke the moment a second finger lands (entering pan/zoom mode).
   const activeTouchPointersRef = useRef<Set<number>>(new Set());
+  // Palm rejection: once we've seen a stylus on this device we assume the
+  // user wants to ink with the pen and treat any incoming touch (finger /
+  // palm resting on the screen) as a palm to be ignored for drawing. They
+  // can still use two-finger pinch to pan/zoom because that gesture
+  // requires two simultaneous touches, which a resting palm doesn't
+  // produce. A short cooldown after the last pen event keeps palm
+  // rejection active for a moment after the pen lifts.
+  const penSeenRef = useRef(false);
+  const lastPenAtRef = useRef(0);
+  const PALM_REJECT_COOLDOWN_MS = 1500;
+  const [palmRejectionActive, setPalmRejectionActive] = useState(false);
   // Select / move state.
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const dragRef = useRef<
@@ -742,6 +753,14 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length < 2) return;
+      // If the stylus is currently in use, treat any touches as palm
+      // contact and ignore them entirely — no pinch/zoom either.
+      if (
+        penSeenRef.current &&
+        performance.now() - lastPenAtRef.current < PALM_REJECT_COOLDOWN_MS
+      ) {
+        return;
+      }
       e.preventDefault();
       // Abandon any in-progress finger stroke.
       setCurrentStroke(null);
@@ -836,6 +855,19 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    if (e.pointerType === "pen") {
+      if (!penSeenRef.current) setPalmRejectionActive(true);
+      penSeenRef.current = true;
+      lastPenAtRef.current = performance.now();
+    }
+    // Palm rejection: ignore any touch input when a stylus is in use.
+    if (
+      e.pointerType === "touch" &&
+      penSeenRef.current &&
+      performance.now() - lastPenAtRef.current < PALM_REJECT_COOLDOWN_MS
+    ) {
+      return;
+    }
     // Track active touch pointers. The moment a second touch lands we
     // bail out of any in-progress drawing — the pinch/pan handler will
     // take over.
@@ -958,6 +990,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === "pen") lastPenAtRef.current = performance.now();
     if (gestureRef.current) return;
     // Select-mode drag: either translate the stroke, or (for a line)
     // move just one of its endpoints.
@@ -1305,6 +1338,31 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
               className="gap-1"
             >
               <Eraser className="h-4 w-4" /> Eraser
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={palmRejectionActive ? "default" : "outline"}
+              onClick={() => {
+                setPalmRejectionActive((v) => {
+                  const next = !v;
+                  // Toggling off also clears the auto-detected pen flag so
+                  // touch can draw again. Toggling on without a stylus is
+                  // still useful to prevent finger smudges.
+                  if (!next) {
+                    penSeenRef.current = false;
+                    lastPenAtRef.current = 0;
+                  } else {
+                    penSeenRef.current = true;
+                    lastPenAtRef.current = performance.now();
+                  }
+                  return next;
+                });
+              }}
+              className="gap-1"
+              title="Ignore palm and finger touches while drawing with a stylus"
+            >
+              ✋ Palm reject
             </Button>
           </div>
 
