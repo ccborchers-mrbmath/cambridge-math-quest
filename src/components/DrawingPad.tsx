@@ -58,6 +58,26 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const [width, setWidth] = useState(3);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [extraHeight, setExtraHeight] = useState(0);
+  // CSS zoom factor applied to the canvas. 1 = native. Tablet users pinch
+  // to zoom; everyone can use the +/- buttons.
+  const [zoom, setZoom] = useState(1);
+  // Pinch-to-zoom + two-finger pan gesture state. While a gesture is active
+  // we suppress any drawing pointer events so finger-drawing doesn't fight
+  // the gesture.
+  const gestureRef = useRef<
+    | {
+        initialDist: number;
+        initialZoom: number;
+        // Logical (canvas-space) point under the gesture centroid at the
+        // moment the gesture started. Used to keep that point pinned under
+        // the fingers as the user zooms.
+        focalLogical: { x: number; y: number };
+      }
+    | null
+  >(null);
+  // Track active touch pointers so we can cancel an in-progress finger
+  // stroke the moment a second finger lands (entering pan/zoom mode).
+  const activeTouchPointersRef = useRef<Set<number>>(new Set());
   // Select / move state.
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const dragRef = useRef<
