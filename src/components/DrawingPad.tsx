@@ -1339,6 +1339,31 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
             >
               <Eraser className="h-4 w-4" /> Eraser
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={palmRejectionActive ? "default" : "outline"}
+              onClick={() => {
+                setPalmRejectionActive((v) => {
+                  const next = !v;
+                  // Toggling off also clears the auto-detected pen flag so
+                  // touch can draw again. Toggling on without a stylus is
+                  // still useful to prevent finger smudges.
+                  if (!next) {
+                    penSeenRef.current = false;
+                    lastPenAtRef.current = 0;
+                  } else {
+                    penSeenRef.current = true;
+                    lastPenAtRef.current = performance.now();
+                  }
+                  return next;
+                });
+              }}
+              className="gap-1"
+              title="Ignore palm and finger touches while drawing with a stylus"
+            >
+              ✋ Palm reject
+            </Button>
           </div>
 
           <div className="flex items-center gap-2">
