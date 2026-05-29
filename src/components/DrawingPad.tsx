@@ -868,6 +868,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (gestureRef.current) return;
     // Select-mode drag: either translate the stroke, or (for a line)
     // move just one of its endpoints.
     if (mode === "select") {
