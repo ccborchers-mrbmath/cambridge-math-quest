@@ -812,7 +812,8 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       }
       e.preventDefault();
       // Abandon any in-progress finger stroke.
-      setCurrentStroke(null);
+      currentStrokeRef.current = null;
+      scheduleRedraw();
       const t1 = e.touches[0];
       const t2 = e.touches[1];
       const cx = (t1.clientX + t2.clientX) / 2;
@@ -923,7 +924,8 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     if (e.pointerType === "touch") {
       activeTouchPointersRef.current.add(e.pointerId);
       if (activeTouchPointersRef.current.size >= 2) {
-        setCurrentStroke(null);
+        currentStrokeRef.current = null;
+        scheduleRedraw();
         return;
       }
     }
@@ -1030,12 +1032,13 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       lassoDragRef.current = null;
       return;
     }
-    setCurrentStroke({
+    currentStrokeRef.current = {
       mode,
       color,
       width: mode === "erase" ? Math.max(width * 4, 12) : width,
       points: [p],
-    });
+    };
+    scheduleRedraw();
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1147,19 +1150,21 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       }
       return;
     }
-    if (!currentStroke) return;
+    const cur0 = currentStrokeRef.current;
+    if (!cur0) return;
     // Line mode: keep just two points (start + current), snapping near-axis lines.
-    if (currentStroke.mode === "line") {
-      const start = currentStroke.points[0];
+    if (cur0.mode === "line") {
+      const start = cur0.points[0];
       const cur = eventToPoint(e);
       const snapped = snapLineEnd(start, cur);
-      setCurrentStroke((cs) => cs ? { ...cs, points: [start, snapped] } : cs);
+      cur0.points = [start, snapped];
+      scheduleRedraw();
       return;
     }
     // Ellipse mode: keep just two points marking the bounding-box corners.
     // Hold Shift to constrain to a circle.
-    if (currentStroke.mode === "ellipse") {
-      const start = currentStroke.points[0];
+    if (cur0.mode === "ellipse") {
+      const start = cur0.points[0];
       const cur = eventToPoint(e);
       let endX = cur.x, endY = cur.y;
       if (e.shiftKey) {
@@ -1180,7 +1185,8 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         }
       }
       const end: Point = { ...cur, x: endX, y: endY, p: 0.5 };
-      setCurrentStroke((cs) => cs ? { ...cs, points: [start, end] } : cs);
+      cur0.points = [start, end];
+      scheduleRedraw();
       return;
     }
     // Pull every coalesced sub-event for full tablet sample rate.
@@ -1191,7 +1197,10 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     const newPoints: Point[] = events.length
       ? events.map(eventToPoint)
       : [eventToPoint(e)];
-    setCurrentStroke((cs) => cs ? { ...cs, points: [...cs.points, ...newPoints] } : cs);
+    // Mutate in place — the ref isn't tracked by React, so this is cheap
+    // and avoids allocating a fresh array on every pointer event.
+    for (let i = 0; i < newPoints.length; i++) cur0.points.push(newPoints[i]);
+    scheduleRedraw();
   };
 
   const finishStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1223,27 +1232,29 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
       lassoDragRef.current = null;
       return;
     }
-    if (!currentStroke) return;
+    const cur = currentStrokeRef.current;
+    if (!cur) return;
     canvasRef.current?.releasePointerCapture?.(e.pointerId);
     // Line mode: ensure we always commit a 2-point stroke with neutral pressure
     // so widths don't taper from a single-point start.
-    let toCommit = currentStroke;
-    if (currentStroke.mode === "line" && currentStroke.points.length >= 1) {
-      const start = currentStroke.points[0];
-      const end = currentStroke.points[currentStroke.points.length - 1] ?? start;
+    let toCommit: Stroke = cur;
+    if (cur.mode === "line" && cur.points.length >= 1) {
+      const start = cur.points[0];
+      const end = cur.points[cur.points.length - 1] ?? start;
       const snapped = snapLineEnd(start, end);
       // Force constant width by setting both endpoints' pressure equal.
       const flatStart = { ...start, p: 0.5 };
       const flatEnd = { ...snapped, p: 0.5 };
-      toCommit = { ...currentStroke, points: [flatStart, flatEnd] };
+      toCommit = { ...cur, points: [flatStart, flatEnd] };
     }
     // Ellipse: ensure exactly two points (bbox corners). If the user just
     // tapped without dragging, drop the stroke instead of committing a dot.
-    if (currentStroke.mode === "ellipse") {
-      const start = currentStroke.points[0];
-      let end = currentStroke.points[currentStroke.points.length - 1] ?? start;
+    if (cur.mode === "ellipse") {
+      const start = cur.points[0];
+      let end = cur.points[cur.points.length - 1] ?? start;
       if (Math.abs(end.x - start.x) < 2 && Math.abs(end.y - start.y) < 2) {
-        setCurrentStroke(null);
+        currentStrokeRef.current = null;
+        scheduleRedraw();
         return;
       }
       // Final snap-to-circle when nearly equal axes.
@@ -1259,12 +1270,12 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         };
       }
       toCommit = {
-        ...currentStroke,
+        ...cur,
         points: [{ ...start, p: 0.5 }, { ...end, p: 0.5 }],
       };
     }
+    currentStrokeRef.current = null;
     setStrokes((prev) => [...prev, toCommit]);
-    setCurrentStroke(null);
   };
 
   /**
@@ -1482,7 +1493,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           onPointerMove={onPointerMove}
           onPointerUp={finishStroke}
           onPointerCancel={finishStroke}
-          onPointerLeave={(e) => { if (currentStroke) finishStroke(e); }}
+          onPointerLeave={(e) => { if (currentStrokeRef.current) finishStroke(e); }}
           style={{
             touchAction: "none",
             display: "block",
