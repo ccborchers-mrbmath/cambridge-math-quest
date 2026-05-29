@@ -847,6 +847,19 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    if (e.pointerType === "pen") {
+      if (!penSeenRef.current) setPalmRejectionActive(true);
+      penSeenRef.current = true;
+      lastPenAtRef.current = performance.now();
+    }
+    // Palm rejection: ignore any touch input when a stylus is in use.
+    if (
+      e.pointerType === "touch" &&
+      penSeenRef.current &&
+      performance.now() - lastPenAtRef.current < PALM_REJECT_COOLDOWN_MS
+    ) {
+      return;
+    }
     // Track active touch pointers. The moment a second touch lands we
     // bail out of any in-progress drawing — the pinch/pan handler will
     // take over.
