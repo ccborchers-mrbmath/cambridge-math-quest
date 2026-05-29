@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect, Circle, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect, Circle, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStroke } from "perfect-freehand";
 
