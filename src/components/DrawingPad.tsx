@@ -1366,7 +1366,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
       <div
         ref={containerRef}
-        className="w-full overflow-y-auto rounded-lg border border-border shadow-sm bg-white"
+        className="w-full overflow-auto rounded-lg border border-border shadow-sm bg-white overscroll-contain"
         style={{ maxHeight: "60vh" }}
       >
         <canvas
