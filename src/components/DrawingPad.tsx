@@ -715,12 +715,16 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(size.w * dpr);
-    canvas.height = Math.round(size.h * dpr);
-    canvas.style.width = `${size.w}px`;
-    canvas.style.height = `${size.h}px`;
+    // When zoomed in we also enlarge the backing store so the strokes stay
+    // pixel-sharp instead of being upscaled by the browser. Capped so that
+    // extreme zooms don't blow out GPU memory.
+    const renderScale = Math.min(dpr * zoom, dpr * 3);
+    canvas.width = Math.round(size.w * renderScale);
+    canvas.height = Math.round(size.h * renderScale);
+    canvas.style.width = `${size.w * zoom}px`;
+    canvas.style.height = `${size.h * zoom}px`;
     redraw();
-  }, [size, redraw]);
+  }, [size, redraw, zoom]);
 
   useEffect(() => { redraw(); }, [redraw]);
 
