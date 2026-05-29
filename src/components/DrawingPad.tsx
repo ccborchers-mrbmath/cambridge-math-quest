@@ -52,7 +52,20 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
+  // The in-progress stroke is intentionally kept in a ref (not React state)
+  // so each pointer-move event doesn't trigger a React re-render. Drawing at
+  // ~120 Hz with React state reconciliation was the main source of input lag
+  // on touch devices. We mutate the ref's points array in place and schedule
+  // a single redraw per animation frame via `scheduleRedraw()`.
+  const currentStrokeRef = useRef<Stroke | null>(null);
+  // rAF handle for coalesced redraws.
+  const rafRef = useRef<number | null>(null);
+  // Offscreen canvas caching every committed stroke + background + ruled
+  // lines. Live drawing only paints the active stroke on top of this cached
+  // image, so the per-frame cost stays constant no matter how much the user
+  // has already written.
+  const committedCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const committedDirtyRef = useRef(true);
   const [mode, setMode] = useState<Mode>("draw");
   const [color, setColor] = useState(COLORS[0].value);
   const [width, setWidth] = useState(3);
