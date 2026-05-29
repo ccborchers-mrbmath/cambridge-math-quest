@@ -78,6 +78,17 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   // Track active touch pointers so we can cancel an in-progress finger
   // stroke the moment a second finger lands (entering pan/zoom mode).
   const activeTouchPointersRef = useRef<Set<number>>(new Set());
+  // Palm rejection: once we've seen a stylus on this device we assume the
+  // user wants to ink with the pen and treat any incoming touch (finger /
+  // palm resting on the screen) as a palm to be ignored for drawing. They
+  // can still use two-finger pinch to pan/zoom because that gesture
+  // requires two simultaneous touches, which a resting palm doesn't
+  // produce. A short cooldown after the last pen event keeps palm
+  // rejection active for a moment after the pen lifts.
+  const penSeenRef = useRef(false);
+  const lastPenAtRef = useRef(0);
+  const PALM_REJECT_COOLDOWN_MS = 1500;
+  const [palmRejectionActive, setPalmRejectionActive] = useState(false);
   // Select / move state.
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const dragRef = useRef<
