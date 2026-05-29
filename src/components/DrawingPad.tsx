@@ -746,6 +746,18 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    // Track active touch pointers. The moment a second touch lands we
+    // bail out of any in-progress drawing — the pinch/pan handler will
+    // take over.
+    if (e.pointerType === "touch") {
+      activeTouchPointersRef.current.add(e.pointerId);
+      if (activeTouchPointersRef.current.size >= 2) {
+        setCurrentStroke(null);
+        return;
+      }
+    }
+    // While a two-finger gesture is in progress, ignore all draw input.
+    if (gestureRef.current) return;
     canvasRef.current?.setPointerCapture(e.pointerId);
     const p = eventToPoint(e);
     if (mode === "select") {
