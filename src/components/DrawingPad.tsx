@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect, Circle } from "lucide-react";
+import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect, Circle, ZoomIn, ZoomOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStroke } from "perfect-freehand";
 
@@ -58,6 +58,26 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const [width, setWidth] = useState(3);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [extraHeight, setExtraHeight] = useState(0);
+  // CSS zoom factor applied to the canvas. 1 = native. Tablet users pinch
+  // to zoom; everyone can use the +/- buttons.
+  const [zoom, setZoom] = useState(1);
+  // Pinch-to-zoom + two-finger pan gesture state. While a gesture is active
+  // we suppress any drawing pointer events so finger-drawing doesn't fight
+  // the gesture.
+  const gestureRef = useRef<
+    | {
+        initialDist: number;
+        initialZoom: number;
+        // Logical (canvas-space) point under the gesture centroid at the
+        // moment the gesture started. Used to keep that point pinned under
+        // the fingers as the user zooms.
+        focalLogical: { x: number; y: number };
+      }
+    | null
+  >(null);
+  // Track active touch pointers so we can cancel an in-progress finger
+  // stroke the moment a second finger lands (entering pan/zoom mode).
+  const activeTouchPointersRef = useRef<Set<number>>(new Set());
   // Select / move state.
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const dragRef = useRef<
@@ -274,10 +294,11 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
+    const renderScale = Math.min(dpr * zoom, dpr * 3);
     // Reset transform, then scale so all our drawing is in CSS pixels.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(dpr, dpr);
+    ctx.scale(renderScale, renderScale);
     // Maximize anti-aliasing quality for the rasterizer.
     ctx.imageSmoothingEnabled = true;
     (ctx as any).imageSmoothingQuality = "high";
@@ -530,7 +551,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         ctx.restore();
       }
     }
-  }, [strokes, currentStroke, size, selectedIndex, lassoPath, lassoSelection]);
+  }, [strokes, currentStroke, size, selectedIndex, lassoPath, lassoSelection, zoom]);
 
   // Visual constants used by the selection overlay.
   const HANDLE_HALF = 7;
@@ -695,14 +716,108 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(size.w * dpr);
-    canvas.height = Math.round(size.h * dpr);
-    canvas.style.width = `${size.w}px`;
-    canvas.style.height = `${size.h}px`;
+    // When zoomed in we also enlarge the backing store so the strokes stay
+    // pixel-sharp instead of being upscaled by the browser. Capped so that
+    // extreme zooms don't blow out GPU memory.
+    const renderScale = Math.min(dpr * zoom, dpr * 3);
+    canvas.width = Math.round(size.w * renderScale);
+    canvas.height = Math.round(size.h * renderScale);
+    canvas.style.width = `${size.w * zoom}px`;
+    canvas.style.height = `${size.h * zoom}px`;
     redraw();
-  }, [size, redraw]);
+  }, [size, redraw, zoom]);
 
   useEffect(() => { redraw(); }, [redraw]);
+
+  // ---------- Tablet pinch-to-zoom + two-finger pan ----------
+  // Native touch listeners on the scroll container. We need {passive:false}
+  // so we can preventDefault and stop the browser's native scroll/zoom from
+  // fighting us. Single-finger touches fall through to the pointer-event
+  // drawing handlers untouched.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const clampZoom = (z: number) => Math.max(0.5, Math.min(4, z));
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length < 2) return;
+      e.preventDefault();
+      // Abandon any in-progress finger stroke.
+      setCurrentStroke(null);
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const cx = (t1.clientX + t2.clientX) / 2;
+      const cy = (t1.clientY + t2.clientY) / 2;
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY) || 1;
+      const rect = container.getBoundingClientRect();
+      gestureRef.current = {
+        initialDist: dist,
+        initialZoom: zoom,
+        focalLogical: {
+          x: (cx - rect.left + container.scrollLeft) / zoom,
+          y: (cy - rect.top + container.scrollTop) / zoom,
+        },
+      };
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const g = gestureRef.current;
+      if (!g || e.touches.length < 2) return;
+      e.preventDefault();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const cx = (t1.clientX + t2.clientX) / 2;
+      const cy = (t1.clientY + t2.clientY) / 2;
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY) || 1;
+      const newZoom = clampZoom(g.initialZoom * (dist / g.initialDist));
+      const rect = container.getBoundingClientRect();
+      // Keep the focal logical point pinned under the current centroid.
+      // Pan emerges naturally because centroid drift shifts scrollLeft/Top.
+      setZoom(newZoom);
+      requestAnimationFrame(() => {
+        container.scrollLeft = g.focalLogical.x * newZoom - (cx - rect.left);
+        container.scrollTop = g.focalLogical.y * newZoom - (cy - rect.top);
+      });
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        gestureRef.current = null;
+        // Resync the pointer-tracking set from the live touches list so a
+        // lingering id from a cancelled gesture can't block future draws.
+        activeTouchPointersRef.current.clear();
+      }
+    };
+
+    container.addEventListener("touchstart", onTouchStart, { passive: false });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", onTouchEnd);
+    container.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [zoom]);
+
+  // Zoom button helpers. Anchor zoom on the centre of the visible viewport
+  // so the part of the page the user is looking at stays where it is.
+  const zoomBy = (factor: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+    const newZoom = Math.max(0.5, Math.min(4, zoom * factor));
+    if (newZoom === zoom) return;
+    const rect = container.getBoundingClientRect();
+    const focalX = (rect.width / 2 + container.scrollLeft) / zoom;
+    const focalY = (rect.height / 2 + container.scrollTop) / zoom;
+    setZoom(newZoom);
+    requestAnimationFrame(() => {
+      container.scrollLeft = focalX * newZoom - rect.width / 2;
+      container.scrollTop = focalY * newZoom - rect.height / 2;
+    });
+  };
 
   const eventToPoint = (e: PointerEvent | React.PointerEvent): Point => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -721,6 +836,18 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    // Track active touch pointers. The moment a second touch lands we
+    // bail out of any in-progress drawing — the pinch/pan handler will
+    // take over.
+    if (e.pointerType === "touch") {
+      activeTouchPointersRef.current.add(e.pointerId);
+      if (activeTouchPointersRef.current.size >= 2) {
+        setCurrentStroke(null);
+        return;
+      }
+    }
+    // While a two-finger gesture is in progress, ignore all draw input.
+    if (gestureRef.current) return;
     canvasRef.current?.setPointerCapture(e.pointerId);
     const p = eventToPoint(e);
     if (mode === "select") {
@@ -831,6 +958,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (gestureRef.current) return;
     // Select-mode drag: either translate the stroke, or (for a line)
     // move just one of its endpoints.
     if (mode === "select") {
@@ -985,6 +1113,9 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   };
 
   const finishStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === "touch") {
+      activeTouchPointersRef.current.delete(e.pointerId);
+    }
     if (mode === "select") {
       canvasRef.current?.releasePointerCapture?.(e.pointerId);
       dragRef.current = null;
@@ -1207,6 +1338,22 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <div className="flex items-center gap-1">
+              <Button type="button" size="sm" variant="outline" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out" className="px-2">
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <button
+                type="button"
+                onClick={() => { setZoom(1); requestAnimationFrame(() => { const c = containerRef.current; if (c) { c.scrollLeft = 0; } }); }}
+                className="text-xs text-muted-foreground tabular-nums w-10 text-center hover:text-foreground"
+                aria-label="Reset zoom"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <Button type="button" size="sm" variant="outline" onClick={() => zoomBy(1.25)} aria-label="Zoom in" className="px-2">
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+            </div>
             <Button type="button" size="sm" variant="outline" onClick={undo} disabled={!strokes.length} className="gap-1">
               <Undo2 className="h-4 w-4" /> Undo
             </Button>
@@ -1219,7 +1366,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
       <div
         ref={containerRef}
-        className="w-full overflow-y-auto rounded-lg border border-border shadow-sm bg-white"
+        className="w-full overflow-auto rounded-lg border border-border shadow-sm bg-white overscroll-contain"
         style={{ maxHeight: "60vh" }}
       >
         <canvas
