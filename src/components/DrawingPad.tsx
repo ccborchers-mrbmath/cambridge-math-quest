@@ -551,7 +551,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
         ctx.restore();
       }
     }
-  }, [strokes, currentStroke, size, selectedIndex, lassoPath, lassoSelection]);
+  }, [strokes, currentStroke, size, selectedIndex, lassoPath, lassoSelection, zoom]);
 
   // Visual constants used by the selection overlay.
   const HANDLE_HALF = 7;
