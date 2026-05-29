@@ -1023,6 +1023,9 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   };
 
   const finishStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType === "touch") {
+      activeTouchPointersRef.current.delete(e.pointerId);
+    }
     if (mode === "select") {
       canvasRef.current?.releasePointerCapture?.(e.pointerId);
       dragRef.current = null;
