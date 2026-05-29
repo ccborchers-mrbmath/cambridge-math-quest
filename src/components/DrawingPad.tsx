@@ -729,6 +729,96 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
 
   useEffect(() => { redraw(); }, [redraw]);
 
+  // ---------- Tablet pinch-to-zoom + two-finger pan ----------
+  // Native touch listeners on the scroll container. We need {passive:false}
+  // so we can preventDefault and stop the browser's native scroll/zoom from
+  // fighting us. Single-finger touches fall through to the pointer-event
+  // drawing handlers untouched.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const clampZoom = (z: number) => Math.max(0.5, Math.min(4, z));
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length < 2) return;
+      e.preventDefault();
+      // Abandon any in-progress finger stroke.
+      setCurrentStroke(null);
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const cx = (t1.clientX + t2.clientX) / 2;
+      const cy = (t1.clientY + t2.clientY) / 2;
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY) || 1;
+      const rect = container.getBoundingClientRect();
+      gestureRef.current = {
+        initialDist: dist,
+        initialZoom: zoom,
+        focalLogical: {
+          x: (cx - rect.left + container.scrollLeft) / zoom,
+          y: (cy - rect.top + container.scrollTop) / zoom,
+        },
+      };
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const g = gestureRef.current;
+      if (!g || e.touches.length < 2) return;
+      e.preventDefault();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const cx = (t1.clientX + t2.clientX) / 2;
+      const cy = (t1.clientY + t2.clientY) / 2;
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY) || 1;
+      const newZoom = clampZoom(g.initialZoom * (dist / g.initialDist));
+      const rect = container.getBoundingClientRect();
+      // Keep the focal logical point pinned under the current centroid.
+      // Pan emerges naturally because centroid drift shifts scrollLeft/Top.
+      setZoom(newZoom);
+      requestAnimationFrame(() => {
+        container.scrollLeft = g.focalLogical.x * newZoom - (cx - rect.left);
+        container.scrollTop = g.focalLogical.y * newZoom - (cy - rect.top);
+      });
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        gestureRef.current = null;
+        // Resync the pointer-tracking set from the live touches list so a
+        // lingering id from a cancelled gesture can't block future draws.
+        activeTouchPointersRef.current.clear();
+      }
+    };
+
+    container.addEventListener("touchstart", onTouchStart, { passive: false });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", onTouchEnd);
+    container.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [zoom]);
+
+  // Zoom button helpers. Anchor zoom on the centre of the visible viewport
+  // so the part of the page the user is looking at stays where it is.
+  const zoomBy = (factor: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+    const newZoom = Math.max(0.5, Math.min(4, zoom * factor));
+    if (newZoom === zoom) return;
+    const rect = container.getBoundingClientRect();
+    const focalX = (rect.width / 2 + container.scrollLeft) / zoom;
+    const focalY = (rect.height / 2 + container.scrollTop) / zoom;
+    setZoom(newZoom);
+    requestAnimationFrame(() => {
+      container.scrollLeft = focalX * newZoom - rect.width / 2;
+      container.scrollTop = focalY * newZoom - rect.height / 2;
+    });
+  };
+
   const eventToPoint = (e: PointerEvent | React.PointerEvent): Point => {
     const rect = canvasRef.current!.getBoundingClientRect();
     // pressure: 0 means "not supported" on some devices, treat as default.
