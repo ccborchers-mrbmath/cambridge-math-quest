@@ -418,7 +418,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                 size="sm"
                 onClick={() => {
                   setShowCamera(false);
-                  setUploadedImage(null);
+                  setUploadedImages([]);
                   setShowDrawing(false);
                 }}
                 className="h-8 w-8 p-0"
@@ -431,7 +431,8 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf"
+                multiple
                 onChange={handleImageUpload}
                 className="hidden"
               />
@@ -439,32 +440,38 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
             {showDrawing ? (
               <DrawingPad
                 onComplete={(dataUrl) => {
-                  setUploadedImage(dataUrl);
+                  setUploadedImages((prev) => [...prev, dataUrl]);
                   setShowDrawing(false);
-                  toast.success("Drawing captured!");
+                  toast.success("Drawing added");
                 }}
                 onCancel={() => setShowDrawing(false)}
               />
-            ) : !uploadedImage ? (
+            ) : uploadedImages.length === 0 ? (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Choose how you'd like to submit your answer for AI marking.
+                  Add one or more pages — images or a PDF — of your working.
                 </p>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Button
                     onClick={triggerFileInput}
+                    disabled={isProcessingFiles}
                     className="gap-2 bg-accent hover:bg-accent/90"
                   >
-                    <Camera className="h-5 w-5" />
-                    Take a photo
+                    {isProcessingFiles ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Camera className="h-5 w-5" />
+                    )}
+                    Take photos
                   </Button>
                   <Button
                     onClick={triggerFileInput}
+                    disabled={isProcessingFiles}
                     className="gap-2"
                     variant="outline"
                   >
                     <Upload className="h-5 w-5" />
-                    Upload from device
+                    Upload images or PDF
                   </Button>
                   <Button
                     onClick={() => setShowDrawing(true)}
@@ -496,12 +503,76 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="relative rounded-lg overflow-hidden border border-border">
-                  <img
-                    src={uploadedImage}
-                    alt="Uploaded work"
-                    className="w-full h-auto"
-                  />
+                <div className="space-y-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {uploadedImages.length} page{uploadedImages.length === 1 ? "" : "s"} ready
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {uploadedImages.map((src, i) => (
+                      <div
+                        key={i}
+                        className="relative group rounded-lg overflow-hidden border border-border bg-muted"
+                      >
+                        <img
+                          src={src}
+                          alt={`Page ${i + 1}`}
+                          className="w-full h-40 object-contain bg-background"
+                        />
+                        <div className="absolute top-1 left-1 rounded bg-background/90 px-1.5 py-0.5 text-xs font-medium text-foreground shadow-sm">
+                          {i + 1}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => removeImageAt(i)}
+                          className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                          aria-label={`Remove page ${i + 1}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={triggerFileInput}
+                      variant="outline"
+                      size="sm"
+                      disabled={isProcessingFiles}
+                      className="gap-2"
+                    >
+                      {isProcessingFiles ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      Add more pages
+                    </Button>
+                    <Button
+                      onClick={() => setShowDrawing(true)}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Draw a page
+                    </Button>
+                    <Button
+                      onClick={handlePasteAnswer}
+                      variant="outline"
+                      size="sm"
+                      disabled={isPastingAnswer}
+                      className="gap-2"
+                    >
+                      {isPastingAnswer ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ClipboardPaste className="h-4 w-4" />
+                      )}
+                      Paste from clipboard
+                    </Button>
+                  </div>
                 </div>
                 
                 <div className="space-y-4">
@@ -594,23 +665,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                   )}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-4">
-                  <Button
-                    onClick={triggerFileInput}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    <Upload className="h-5 w-5" />
-                    Change image
-                  </Button>
-                  <Button
-                    onClick={() => { setUploadedImage(null); setShowDrawing(true); }}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    <Pencil className="h-5 w-5" />
-                    Draw again
-                  </Button>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <Button
                     onClick={handleAIMarking}
                     disabled={isMarkingWork}
