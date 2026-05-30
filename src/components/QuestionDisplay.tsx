@@ -5,12 +5,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check } from "lucide-react";
+import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check, Copy, ClipboardPaste } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { useAuth } from "@/hooks/useAuth";
 import { DrawingPad } from "@/components/DrawingPad";
+import { copyImageUrlToClipboard, readImageFromClipboard } from "@/utils/clipboard";
 
 interface QuestionDisplayProps {
   question: Question;
@@ -33,6 +34,8 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [isMarkingWork, setIsMarkingWork] = useState(false);
   const [isSavingAttempt, setIsSavingAttempt] = useState(false);
   const [isEditingErrors, setIsEditingErrors] = useState(false);
+  const [isCopyingQuestion, setIsCopyingQuestion] = useState(false);
+  const [isPastingAnswer, setIsPastingAnswer] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleHint = async () => {
@@ -72,17 +75,58 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        toast.error("Image size must be less than 10MB");
-        return;
+      ingestImageFile(file, "Image uploaded successfully!");
+    }
+  };
+
+  const ingestImageFile = (file: File, successMessage: string) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image size must be less than 10MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setUploadedImage(reader.result as string);
+      toast.success(successMessage);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCopyQuestion = async () => {
+    setIsCopyingQuestion(true);
+    try {
+      await copyImageUrlToClipboard(question.questionUrl);
+      toast.success("Question copied — paste it into your drawing app");
+    } catch (err) {
+      console.error("Copy question failed:", err);
+      const msg = (err as Error).message;
+      if (msg === "CLIPBOARD_UNSUPPORTED") {
+        toast.error("Your browser doesn't support copying images. Long-press the question image instead.");
+      } else {
+        toast.error("Couldn't copy the question. Try long-pressing the image instead.");
       }
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedImage(reader.result as string);
-        toast.success("Image uploaded successfully!");
-      };
-      reader.readAsDataURL(file);
+    } finally {
+      setIsCopyingQuestion(false);
+    }
+  };
+
+  const handlePasteAnswer = async () => {
+    setIsPastingAnswer(true);
+    try {
+      const file = await readImageFromClipboard();
+      ingestImageFile(file, "Pasted from clipboard!");
+    } catch (err) {
+      console.error("Paste answer failed:", err);
+      const msg = (err as Error).message;
+      if (msg === "NO_IMAGE_ON_CLIPBOARD") {
+        toast.error("No image found on the clipboard. Copy a screenshot of your work first.");
+      } else if (msg === "CLIPBOARD_UNSUPPORTED") {
+        toast.error("Your browser doesn't support pasting images. Use 'Upload from device' instead.");
+      } else {
+        toast.error("Couldn't read the clipboard. Try uploading the image instead.");
+      }
+    } finally {
+      setIsPastingAnswer(false);
     }
   };
 
@@ -208,6 +252,26 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           className="w-full h-auto"
         />
       </Card>
+
+      {/* Copy question image to clipboard — for students who prefer an external drawing app */}
+      {!showDrawing && (
+        <div className="flex justify-center">
+          <Button
+            onClick={handleCopyQuestion}
+            variant="ghost"
+            size="sm"
+            disabled={isCopyingQuestion}
+            className="gap-2 text-muted-foreground hover:text-primary"
+          >
+            {isCopyingQuestion ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+            {isCopyingQuestion ? "Copying..." : "Copy question image"}
+          </Button>
+        </div>
+      )}
 
       {/* Action buttons - hidden while drawing to maximise writing space */}
       {!showDrawing && (
@@ -361,6 +425,24 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                     <Pencil className="h-5 w-5" />
                     Write an answer
                   </Button>
+                </div>
+                <div className="pt-2 border-t border-border/60">
+                  <Button
+                    onClick={handlePasteAnswer}
+                    variant="ghost"
+                    disabled={isPastingAnswer}
+                    className="w-full gap-2 text-muted-foreground hover:text-primary"
+                  >
+                    {isPastingAnswer ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <ClipboardPaste className="h-5 w-5" />
+                    )}
+                    {isPastingAnswer ? "Pasting..." : "Paste from clipboard"}
+                  </Button>
+                  <p className="mt-2 text-xs text-muted-foreground text-center">
+                    Tip: copy the question above, annotate it in any drawing app, then paste your screenshot here.
+                  </p>
                 </div>
               </div>
             ) : (
