@@ -5,13 +5,14 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check, Copy, ClipboardPaste } from "lucide-react";
+import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check, Copy, ClipboardPaste, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { useAuth } from "@/hooks/useAuth";
 import { DrawingPad } from "@/components/DrawingPad";
 import { copyImageUrlToClipboard, readImageFromClipboard } from "@/utils/clipboard";
+import { pdfFileToImages } from "@/utils/pdfToImages";
 
 interface QuestionDisplayProps {
   question: Question;
@@ -23,7 +24,8 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [showCamera, setShowCamera] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const [isLoadingHint, setIsLoadingHint] = useState(false);
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
   const [showDrawing, setShowDrawing] = useState(false);
   const [percentageAttained, setPercentageAttained] = useState<string>("");
   const [natureOfErrors, setNatureOfErrors] = useState<string>("");
@@ -68,28 +70,75 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
 
   const handleMarkWork = () => {
     setShowCamera(!showCamera);
-    setUploadedImage(null);
+    setUploadedImages([]);
     setShowDrawing(false);
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      ingestImageFile(file, "Image uploaded successfully!");
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      await ingestFiles(Array.from(files));
+    }
+    // Reset so selecting the same file again still fires onChange
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const readImageAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+
+  const ingestFiles = async (files: File[]) => {
+    setIsProcessingFiles(true);
+    try {
+      const collected: string[] = [];
+      for (const file of files) {
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`${file.name} is over 10MB — skipped`);
+          continue;
+        }
+        if (file.type === "application/pdf") {
+          try {
+            const pages = await pdfFileToImages(file);
+            collected.push(...pages);
+          } catch (err) {
+            console.error("PDF processing failed:", err);
+            toast.error(`Couldn't read ${file.name} as a PDF`);
+          }
+        } else if (file.type.startsWith("image/")) {
+          collected.push(await readImageAsDataUrl(file));
+        } else {
+          toast.error(`${file.name} isn't an image or PDF — skipped`);
+        }
+      }
+      if (collected.length > 0) {
+        setUploadedImages((prev) => [...prev, ...collected]);
+        toast.success(
+          collected.length === 1
+            ? "Page added"
+            : `${collected.length} pages added`
+        );
+      }
+    } finally {
+      setIsProcessingFiles(false);
     }
   };
 
-  const ingestImageFile = (file: File, successMessage: string) => {
+  const ingestSingleImage = async (file: File, successMessage: string) => {
     if (file.size > 10 * 1024 * 1024) {
       toast.error("Image size must be less than 10MB");
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setUploadedImage(reader.result as string);
-      toast.success(successMessage);
-    };
-    reader.readAsDataURL(file);
+    const dataUrl = await readImageAsDataUrl(file);
+    setUploadedImages((prev) => [...prev, dataUrl]);
+    toast.success(successMessage);
+  };
+
+  const removeImageAt = (index: number) => {
+    setUploadedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleCopyQuestion = async () => {
@@ -114,7 +163,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
     setIsPastingAnswer(true);
     try {
       const file = await readImageFromClipboard();
-      ingestImageFile(file, "Pasted from clipboard!");
+      await ingestSingleImage(file, "Pasted from clipboard!");
     } catch (err) {
       console.error("Paste answer failed:", err);
       const msg = (err as Error).message;
@@ -135,8 +184,8 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   };
 
   const handleAIMarking = async () => {
-    if (!uploadedImage) {
-      toast.error("Please upload an image of your work first");
+    if (uploadedImages.length === 0) {
+      toast.error("Please add at least one page of your work first");
       return;
     }
 
@@ -146,7 +195,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
         body: {
           questionUrl: question.questionUrl,
           markschemeUrl: question.markschemeUrl,
-          workImage: uploadedImage,
+          workImages: uploadedImages,
           questionMeta: {
             year: question.year,
             sitting: question.sitting,
@@ -182,8 +231,8 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       return;
     }
 
-    if (!uploadedImage) {
-      toast.error("Please upload an image of your work");
+    if (uploadedImages.length === 0) {
+      toast.error("Please add at least one page of your work");
       return;
     }
 
@@ -202,7 +251,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           attempted: true,
           percentage_attained: percentageAttained ? parseFloat(percentageAttained) : null,
           nature_of_errors: natureOfErrors || null,
-          image_url: uploadedImage,
+          image_url: uploadedImages[0],
           ai_feedback: aiFeedback || null,
           mark_breakdown: markBreakdown.length > 0 ? markBreakdown : null,
         });
@@ -211,7 +260,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
 
       toast.success("Attempt saved successfully!");
       setShowCamera(false);
-      setUploadedImage(null);
+      setUploadedImages([]);
       setPercentageAttained("");
       setNatureOfErrors("");
       setAiFeedback("");
