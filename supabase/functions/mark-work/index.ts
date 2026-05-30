@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 
 const MAX_IMAGE_LENGTH = 14_000_000;
+const MAX_WORK_IMAGES = 12;
 
 const jsonResponse = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -41,14 +42,33 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { questionUrl, markschemeUrl, workImage, questionMeta } = body;
+    const { questionUrl, markschemeUrl, workImage, workImages, questionMeta } = body;
 
-    if (typeof questionUrl !== 'string' || typeof markschemeUrl !== 'string' || typeof workImage !== 'string') {
-      return jsonResponse({ error: 'Question, markscheme, and work image are required' }, 400);
+    if (typeof questionUrl !== 'string' || typeof markschemeUrl !== 'string') {
+      return jsonResponse({ error: 'Question and markscheme are required' }, 400);
     }
 
-    if (!workImage.startsWith('data:image/') || workImage.length > MAX_IMAGE_LENGTH) {
-      return jsonResponse({ error: 'Please upload a valid image under 10MB' }, 400);
+    // Accept either workImages (array) or workImage (single, legacy)
+    const rawImages: unknown[] = Array.isArray(workImages)
+      ? workImages
+      : typeof workImage === 'string'
+        ? [workImage]
+        : [];
+
+    if (rawImages.length === 0) {
+      return jsonResponse({ error: 'At least one image of your work is required' }, 400);
+    }
+
+    if (rawImages.length > MAX_WORK_IMAGES) {
+      return jsonResponse({ error: `Please submit at most ${MAX_WORK_IMAGES} pages at a time` }, 400);
+    }
+
+    const validatedImages: string[] = [];
+    for (const img of rawImages) {
+      if (typeof img !== 'string' || !img.startsWith('data:image/') || img.length > MAX_IMAGE_LENGTH) {
+        return jsonResponse({ error: 'Each page must be a valid image under 10MB' }, 400);
+      }
+      validatedImages.push(img);
     }
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -119,11 +139,11 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching exactly this
             content: [
               {
                 type: 'text',
-                text: `Please mark this student's work. Question details: ${JSON.stringify(questionMeta ?? {})}`,
+                text: `Please mark this student's work. The work is provided as ${validatedImages.length} page${validatedImages.length === 1 ? '' : 's'} in order; read them all before marking. Question details: ${JSON.stringify(questionMeta ?? {})}`,
               },
               { type: 'image_url', image_url: { url: questionUrl } },
               { type: 'image_url', image_url: { url: markschemeUrl } },
-              { type: 'image_url', image_url: { url: workImage } },
+              ...validatedImages.map((url) => ({ type: 'image_url' as const, image_url: { url } })),
             ],
           },
         ],
