@@ -1,0 +1,452 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen } from "lucide-react";
+
+const SITTINGS = ["Feb/Mar", "May/Jun", "Oct/Nov"] as const;
+const BUCKET = "exam-images";
+
+type QuestionRow = {
+  id: string;
+  year: number;
+  sitting: string;
+  paper_number: number;
+  question_number: number;
+  topic: string | null;
+  subtopics: string | null;
+  marks: number | null;
+  question_url: string | null;
+  markscheme_url: string | null;
+  question_image_path: string | null;
+  markscheme_image_path: string | null;
+  notes: string | null;
+  is_published: boolean;
+};
+
+const emptyDraft = (): Partial<QuestionRow> => ({
+  year: new Date().getFullYear(),
+  sitting: "May/Jun",
+  paper_number: 31,
+  question_number: 1,
+  topic: "",
+  subtopics: "",
+  marks: null,
+  question_url: "",
+  markscheme_url: "",
+  notes: "",
+  is_published: true,
+});
+
+async function resolveImageSrc(row: { question_url: string | null; question_image_path: string | null }) {
+  if (row.question_image_path) {
+    const { data } = await supabase.storage.from(BUCKET).createSignedUrl(row.question_image_path, 60 * 60);
+    return data?.signedUrl ?? null;
+  }
+  return row.question_url ?? null;
+}
+
+const AdminQuestions = () => {
+  const navigate = useNavigate();
+  const { user, userRole, loading } = useAuth();
+  const [rows, setRows] = useState<QuestionRow[]>([]);
+  const [loadingRows, setLoadingRows] = useState(true);
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<QuestionRow | null>(null);
+  const [draft, setDraft] = useState<Partial<QuestionRow>>(emptyDraft());
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [uploading, setUploading] = useState<"q" | "ms" | null>(null);
+  const [previews, setPreviews] = useState<{ q?: string | null; ms?: string | null }>({});
+
+  useEffect(() => {
+    if (!loading && (!user || userRole !== "admin")) navigate("/auth");
+  }, [user, userRole, loading, navigate]);
+
+  const fetchRows = async () => {
+    setLoadingRows(true);
+    const { data, error } = await supabase
+      .from("questions")
+      .select("*")
+      .order("year", { ascending: false })
+      .order("sitting")
+      .order("paper_number")
+      .order("question_number");
+    if (error) {
+      toast.error("Failed to load questions");
+    } else {
+      setRows((data ?? []) as QuestionRow[]);
+    }
+    setLoadingRows(false);
+  };
+
+  useEffect(() => {
+    if (user && userRole === "admin") fetchRows();
+  }, [user, userRole]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) =>
+      [r.year, r.sitting, r.paper_number, r.question_number, r.topic, r.subtopics]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [rows, search]);
+
+  const openCreate = () => {
+    setEditing(null);
+    setDraft(emptyDraft());
+    setPreviews({});
+    setOpen(true);
+  };
+
+  const openEdit = async (row: QuestionRow) => {
+    setEditing(row);
+    setDraft(row);
+    const qSrc = await resolveImageSrc(row);
+    const msSrc = await resolveImageSrc({
+      question_url: row.markscheme_url,
+      question_image_path: row.markscheme_image_path,
+    });
+    setPreviews({ q: qSrc, ms: msSrc });
+    setOpen(true);
+  };
+
+  const handleUpload = async (kind: "q" | "ms", file: File) => {
+    setUploading(kind);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `uploads/${draft.year ?? "x"}/${(draft.sitting ?? "x").replace("/", "-")}/${draft.paper_number ?? "x"}/${draft.question_number ?? "x"}-${kind}-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
+      setDraft((d) => ({
+        ...d,
+        ...(kind === "q"
+          ? { question_image_path: path, question_url: null }
+          : { markscheme_image_path: path, markscheme_url: null }),
+      }));
+      setPreviews((p) => ({ ...p, [kind]: signed?.signedUrl ?? null }));
+      toast.success("Image uploaded");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+
+  const suggestFromImages = async () => {
+    setSuggesting(true);
+    try {
+      // Prefer existing previews; fall back to URLs in draft.
+      const questionImage = previews.q ?? draft.question_url ?? null;
+      const markschemeImage = previews.ms ?? draft.markscheme_url ?? null;
+      if (!questionImage) {
+        toast.error("Upload or set a question image first");
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke("suggest-question-metadata", {
+        body: { questionImage, markschemeImage },
+      });
+      if (error) throw error;
+      const s = (data as { suggestion?: Record<string, unknown> })?.suggestion ?? {};
+      setDraft((d) => ({
+        ...d,
+        year: typeof s.year === "number" ? s.year : d.year,
+        sitting: typeof s.sitting === "string" && SITTINGS.includes(s.sitting as typeof SITTINGS[number]) ? s.sitting : d.sitting,
+        paper_number: typeof s.paper_number === "number" ? s.paper_number : d.paper_number,
+        question_number: typeof s.question_number === "number" ? s.question_number : d.question_number,
+        topic: typeof s.topic === "string" ? s.topic : d.topic,
+        subtopics: typeof s.subtopics === "string" ? s.subtopics : d.subtopics,
+        marks: typeof s.marks === "number" ? s.marks : d.marks,
+      }));
+      toast.success("AI suggestions applied — review and save");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "AI suggestion failed");
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        year: Number(draft.year),
+        sitting: String(draft.sitting),
+        paper_number: Number(draft.paper_number),
+        question_number: Number(draft.question_number),
+        topic: draft.topic || null,
+        subtopics: draft.subtopics || null,
+        marks: draft.marks == null || draft.marks === ("" as unknown) ? null : Number(draft.marks),
+        question_url: draft.question_url || null,
+        markscheme_url: draft.markscheme_url || null,
+        question_image_path: draft.question_image_path || null,
+        markscheme_image_path: draft.markscheme_image_path || null,
+        notes: draft.notes || null,
+        is_published: draft.is_published ?? true,
+      };
+      if (editing) {
+        const { error } = await supabase.from("questions").update(payload).eq("id", editing.id);
+        if (error) throw error;
+        toast.success("Question updated");
+      } else {
+        const { error } = await supabase.from("questions").insert(payload);
+        if (error) throw error;
+        toast.success("Question created");
+      }
+      setOpen(false);
+      await fetchRows();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (row: QuestionRow) => {
+    if (!confirm(`Delete ${row.year} ${row.sitting} P${row.paper_number} Q${row.question_number}?`)) return;
+    const { error } = await supabase.from("questions").delete().eq("id", row.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Deleted");
+      fetchRows();
+    }
+  };
+
+  if (loading || loadingRows) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
+      <header className="border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="container mx-auto px-4 py-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
+              <BookOpen className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-serif font-bold">Question Manager</h1>
+              <p className="text-sm text-muted-foreground">Edit, add, and AI-assist the question catalogue</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("/admin")}>Admin Dashboard</Button>
+            <Button variant="outline" onClick={() => navigate("/")}>Back to App</Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>{rows.length} questions</CardTitle>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Search year, sitting, topic..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-72"
+              />
+              <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add question</Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="max-h-[70vh] overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Preview</TableHead>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Topic</TableHead>
+                    <TableHead>Subtopics</TableHead>
+                    <TableHead>Marks</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell>
+                        {r.question_url ? (
+                          <img src={r.question_url} alt="" className="h-16 w-24 object-cover rounded border" loading="lazy" />
+                        ) : (
+                          <div className="h-16 w-24 rounded border bg-muted text-xs flex items-center justify-center text-muted-foreground">no img</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">
+                        {r.year} {r.sitting} P{r.paper_number} Q{r.question_number}
+                      </TableCell>
+                      <TableCell>{r.topic ?? "-"}</TableCell>
+                      <TableCell className="max-w-md truncate text-sm text-muted-foreground">{r.subtopics ?? "-"}</TableCell>
+                      <TableCell>{r.marks ?? "-"}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit question" : "New question"}</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {(["q", "ms"] as const).map((kind) => (
+              <div key={kind} className="space-y-2">
+                <Label>{kind === "q" ? "Question image" : "Mark scheme image"}</Label>
+                <div className="border rounded-md bg-muted/30 min-h-[240px] flex items-center justify-center overflow-hidden">
+                  {previews[kind] ? (
+                    <img src={previews[kind]!} alt="" className="max-h-[400px] w-auto" />
+                  ) : (
+                    <span className="text-sm text-muted-foreground">no image</span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <label className="inline-flex">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUpload(kind, f);
+                        e.target.value = "";
+                      }}
+                    />
+                    <Button asChild variant="outline" size="sm" disabled={uploading === kind}>
+                      <span>
+                        {uploading === kind ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                        Upload
+                      </span>
+                    </Button>
+                  </label>
+                  <Input
+                    placeholder="...or paste URL"
+                    value={(kind === "q" ? draft.question_url : draft.markscheme_url) ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setDraft((d) => ({
+                        ...d,
+                        ...(kind === "q"
+                          ? { question_url: v, question_image_path: null }
+                          : { markscheme_url: v, markscheme_image_path: null }),
+                      }));
+                      setPreviews((p) => ({ ...p, [kind]: v || null }));
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="secondary" size="sm" onClick={suggestFromImages} disabled={suggesting}>
+              {suggesting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Suggest fields with AI
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <Label>Year</Label>
+              <Input type="number" value={draft.year ?? ""} onChange={(e) => setDraft({ ...draft, year: Number(e.target.value) })} />
+            </div>
+            <div>
+              <Label>Sitting</Label>
+              <Select value={draft.sitting ?? ""} onValueChange={(v) => setDraft({ ...draft, sitting: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SITTINGS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Paper</Label>
+              <Input type="number" value={draft.paper_number ?? ""} onChange={(e) => setDraft({ ...draft, paper_number: Number(e.target.value) })} />
+            </div>
+            <div>
+              <Label>Question #</Label>
+              <Input type="number" value={draft.question_number ?? ""} onChange={(e) => setDraft({ ...draft, question_number: Number(e.target.value) })} />
+            </div>
+            <div className="col-span-2">
+              <Label>Topic</Label>
+              <Input value={draft.topic ?? ""} onChange={(e) => setDraft({ ...draft, topic: e.target.value })} />
+            </div>
+            <div>
+              <Label>Marks</Label>
+              <Input type="number" value={draft.marks ?? ""} onChange={(e) => setDraft({ ...draft, marks: e.target.value === "" ? null : Number(e.target.value) })} />
+            </div>
+            <div>
+              <Label>Published</Label>
+              <Select value={String(draft.is_published ?? true)} onValueChange={(v) => setDraft({ ...draft, is_published: v === "true" })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Published</SelectItem>
+                  <SelectItem value="false">Hidden</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 md:col-span-4">
+              <Label>Subtopics (comma-separated, with syllabus codes)</Label>
+              <Textarea
+                rows={2}
+                value={draft.subtopics ?? ""}
+                onChange={(e) => setDraft({ ...draft, subtopics: e.target.value })}
+                placeholder="e.g. 7.2 Partial fractions, 8.4 Integration by substitution"
+              />
+            </div>
+            <div className="col-span-2 md:col-span-4">
+              <Label>Notes (internal)</Label>
+              <Textarea rows={2} value={draft.notes ?? ""} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default AdminQuestions;
