@@ -41,6 +41,63 @@ export type Database = {
         }
         Relationships: []
       }
+      questions: {
+        Row: {
+          created_at: string
+          id: string
+          is_published: boolean
+          marks: number | null
+          markscheme_image_path: string | null
+          markscheme_url: string | null
+          notes: string | null
+          paper_number: number
+          question_image_path: string | null
+          question_number: number
+          question_url: string | null
+          sitting: string
+          subtopics: string | null
+          topic: string | null
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          marks?: number | null
+          markscheme_image_path?: string | null
+          markscheme_url?: string | null
+          notes?: string | null
+          paper_number: number
+          question_image_path?: string | null
+          question_number: number
+          question_url?: string | null
+          sitting: string
+          subtopics?: string | null
+          topic?: string | null
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          marks?: number | null
+          markscheme_image_path?: string | null
+          markscheme_url?: string | null
+          notes?: string | null
+          paper_number?: number
+          question_image_path?: string | null
+          question_number?: number
+          question_url?: string | null
+          sitting?: string
+          subtopics?: string | null
+          topic?: string | null
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
       student_attempts: {
         Row: {
           ai_feedback: string | null
