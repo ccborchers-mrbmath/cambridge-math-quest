@@ -495,6 +495,9 @@ const AdminQuestions = () => {
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-72"
               />
+              <Button variant="outline" onClick={() => { setBulkLog([]); setBulkOpen(true); }}>
+                <UploadCloud className="h-4 w-4 mr-2" />Bulk upload
+              </Button>
               <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add question</Button>
             </div>
           </CardHeader>
@@ -508,6 +511,7 @@ const AdminQuestions = () => {
                     <TableHead>Topic</TableHead>
                     <TableHead>Subtopics</TableHead>
                     <TableHead>Marks</TableHead>
+                    <TableHead>Text</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -527,6 +531,15 @@ const AdminQuestions = () => {
                       <TableCell>{r.topic ?? "-"}</TableCell>
                       <TableCell className="max-w-md truncate text-sm text-muted-foreground">{r.subtopics ?? "-"}</TableCell>
                       <TableCell>{r.marks ?? "-"}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        <span title="Question text" className={r.question_text_status === "ready" ? "text-primary" : r.question_text_status === "pending" ? "text-muted-foreground" : r.question_text_status === "failed" ? "text-destructive" : "text-muted-foreground/50"}>
+                          Q:{r.question_text_status === "ready" ? "✓" : r.question_text_status === "pending" ? "…" : r.question_text_status === "failed" ? "✗" : "–"}
+                        </span>
+                        {" "}
+                        <span title="Mark scheme text" className={r.markscheme_text_status === "ready" ? "text-primary" : r.markscheme_text_status === "pending" ? "text-muted-foreground" : r.markscheme_text_status === "failed" ? "text-destructive" : "text-muted-foreground/50"}>
+                          MS:{r.markscheme_text_status === "ready" ? "✓" : r.markscheme_text_status === "pending" ? "…" : r.markscheme_text_status === "failed" ? "✗" : "–"}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => handleDelete(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
