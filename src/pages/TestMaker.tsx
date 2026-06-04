@@ -338,7 +338,7 @@ const TestMaker = () => {
     }
 
     // Add markschemes section if included
-    const hasMarkschemes = processedQuestions.some(pq => pq.processedMarkschemeUrl);
+    const hasMarkschemes = processedQuestions.some(pq => pq.markschemeText);
     if (includeMarkschemes && hasMarkschemes) {
       // Markscheme cover page
       pdf.addPage();
@@ -377,37 +377,27 @@ const TestMaker = () => {
         pdf.setTextColor(100, 116, 139);
         pdf.text(`${pq.original.marks} marks | ${pq.original.topic}`, margin, margin + 6);
         
-        // Add markscheme image if available
-        if (pq.processedMarkschemeUrl) {
+        // Render markscheme text to canvas, then embed in PDF
+        if (pq.markschemeText) {
           try {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            
-            await new Promise<void>((resolve, reject) => {
-              img.onload = () => resolve();
-              img.onerror = reject;
-              img.src = pq.processedMarkschemeUrl!;
-            });
-
-            const imgAspectRatio = img.width / img.height;
+            const canvas = await renderMarkschemeToCanvas(pq.markschemeText);
+            const imgAspect = canvas.width / canvas.height;
             let imgWidth = contentWidth;
-            let imgHeight = imgWidth / imgAspectRatio;
-
+            let imgHeight = imgWidth / imgAspect;
             const maxHeight = pageHeight - margin - 35;
             if (imgHeight > maxHeight) {
               imgHeight = maxHeight;
-              imgWidth = imgHeight * imgAspectRatio;
+              imgWidth = imgHeight * imgAspect;
             }
-
-            pdf.addImage(img, 'PNG', margin, margin + 15, imgWidth, imgHeight);
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin + 15, imgWidth, imgHeight);
           } catch (error) {
-            console.error('Error adding markscheme to PDF:', error);
+            console.error('Error rendering markscheme:', error);
             pdf.setTextColor(200, 0, 0);
-            pdf.text('Error loading markscheme image', margin, margin + 30);
+            pdf.text('Error rendering markscheme', margin, margin + 30);
           }
         } else {
           pdf.setTextColor(150, 150, 150);
-          pdf.text('Markscheme not available', margin, margin + 30);
+          pdf.text('Mark scheme text not yet available', margin, margin + 30);
         }
 
         // Page number
@@ -424,7 +414,7 @@ const TestMaker = () => {
   };
 
   if (isCompiled) {
-    const hasMarkschemes = processedQuestions.some(pq => pq.processedMarkschemeUrl);
+    const hasMarkschemes = processedQuestions.some(pq => pq.markschemeText);
     
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
@@ -542,15 +532,16 @@ const TestMaker = () => {
                         )}
                       </TabsContent>
                       <TabsContent value="markscheme">
-                        {pq.processedMarkschemeUrl ? (
-                          <img 
-                            src={pq.processedMarkschemeUrl} 
-                            alt={`Mark scheme for Question ${pq.newNumber}`}
-                            className="w-full max-w-3xl rounded-lg border"
-                          />
+                        {pq.markschemeText ? (
+                          <div className="rounded-lg border bg-card p-4 max-w-3xl">
+                            <LatexRenderer
+                              className="prose prose-sm max-w-none"
+                              content={pq.markschemeText}
+                            />
+                          </div>
                         ) : (
                           <div className="text-center py-8 text-muted-foreground">
-                            Markscheme not available
+                            Mark scheme text not yet available
                           </div>
                         )}
                       </TabsContent>
