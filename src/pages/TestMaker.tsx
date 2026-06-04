@@ -26,6 +26,44 @@ function getQuestionId(q: Question) {
   return `${q.year}-${q.sitting}-${q.paperNumber}-${q.questionNumber}`;
 }
 
+/**
+ * Render mark-scheme markdown/LaTeX text into an off-screen DOM node and
+ * rasterize it to a canvas via html2canvas. Used to embed crisp text-based
+ * mark schemes into the PDF.
+ */
+async function renderMarkschemeToCanvas(content: string): Promise<HTMLCanvasElement> {
+  const wrapper = document.createElement("div");
+  // Off-screen but laid out so html2canvas can measure it.
+  wrapper.style.position = "fixed";
+  wrapper.style.left = "-10000px";
+  wrapper.style.top = "0";
+  wrapper.style.width = "780px"; // ~A4 portrait content width @ ~96dpi
+  wrapper.style.padding = "16px";
+  wrapper.style.background = "#ffffff";
+  wrapper.style.color = "#0f172a";
+  wrapper.style.fontFamily = "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+  wrapper.style.fontSize = "13px";
+  wrapper.style.lineHeight = "1.5";
+  wrapper.innerHTML = renderLatexToHtml(content);
+  document.body.appendChild(wrapper);
+  try {
+    // Let KaTeX layout settle and any fonts load.
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    if ((document as Document & { fonts?: { ready: Promise<unknown> } }).fonts) {
+      await (document as Document & { fonts: { ready: Promise<unknown> } }).fonts.ready;
+    }
+    const canvas = await html2canvas(wrapper, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+    return canvas;
+  } finally {
+    document.body.removeChild(wrapper);
+  }
+}
+
 const TestMaker = () => {
   const navigate = useNavigate();
   const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
