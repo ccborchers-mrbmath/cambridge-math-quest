@@ -36,6 +36,7 @@ Rules:
 - Include the header row and a separator row (\`| --- | --- | --- | --- |\`) immediately after it.
 - One row per scheme line as printed in the original. Use the Part column only on the first row of each new part (e.g. (a), (b)(i)); leave it blank on continuation rows so the visual grouping matches the original.
 - Render every mathematical expression in LaTeX: inline as $...$, display as $$...$$. Keep each row to a single line — replace any internal newlines inside a cell with \`<br>\` so the markdown table stays valid.
+- CRITICAL: inside table cells, NEVER use a bare \`|\` character for the modulus/absolute-value bars — it will break the markdown table. Always write modulus as \`\\lvert ... \\rvert\` (e.g. \`$\\lvert z - a \\rvert \\le b$\` instead of \`$|z - a| \\le b$\`). The same applies to set-builder pipes or any other pipe inside math — use \`\\mid\` or \`\\lvert\\rvert\` so no raw \`|\` ever appears inside \`$...$\` within a cell.
 - Preserve every mark code, follow-through marker (FT or √), and ISW/CWO/AG annotation exactly as printed, in the Marks column.
 - The Guidance column (rightmost column in the original — examiner notes about accepted alternative answers, allowed forms, common acceptable slips, FT conditions, wording requirements) MUST be transcribed verbatim into the Guidance cell for the row it applies to. Use \`<br>\` to separate multiple guidance notes within the same cell. Do not summarise or omit guidance.
 - If a cell is empty in the original, leave it empty (just \`|  |\`). Do not invent content.
