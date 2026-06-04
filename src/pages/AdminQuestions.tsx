@@ -728,6 +728,50 @@ const AdminQuestions = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={bulkOpen} onOpenChange={(o) => { if (!bulkBusy) setBulkOpen(o); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Bulk upload questions</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Drop or pick all the question and mark-scheme images at once. Filenames must follow the pattern
+              {" "}<code className="px-1 py-0.5 bg-muted rounded text-xs">9709_&#123;m|s|w&#125;YY_&#123;qp|ms&#125;_PP_qNN.ext</code>{" "}
+              (e.g. <code className="px-1 py-0.5 bg-muted rounded text-xs">9709_m24_qp_32_q01.jpg</code> pairs with
+              {" "}<code className="px-1 py-0.5 bg-muted rounded text-xs">9709_m24_ms_32_q01.jpg</code>).
+              Existing rows with the same year/sitting/paper/question are updated; new rows are created. Text versions are extracted automatically in the background.
+            </p>
+            <label className="block">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                disabled={bulkBusy}
+                onChange={(e) => {
+                  handleBulkUpload(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <Button asChild disabled={bulkBusy}>
+                <span>
+                  {bulkBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <UploadCloud className="h-4 w-4 mr-2" />}
+                  {bulkBusy ? "Uploading…" : "Select images"}
+                </span>
+              </Button>
+            </label>
+            {bulkLog.length > 0 && (
+              <div className="border rounded-md bg-muted/30 p-3 max-h-72 overflow-auto font-mono text-xs space-y-1">
+                {bulkLog.map((l, i) => <div key={i}>{l}</div>)}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={bulkBusy} onClick={() => setBulkOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
