@@ -608,6 +608,55 @@ const AdminQuestions = () => {
             ))}
           </div>
 
+          {/* Text-only versions */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Text-only versions (used for faster, more accurate marking)</Label>
+            <Tabs defaultValue="q-text">
+              <TabsList>
+                <TabsTrigger value="q-text">Question text</TabsTrigger>
+                <TabsTrigger value="ms-text">Mark scheme text</TabsTrigger>
+              </TabsList>
+              {(["q", "ms"] as const).map((kind) => (
+                <TabsContent key={kind} value={kind === "q" ? "q-text" : "ms-text"} className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      Status: {(kind === "q" ? draft.question_text_status : draft.markscheme_text_status) ?? "none"}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={extracting === kind || !previews[kind]}
+                      onClick={() => previews[kind] && runExtract(kind, previews[kind]!)}
+                    >
+                      {extracting === kind ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                      {kind === "q" ? draft.question_text : draft.markscheme_text ? "Re-extract from image" : "Extract from image"}
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Textarea
+                      rows={14}
+                      placeholder={`Paste or edit the ${kind === "q" ? "question" : "mark scheme"} text (LaTeX inside $...$ or $$...$$)`}
+                      value={(kind === "q" ? draft.question_text : draft.markscheme_text) ?? ""}
+                      onChange={(e) => setDraft((d) => ({
+                        ...d,
+                        ...(kind === "q"
+                          ? { question_text: e.target.value, question_text_status: e.target.value ? "ready" : "none" }
+                          : { markscheme_text: e.target.value, markscheme_text_status: e.target.value ? "ready" : "none" }),
+                      }))}
+                      className="font-mono text-xs"
+                    />
+                    <div className="border rounded-md p-3 bg-muted/20 max-h-[360px] overflow-auto">
+                      <LatexRenderer
+                        className="prose prose-sm max-w-none whitespace-pre-wrap"
+                        content={((kind === "q" ? draft.question_text : draft.markscheme_text) ?? "_(preview will appear here)_")}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </div>
+
           <div className="flex justify-end">
             <Button variant="secondary" size="sm" onClick={suggestFromImages} disabled={suggesting}>
               {suggesting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
