@@ -398,12 +398,12 @@ const AdminQuestions = () => {
 
           let rowId = existingByKey.get(key);
           if (rowId) {
-            const { error } = await supabase.from("questions").update(payload).eq("id", rowId);
+            const { error } = await supabase.from("questions").update(payload as never).eq("id", rowId);
             if (error) throw error;
           } else {
             const { data: inserted, error } = await supabase
               .from("questions")
-              .insert(payload)
+              .insert(payload as never)
               .select("id")
               .single();
             if (error) throw error;
@@ -421,12 +421,12 @@ const AdminQuestions = () => {
               const update: Record<string, unknown> = kind === "question"
                 ? { question_text: text, question_text_status: text ? "ready" : "failed" }
                 : { markscheme_text: text, markscheme_text_status: text ? "ready" : "failed" };
-              await supabase.from("questions").update(update).eq("id", rowId!);
+              await supabase.from("questions").update(update as never).eq("id", rowId!);
             } catch (err) {
               const update = kind === "question"
                 ? { question_text_status: "failed" }
                 : { markscheme_text_status: "failed" };
-              await supabase.from("questions").update(update).eq("id", rowId!);
+              await supabase.from("questions").update(update as never).eq("id", rowId!);
               console.error("extract failed", tag, kind, err);
             }
           };
