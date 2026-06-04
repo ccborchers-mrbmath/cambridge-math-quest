@@ -22,7 +22,10 @@ Rules:
 - Preserve part labels exactly as printed: (a), (b), (i), (ii), etc., each on its own line.
 - Preserve the [n] mark allocations at the end of each part as printed.
 - Do NOT include the question number heading (e.g. "1") or page numbers.
-- Keep the wording verbatim — do not paraphrase. If a symbol is unclear, make your best reading.`;
+- Keep the wording verbatim — do not paraphrase. If a symbol is unclear, make your best reading.
+- If the question contains any diagram, figure, graph, or geometric shape, insert a description at the point it appears, on its own line(s), in this format:
+    [Diagram: <concise description of the figure, including shape/type, all labelled points, given side lengths, angles, coordinates, axes, curves, shaded regions, and any other annotations visible>]
+  Be specific enough that a student could reconstruct the figure from your description alone. Do not skip diagrams.`;
 
 const SYSTEM_MARKSCHEME = `You transcribe Cambridge A-Level Math 9709 Paper 3 mark scheme images into clean, faithful text.
 
@@ -32,6 +35,7 @@ Rules:
 - Preserve the structure: each part label ((a), (b), (i), (ii)) on its own line, then the working/answer lines, then the mark codes (M1, A1, B1, M1A1, B2, etc.) at the right.
 - Format each scheme line as:  <working or answer>    <mark code>
 - Preserve every mark code, follow-through marker (FT or √), and ISW/CWO/AG annotations exactly as printed.
+- The Guidance column (usually the rightmost column, containing examiner notes about accepted alternative answers, allowed forms, common acceptable slips, FT conditions, and wording requirements) MUST be transcribed in full. After the scheme lines for each part, add a "Guidance:" block on its own line, followed by the guidance text verbatim (one note per line). Do not summarise or omit guidance — it is essential for accurate marking.
 - Preserve the total at the end if present (e.g. "[Total: 8]").
 - Do not paraphrase. If a symbol is unclear, make your best reading.`;
 
