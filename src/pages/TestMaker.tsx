@@ -9,11 +9,9 @@ import { processQuestionImage } from "@/utils/imageProcessing";
 import { ensureMarkschemeText } from "@/utils/ensureMarkschemeText";
 import { renderLatexToHtml } from "@/utils/renderLatex";
 import { LatexRenderer } from "@/components/LatexRenderer";
-import html2canvas from "html2canvas";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import jsPDF from "jspdf";
 
 interface ProcessedQuestion {
   original: Question;
@@ -37,74 +35,22 @@ function renumberMarkschemeText(text: string, newNumber: number): string {
 }
 
 /**
- * Render mark-scheme markdown/LaTeX text into an off-screen DOM node and
- * rasterize it to a canvas via html2canvas. Used to embed crisp text-based
- * mark schemes into the PDF.
+ * Wrap the rendered mark-scheme HTML so that each standard 4-column table
+ * gets a <colgroup> with sensible widths (Part / Answer / Marks / Guidance).
  */
-async function renderMarkschemeToCanvas(content: string): Promise<HTMLCanvasElement> {
-  const wrapper = document.createElement("div");
-  // Off-screen but laid out so html2canvas can measure it.
-  wrapper.style.position = "fixed";
-  wrapper.style.left = "-10000px";
-  wrapper.style.top = "0";
-  wrapper.style.width = "1100px"; // wider canvas = finer table rendering when scaled to A4
-  wrapper.style.padding = "20px";
-  wrapper.style.background = "#ffffff";
-  wrapper.style.color = "#0f172a";
-  wrapper.style.fontFamily = "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
-  wrapper.style.fontSize = "15px";
-  wrapper.style.lineHeight = "1.5";
-  // Inline overrides so html2canvas honours the table layout regardless of
-  // tailwind classes (which aren't present in an off-screen node).
-  wrapper.innerHTML = `
-    <style>
-      .ms-render table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      .ms-render th, .ms-render td {
-        border: 1px solid #cbd5e1;
-        padding: 6px 8px;
-        vertical-align: top;
-        word-wrap: break-word;
-        overflow-wrap: anywhere;
-        font-size: 14px;
-      }
-      .ms-render th { background: #f1f5f9; font-weight: 600; text-align: left; }
-      .ms-render col.col-part { width: 10%; }
-      .ms-render col.col-answer { width: 45%; }
-      .ms-render col.col-marks { width: 10%; }
-      .ms-render col.col-guidance { width: 35%; }
-      .ms-render .katex { font-size: 1em; }
-    </style>
-    <div class="ms-render">${renderLatexToHtml(content)}</div>
-  `;
-  // Inject a <colgroup> into each rendered table so the 4 standard MS columns
-  // get sensible widths (Part / Answer / Marks / Guidance).
-  const tables = wrapper.querySelectorAll("table");
-  tables.forEach((t) => {
+function withColgroups(html: string): string {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  tmp.querySelectorAll("table").forEach((t) => {
     const headCells = t.querySelectorAll("thead th").length;
-    if (headCells === 4) {
+    if (headCells === 4 && !t.querySelector("colgroup")) {
       const colgroup = document.createElement("colgroup");
       colgroup.innerHTML =
         '<col class="col-part"><col class="col-answer"><col class="col-marks"><col class="col-guidance">';
       t.insertBefore(colgroup, t.firstChild);
     }
   });
-  document.body.appendChild(wrapper);
-  try {
-    // Let KaTeX layout settle and any fonts load.
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
-    if ((document as Document & { fonts?: { ready: Promise<unknown> } }).fonts) {
-      await (document as Document & { fonts: { ready: Promise<unknown> } }).fonts.ready;
-    }
-    const canvas = await html2canvas(wrapper, {
-      backgroundColor: "#ffffff",
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    });
-    return canvas;
-  } finally {
-    document.body.removeChild(wrapper);
-  }
+  return tmp.innerHTML;
 }
 
 const TestMaker = () => {
