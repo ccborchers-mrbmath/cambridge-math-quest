@@ -42,7 +42,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { questionUrl, markschemeUrl, workImage, workImages, questionMeta } = body;
+    const { questionUrl, markschemeUrl, workImage, workImages, questionMeta, markschemeText, questionText } = body;
 
     if (typeof questionUrl !== 'string' || typeof markschemeUrl !== 'string') {
       return jsonResponse({ error: 'Question and markscheme are required' }, 400);
@@ -139,10 +139,18 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching exactly this
             content: [
               {
                 type: 'text',
-                text: `Please mark this student's work. The work is provided as ${validatedImages.length} page${validatedImages.length === 1 ? '' : 's'} in order; read them all before marking. Question details: ${JSON.stringify(questionMeta ?? {})}`,
+                text: `Please mark this student's work. The work is provided as ${validatedImages.length} page${validatedImages.length === 1 ? '' : 's'} in order; read them all before marking. Question details: ${JSON.stringify(questionMeta ?? {})}`
+                  + (typeof questionText === 'string' && questionText.trim()
+                      ? `\n\n=== QUESTION (authoritative text version) ===\n${questionText}\n`
+                      : '')
+                  + (typeof markschemeText === 'string' && markschemeText.trim()
+                      ? `\n\n=== MARK SCHEME (authoritative text version — use this in preference to any image) ===\n${markschemeText}\n`
+                      : ''),
               },
               { type: 'image_url', image_url: { url: questionUrl } },
-              { type: 'image_url', image_url: { url: markschemeUrl } },
+              ...(typeof markschemeText === 'string' && markschemeText.trim()
+                  ? []
+                  : [{ type: 'image_url' as const, image_url: { url: markschemeUrl } }]),
               ...validatedImages.map((url) => ({ type: 'image_url' as const, image_url: { url } })),
             ],
           },
