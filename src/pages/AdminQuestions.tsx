@@ -11,10 +11,51 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen, FileText, RefreshCw, UploadCloud } from "lucide-react";
+import { LatexRenderer } from "@/components/LatexRenderer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const SITTINGS = ["Feb/Mar", "May/Jun", "Oct/Nov"] as const;
 const BUCKET = "exam-images";
+
+const SESSION_MAP: Record<string, typeof SITTINGS[number]> = {
+  m: "Feb/Mar",
+  s: "May/Jun",
+  w: "Oct/Nov",
+};
+
+// Matches e.g. 9709_m24_qp_32_q01.jpg / 9709_s24_ms_31_q1.png
+const FILENAME_RE = /^9709_([msw])(\d{2})_(qp|ms)_(\d{1,2})_q(\d{1,2})\b/i;
+
+type ParsedName = {
+  year: number;
+  sitting: typeof SITTINGS[number];
+  paperNumber: number;
+  questionNumber: number;
+  kind: "qp" | "ms";
+  key: string; // year|sitting|paper|qnum
+};
+
+function parseFilename(name: string): ParsedName | null {
+  const base = name.replace(/\.[^./]+$/, "");
+  const m = base.match(FILENAME_RE);
+  if (!m) return null;
+  const sessionLetter = m[1].toLowerCase();
+  const sitting = SESSION_MAP[sessionLetter];
+  if (!sitting) return null;
+  const year = 2000 + parseInt(m[2], 10);
+  const kind = m[3].toLowerCase() as "qp" | "ms";
+  const paperNumber = parseInt(m[4], 10);
+  const questionNumber = parseInt(m[5], 10);
+  return {
+    year,
+    sitting,
+    paperNumber,
+    questionNumber,
+    kind,
+    key: `${year}|${sitting}|${paperNumber}|${questionNumber}`,
+  };
+}
 
 type QuestionRow = {
   id: string;
@@ -31,6 +72,10 @@ type QuestionRow = {
   markscheme_image_path: string | null;
   notes: string | null;
   is_published: boolean;
+  question_text: string | null;
+  markscheme_text: string | null;
+  question_text_status: string;
+  markscheme_text_status: string;
 };
 
 const emptyDraft = (): Partial<QuestionRow> => ({
@@ -68,6 +113,10 @@ const AdminQuestions = () => {
   const [suggesting, setSuggesting] = useState(false);
   const [uploading, setUploading] = useState<"q" | "ms" | null>(null);
   const [previews, setPreviews] = useState<{ q?: string | null; ms?: string | null }>({});
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkLog, setBulkLog] = useState<string[]>([]);
+  const [extracting, setExtracting] = useState<"q" | "ms" | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || userRole !== "admin")) navigate("/auth");
@@ -140,11 +189,43 @@ const AdminQuestions = () => {
           : { markscheme_image_path: path, markscheme_url: null }),
       }));
       setPreviews((p) => ({ ...p, [kind]: signed?.signedUrl ?? null }));
-      toast.success("Image uploaded");
+      toast.success("Image uploaded — extracting text…");
+      // Auto-extract text from the freshly uploaded image
+      if (signed?.signedUrl) {
+        void runExtract(kind, signed.signedUrl);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(null);
+    }
+  };
+
+  const runExtract = async (kind: "q" | "ms", imageUrl: string) => {
+    setExtracting(kind);
+    try {
+      const { data, error } = await supabase.functions.invoke("extract-question-text", {
+        body: { imageUrl, kind: kind === "q" ? "question" : "markscheme" },
+      });
+      if (error) throw error;
+      const text = String((data as { text?: string })?.text ?? "").trim();
+      setDraft((d) => ({
+        ...d,
+        ...(kind === "q"
+          ? { question_text: text, question_text_status: text ? "ready" : "failed" }
+          : { markscheme_text: text, markscheme_text_status: text ? "ready" : "failed" }),
+      }));
+      toast.success(`${kind === "q" ? "Question" : "Mark scheme"} text extracted`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Text extraction failed");
+      setDraft((d) => ({
+        ...d,
+        ...(kind === "q"
+          ? { question_text_status: "failed" }
+          : { markscheme_text_status: "failed" }),
+      }));
+    } finally {
+      setExtracting(null);
     }
   };
 
@@ -206,6 +287,10 @@ const AdminQuestions = () => {
         markscheme_image_path: draft.markscheme_image_path || null,
         notes: draft.notes || null,
         is_published: draft.is_published ?? true,
+        question_text: draft.question_text || null,
+        markscheme_text: draft.markscheme_text || null,
+        question_text_status: (draft.question_text_status as string) || (draft.question_text ? "ready" : "none"),
+        markscheme_text_status: (draft.markscheme_text_status as string) || (draft.markscheme_text ? "ready" : "none"),
       };
       if (editing) {
         const { error } = await supabase.from("questions").update(payload).eq("id", editing.id);
