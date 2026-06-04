@@ -226,10 +226,13 @@ const TestMaker = () => {
       compiledQuestions.map(async (q, index) => {
         const newNumber = index + 1;
         try {
-          const [processedImageUrl, markschemeText] = await Promise.all([
+          const [processedImageUrl, rawMarkschemeText] = await Promise.all([
             processQuestionImage(q.questionUrl, newNumber),
             includeMarkschemes ? ensureMarkschemeText(q) : Promise.resolve(null),
           ]);
+          const markschemeText = rawMarkschemeText
+            ? renumberMarkschemeText(rawMarkschemeText, newNumber)
+            : null;
           return {
             original: q,
             newNumber,
