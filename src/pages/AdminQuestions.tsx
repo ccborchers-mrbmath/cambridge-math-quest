@@ -629,7 +629,7 @@ const AdminQuestions = () => {
                       onClick={() => previews[kind] && runExtract(kind, previews[kind]!)}
                     >
                       {extracting === kind ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                      {kind === "q" ? draft.question_text : draft.markscheme_text ? "Re-extract from image" : "Extract from image"}
+                      {((kind === "q" ? draft.question_text : draft.markscheme_text)) ? "Re-extract from image" : "Extract from image"}
                     </Button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
