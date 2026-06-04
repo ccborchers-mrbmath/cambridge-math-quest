@@ -103,7 +103,37 @@ const splitRow = (line: string): string[] => {
   let s = line.trim();
   if (s.startsWith('|')) s = s.slice(1);
   if (s.endsWith('|')) s = s.slice(0, -1);
-  return s.split('|').map((c) => c.trim());
+  // Split on '|' but ignore pipes inside $...$ / $$...$$ math (modulus bars),
+  // and honour backslash-escaped pipes (\|).
+  const cells: string[] = [];
+  let buf = '';
+  let inMath = false;
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    const prev = i > 0 ? s[i - 1] : '';
+    if (ch === '\\' && s[i + 1] === '|') {
+      buf += '|';
+      i += 2;
+      continue;
+    }
+    if (ch === '$' && prev !== '\\') {
+      inMath = !inMath;
+      buf += ch;
+      i++;
+      continue;
+    }
+    if (ch === '|' && !inMath) {
+      cells.push(buf.trim());
+      buf = '';
+      i++;
+      continue;
+    }
+    buf += ch;
+    i++;
+  }
+  cells.push(buf.trim());
+  return cells;
 };
 
 const convertMarkdownTables = (input: string): string => {
