@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical, BookOpen, Eye, EyeOff, ImageDown } from "lucide-react";
-import { processQuestionImage, processMarkschemeImage } from "@/utils/imageProcessing";
+import { processQuestionImage } from "@/utils/imageProcessing";
+import { ensureMarkschemeText } from "@/utils/ensureMarkschemeText";
+import { renderLatexToHtml } from "@/utils/renderLatex";
+import { LatexRenderer } from "@/components/LatexRenderer";
+import html2canvas from "html2canvas";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,11 +19,49 @@ interface ProcessedQuestion {
   original: Question;
   newNumber: number;
   processedImageUrl: string | null;
-  processedMarkschemeUrl: string | null;
+  markschemeText: string | null;
 }
 
 function getQuestionId(q: Question) {
   return `${q.year}-${q.sitting}-${q.paperNumber}-${q.questionNumber}`;
+}
+
+/**
+ * Render mark-scheme markdown/LaTeX text into an off-screen DOM node and
+ * rasterize it to a canvas via html2canvas. Used to embed crisp text-based
+ * mark schemes into the PDF.
+ */
+async function renderMarkschemeToCanvas(content: string): Promise<HTMLCanvasElement> {
+  const wrapper = document.createElement("div");
+  // Off-screen but laid out so html2canvas can measure it.
+  wrapper.style.position = "fixed";
+  wrapper.style.left = "-10000px";
+  wrapper.style.top = "0";
+  wrapper.style.width = "780px"; // ~A4 portrait content width @ ~96dpi
+  wrapper.style.padding = "16px";
+  wrapper.style.background = "#ffffff";
+  wrapper.style.color = "#0f172a";
+  wrapper.style.fontFamily = "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+  wrapper.style.fontSize = "13px";
+  wrapper.style.lineHeight = "1.5";
+  wrapper.innerHTML = renderLatexToHtml(content);
+  document.body.appendChild(wrapper);
+  try {
+    // Let KaTeX layout settle and any fonts load.
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    if ((document as Document & { fonts?: { ready: Promise<unknown> } }).fonts) {
+      await (document as Document & { fonts: { ready: Promise<unknown> } }).fonts.ready;
+    }
+    const canvas = await html2canvas(wrapper, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+    return canvas;
+  } finally {
+    document.body.removeChild(wrapper);
+  }
 }
 
 const TestMaker = () => {
@@ -141,15 +183,15 @@ const TestMaker = () => {
       compiledQuestions.map(async (q, index) => {
         const newNumber = index + 1;
         try {
-          const [processedImageUrl, processedMarkschemeUrl] = await Promise.all([
+          const [processedImageUrl, markschemeText] = await Promise.all([
             processQuestionImage(q.questionUrl, newNumber),
-            includeMarkschemes ? processMarkschemeImage(q.markschemeUrl) : Promise.resolve(null)
+            includeMarkschemes ? ensureMarkschemeText(q) : Promise.resolve(null),
           ]);
           return {
             original: q,
             newNumber,
             processedImageUrl,
-            processedMarkschemeUrl,
+            markschemeText,
           };
         } catch (error) {
           console.error("Error processing image:", error);
@@ -157,7 +199,7 @@ const TestMaker = () => {
             original: q,
             newNumber,
             processedImageUrl: null,
-            processedMarkschemeUrl: null,
+            markschemeText: null,
           };
         }
       })
@@ -334,7 +376,7 @@ const TestMaker = () => {
     }
 
     // Add markschemes section if included
-    const hasMarkschemes = processedQuestions.some(pq => pq.processedMarkschemeUrl);
+    const hasMarkschemes = processedQuestions.some(pq => pq.markschemeText);
     if (includeMarkschemes && hasMarkschemes) {
       // Markscheme cover page
       pdf.addPage();
@@ -373,37 +415,27 @@ const TestMaker = () => {
         pdf.setTextColor(100, 116, 139);
         pdf.text(`${pq.original.marks} marks | ${pq.original.topic}`, margin, margin + 6);
         
-        // Add markscheme image if available
-        if (pq.processedMarkschemeUrl) {
+        // Render markscheme text to canvas, then embed in PDF
+        if (pq.markschemeText) {
           try {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            
-            await new Promise<void>((resolve, reject) => {
-              img.onload = () => resolve();
-              img.onerror = reject;
-              img.src = pq.processedMarkschemeUrl!;
-            });
-
-            const imgAspectRatio = img.width / img.height;
+            const canvas = await renderMarkschemeToCanvas(pq.markschemeText);
+            const imgAspect = canvas.width / canvas.height;
             let imgWidth = contentWidth;
-            let imgHeight = imgWidth / imgAspectRatio;
-
+            let imgHeight = imgWidth / imgAspect;
             const maxHeight = pageHeight - margin - 35;
             if (imgHeight > maxHeight) {
               imgHeight = maxHeight;
-              imgWidth = imgHeight * imgAspectRatio;
+              imgWidth = imgHeight * imgAspect;
             }
-
-            pdf.addImage(img, 'PNG', margin, margin + 15, imgWidth, imgHeight);
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin + 15, imgWidth, imgHeight);
           } catch (error) {
-            console.error('Error adding markscheme to PDF:', error);
+            console.error('Error rendering markscheme:', error);
             pdf.setTextColor(200, 0, 0);
-            pdf.text('Error loading markscheme image', margin, margin + 30);
+            pdf.text('Error rendering markscheme', margin, margin + 30);
           }
         } else {
           pdf.setTextColor(150, 150, 150);
-          pdf.text('Markscheme not available', margin, margin + 30);
+          pdf.text('Mark scheme text not yet available', margin, margin + 30);
         }
 
         // Page number
@@ -420,7 +452,7 @@ const TestMaker = () => {
   };
 
   if (isCompiled) {
-    const hasMarkschemes = processedQuestions.some(pq => pq.processedMarkschemeUrl);
+    const hasMarkschemes = processedQuestions.some(pq => pq.markschemeText);
     
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
@@ -538,15 +570,16 @@ const TestMaker = () => {
                         )}
                       </TabsContent>
                       <TabsContent value="markscheme">
-                        {pq.processedMarkschemeUrl ? (
-                          <img 
-                            src={pq.processedMarkschemeUrl} 
-                            alt={`Mark scheme for Question ${pq.newNumber}`}
-                            className="w-full max-w-3xl rounded-lg border"
-                          />
+                        {pq.markschemeText ? (
+                          <div className="rounded-lg border bg-card p-4 max-w-3xl">
+                            <LatexRenderer
+                              className="prose prose-sm max-w-none"
+                              content={pq.markschemeText}
+                            />
+                          </div>
                         ) : (
                           <div className="text-center py-8 text-muted-foreground">
-                            Markscheme not available
+                            Mark scheme text not yet available
                           </div>
                         )}
                       </TabsContent>

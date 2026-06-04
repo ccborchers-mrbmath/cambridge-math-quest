@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen, FileText, RefreshCw, UploadCloud } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen, FileText, RefreshCw, UploadCloud, Wand2 } from "lucide-react";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -117,6 +117,8 @@ const AdminQuestions = () => {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkLog, setBulkLog] = useState<string[]>([]);
   const [extracting, setExtracting] = useState<"q" | "ms" | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || userRole !== "admin")) navigate("/auth");
@@ -456,6 +458,65 @@ const AdminQuestions = () => {
 
   // ---------------------------------------------------------------------------
 
+  const backfillMissingMarkschemes = async () => {
+    const candidates = rows.filter(
+      (r) =>
+        (!r.markscheme_text || !r.markscheme_text.trim()) &&
+        (r.markscheme_url || r.markscheme_image_path),
+    );
+    if (candidates.length === 0) {
+      toast.info("All mark schemes already have extracted text");
+      return;
+    }
+    if (!confirm(`Extract mark-scheme text for ${candidates.length} question(s)? This may take a few minutes.`)) return;
+    setBackfilling(true);
+    setBackfillProgress({ done: 0, total: candidates.length });
+    let ok = 0;
+    let failed = 0;
+    for (let i = 0; i < candidates.length; i++) {
+      const row = candidates[i];
+      try {
+        let imageUrl = row.markscheme_url ?? null;
+        if (!imageUrl && row.markscheme_image_path) {
+          const { data: signed } = await supabase.storage
+            .from(BUCKET)
+            .createSignedUrl(row.markscheme_image_path, 60 * 60);
+          imageUrl = signed?.signedUrl ?? null;
+        }
+        if (!imageUrl) {
+          failed++;
+        } else {
+          const { data, error } = await supabase.functions.invoke("extract-question-text", {
+            body: { imageUrl, kind: "markscheme" },
+          });
+          if (error) throw error;
+          const text = String((data as { text?: string })?.text ?? "").trim();
+          if (text) {
+            await supabase
+              .from("questions")
+              .update({ markscheme_text: text, markscheme_text_status: "ready" })
+              .eq("id", row.id);
+            ok++;
+          } else {
+            await supabase
+              .from("questions")
+              .update({ markscheme_text_status: "failed" })
+              .eq("id", row.id);
+            failed++;
+          }
+        }
+      } catch (e) {
+        console.error("backfill failed", row.id, e);
+        failed++;
+      }
+      setBackfillProgress({ done: i + 1, total: candidates.length });
+    }
+    setBackfilling(false);
+    setBackfillProgress(null);
+    toast.success(`Mark-scheme extraction finished: ${ok} ok, ${failed} failed`);
+    await fetchRows();
+  };
+
   if (loading || loadingRows) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -497,6 +558,12 @@ const AdminQuestions = () => {
               />
               <Button variant="outline" onClick={() => { setBulkLog([]); setBulkOpen(true); }}>
                 <UploadCloud className="h-4 w-4 mr-2" />Bulk upload
+              </Button>
+              <Button variant="outline" onClick={backfillMissingMarkschemes} disabled={backfilling}>
+                {backfilling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                {backfilling && backfillProgress
+                  ? `Extracting MS ${backfillProgress.done}/${backfillProgress.total}`
+                  : "Extract missing MS text"}
               </Button>
               <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add question</Button>
             </div>
