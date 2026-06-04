@@ -27,6 +27,16 @@ function getQuestionId(q: Question) {
 }
 
 /**
+ * Rewrite the original Cambridge question number in the extracted mark-scheme
+ * text (e.g. "9(b)", "9(b)(i)") to the test's renumbered value (e.g. "1(b)").
+ * Targets a digit run immediately followed by "(letter)" to avoid touching
+ * unrelated numbers in the working/guidance cells.
+ */
+function renumberMarkschemeText(text: string, newNumber: number): string {
+  return text.replace(/\b\d+(?=\([a-z]\))/g, String(newNumber));
+}
+
+/**
  * Render mark-scheme markdown/LaTeX text into an off-screen DOM node and
  * rasterize it to a canvas via html2canvas. Used to embed crisp text-based
  * mark schemes into the PDF.
@@ -37,14 +47,47 @@ async function renderMarkschemeToCanvas(content: string): Promise<HTMLCanvasElem
   wrapper.style.position = "fixed";
   wrapper.style.left = "-10000px";
   wrapper.style.top = "0";
-  wrapper.style.width = "780px"; // ~A4 portrait content width @ ~96dpi
-  wrapper.style.padding = "16px";
+  wrapper.style.width = "1100px"; // wider canvas = finer table rendering when scaled to A4
+  wrapper.style.padding = "20px";
   wrapper.style.background = "#ffffff";
   wrapper.style.color = "#0f172a";
   wrapper.style.fontFamily = "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
-  wrapper.style.fontSize = "13px";
+  wrapper.style.fontSize = "15px";
   wrapper.style.lineHeight = "1.5";
-  wrapper.innerHTML = renderLatexToHtml(content);
+  // Inline overrides so html2canvas honours the table layout regardless of
+  // tailwind classes (which aren't present in an off-screen node).
+  wrapper.innerHTML = `
+    <style>
+      .ms-render table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      .ms-render th, .ms-render td {
+        border: 1px solid #cbd5e1;
+        padding: 6px 8px;
+        vertical-align: top;
+        word-wrap: break-word;
+        overflow-wrap: anywhere;
+        font-size: 14px;
+      }
+      .ms-render th { background: #f1f5f9; font-weight: 600; text-align: left; }
+      .ms-render col.col-part { width: 10%; }
+      .ms-render col.col-answer { width: 45%; }
+      .ms-render col.col-marks { width: 10%; }
+      .ms-render col.col-guidance { width: 35%; }
+      .ms-render .katex { font-size: 1em; }
+    </style>
+    <div class="ms-render">${renderLatexToHtml(content)}</div>
+  `;
+  // Inject a <colgroup> into each rendered table so the 4 standard MS columns
+  // get sensible widths (Part / Answer / Marks / Guidance).
+  const tables = wrapper.querySelectorAll("table");
+  tables.forEach((t) => {
+    const headCells = t.querySelectorAll("thead th").length;
+    if (headCells === 4) {
+      const colgroup = document.createElement("colgroup");
+      colgroup.innerHTML =
+        '<col class="col-part"><col class="col-answer"><col class="col-marks"><col class="col-guidance">';
+      t.insertBefore(colgroup, t.firstChild);
+    }
+  });
   document.body.appendChild(wrapper);
   try {
     // Let KaTeX layout settle and any fonts load.
