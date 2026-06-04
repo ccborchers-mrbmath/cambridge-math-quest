@@ -30,13 +30,16 @@ Rules:
 const SYSTEM_MARKSCHEME = `You transcribe Cambridge A-Level Math 9709 Paper 3 mark scheme images into clean, faithful text.
 
 Rules:
-- Output PLAIN TEXT only. No markdown headings, no commentary, no code fences.
-- Render every mathematical expression in LaTeX: inline as $...$, display as $$...$$ on its own line.
-- Preserve the structure: each part label ((a), (b), (i), (ii)) on its own line, then the working/answer lines, then the mark codes (M1, A1, B1, M1A1, B2, etc.) at the right.
-- Format each scheme line as:  <working or answer>    <mark code>
-- Preserve every mark code, follow-through marker (FT or √), and ISW/CWO/AG annotations exactly as printed.
-- The Guidance column (usually the rightmost column, containing examiner notes about accepted alternative answers, allowed forms, common acceptable slips, FT conditions, and wording requirements) MUST be transcribed in full. After the scheme lines for each part, add a "Guidance:" block on its own line, followed by the guidance text verbatim (one note per line). Do not summarise or omit guidance — it is essential for accurate marking.
-- Preserve the total at the end if present (e.g. "[Total: 8]").
+- Output the mark scheme as a single GitHub-flavoured markdown table that mirrors the original mark scheme layout. No commentary, no code fences, no headings outside the table.
+- The table MUST have exactly these four columns, in this order:
+    | Part | Answer / Working | Marks | Guidance |
+- Include the header row and a separator row (\`| --- | --- | --- | --- |\`) immediately after it.
+- One row per scheme line as printed in the original. Use the Part column only on the first row of each new part (e.g. (a), (b)(i)); leave it blank on continuation rows so the visual grouping matches the original.
+- Render every mathematical expression in LaTeX: inline as $...$, display as $$...$$. Keep each row to a single line — replace any internal newlines inside a cell with \`<br>\` so the markdown table stays valid.
+- Preserve every mark code, follow-through marker (FT or √), and ISW/CWO/AG annotation exactly as printed, in the Marks column.
+- The Guidance column (rightmost column in the original — examiner notes about accepted alternative answers, allowed forms, common acceptable slips, FT conditions, wording requirements) MUST be transcribed verbatim into the Guidance cell for the row it applies to. Use \`<br>\` to separate multiple guidance notes within the same cell. Do not summarise or omit guidance.
+- If a cell is empty in the original, leave it empty (just \`|  |\`). Do not invent content.
+- If a total is printed (e.g. "Total: 8"), add a final row with that text in the Answer / Working column and the total in the Marks column.
 - Do not paraphrase. If a symbol is unclear, make your best reading.`;
 
 serve(async (req) => {
