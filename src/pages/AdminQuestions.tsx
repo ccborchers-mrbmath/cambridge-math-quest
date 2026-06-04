@@ -11,10 +11,51 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen, FileText, RefreshCw, UploadCloud } from "lucide-react";
+import { LatexRenderer } from "@/components/LatexRenderer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const SITTINGS = ["Feb/Mar", "May/Jun", "Oct/Nov"] as const;
 const BUCKET = "exam-images";
+
+const SESSION_MAP: Record<string, typeof SITTINGS[number]> = {
+  m: "Feb/Mar",
+  s: "May/Jun",
+  w: "Oct/Nov",
+};
+
+// Matches e.g. 9709_m24_qp_32_q01.jpg / 9709_s24_ms_31_q1.png
+const FILENAME_RE = /^9709_([msw])(\d{2})_(qp|ms)_(\d{1,2})_q(\d{1,2})\b/i;
+
+type ParsedName = {
+  year: number;
+  sitting: typeof SITTINGS[number];
+  paperNumber: number;
+  questionNumber: number;
+  kind: "qp" | "ms";
+  key: string; // year|sitting|paper|qnum
+};
+
+function parseFilename(name: string): ParsedName | null {
+  const base = name.replace(/\.[^./]+$/, "");
+  const m = base.match(FILENAME_RE);
+  if (!m) return null;
+  const sessionLetter = m[1].toLowerCase();
+  const sitting = SESSION_MAP[sessionLetter];
+  if (!sitting) return null;
+  const year = 2000 + parseInt(m[2], 10);
+  const kind = m[3].toLowerCase() as "qp" | "ms";
+  const paperNumber = parseInt(m[4], 10);
+  const questionNumber = parseInt(m[5], 10);
+  return {
+    year,
+    sitting,
+    paperNumber,
+    questionNumber,
+    kind,
+    key: `${year}|${sitting}|${paperNumber}|${questionNumber}`,
+  };
+}
 
 type QuestionRow = {
   id: string;
@@ -31,6 +72,10 @@ type QuestionRow = {
   markscheme_image_path: string | null;
   notes: string | null;
   is_published: boolean;
+  question_text: string | null;
+  markscheme_text: string | null;
+  question_text_status: string;
+  markscheme_text_status: string;
 };
 
 const emptyDraft = (): Partial<QuestionRow> => ({
@@ -68,6 +113,10 @@ const AdminQuestions = () => {
   const [suggesting, setSuggesting] = useState(false);
   const [uploading, setUploading] = useState<"q" | "ms" | null>(null);
   const [previews, setPreviews] = useState<{ q?: string | null; ms?: string | null }>({});
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkLog, setBulkLog] = useState<string[]>([]);
+  const [extracting, setExtracting] = useState<"q" | "ms" | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || userRole !== "admin")) navigate("/auth");
@@ -140,11 +189,43 @@ const AdminQuestions = () => {
           : { markscheme_image_path: path, markscheme_url: null }),
       }));
       setPreviews((p) => ({ ...p, [kind]: signed?.signedUrl ?? null }));
-      toast.success("Image uploaded");
+      toast.success("Image uploaded — extracting text…");
+      // Auto-extract text from the freshly uploaded image
+      if (signed?.signedUrl) {
+        void runExtract(kind, signed.signedUrl);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(null);
+    }
+  };
+
+  const runExtract = async (kind: "q" | "ms", imageUrl: string) => {
+    setExtracting(kind);
+    try {
+      const { data, error } = await supabase.functions.invoke("extract-question-text", {
+        body: { imageUrl, kind: kind === "q" ? "question" : "markscheme" },
+      });
+      if (error) throw error;
+      const text = String((data as { text?: string })?.text ?? "").trim();
+      setDraft((d) => ({
+        ...d,
+        ...(kind === "q"
+          ? { question_text: text, question_text_status: text ? "ready" : "failed" }
+          : { markscheme_text: text, markscheme_text_status: text ? "ready" : "failed" }),
+      }));
+      toast.success(`${kind === "q" ? "Question" : "Mark scheme"} text extracted`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Text extraction failed");
+      setDraft((d) => ({
+        ...d,
+        ...(kind === "q"
+          ? { question_text_status: "failed" }
+          : { markscheme_text_status: "failed" }),
+      }));
+    } finally {
+      setExtracting(null);
     }
   };
 
@@ -206,6 +287,10 @@ const AdminQuestions = () => {
         markscheme_image_path: draft.markscheme_image_path || null,
         notes: draft.notes || null,
         is_published: draft.is_published ?? true,
+        question_text: draft.question_text || null,
+        markscheme_text: draft.markscheme_text || null,
+        question_text_status: (draft.question_text_status as string) || (draft.question_text ? "ready" : "none"),
+        markscheme_text_status: (draft.markscheme_text_status as string) || (draft.markscheme_text ? "ready" : "none"),
       };
       if (editing) {
         const { error } = await supabase.from("questions").update(payload).eq("id", editing.id);
@@ -234,6 +319,142 @@ const AdminQuestions = () => {
       fetchRows();
     }
   };
+
+  // ---- Bulk upload ----------------------------------------------------------
+
+  const handleBulkUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setBulkBusy(true);
+    setBulkLog([]);
+    const log = (line: string) => setBulkLog((l) => [...l, line]);
+
+    try {
+      // 1. Parse + pair by question key
+      type Pair = { q?: File; ms?: File; meta: ParsedName };
+      const pairs = new Map<string, Pair>();
+      const skipped: string[] = [];
+      for (const file of Array.from(files)) {
+        const parsed = parseFilename(file.name);
+        if (!parsed) {
+          skipped.push(file.name);
+          continue;
+        }
+        const existing = pairs.get(parsed.key) ?? { meta: parsed };
+        if (parsed.kind === "qp") existing.q = file;
+        else existing.ms = file;
+        pairs.set(parsed.key, existing);
+      }
+      if (skipped.length) {
+        log(`Skipped ${skipped.length} file(s) (unrecognised name): ${skipped.slice(0, 5).join(", ")}${skipped.length > 5 ? "…" : ""}`);
+      }
+      log(`Found ${pairs.size} question pair(s) across ${files.length} file(s).`);
+
+      // 2. Pre-load existing rows so we can update instead of insert when keys collide.
+      const { data: existingRows } = await supabase
+        .from("questions")
+        .select("id, year, sitting, paper_number, question_number");
+      const existingByKey = new Map<string, string>();
+      for (const r of existingRows ?? []) {
+        existingByKey.set(`${r.year}|${r.sitting}|${r.paper_number}|${r.question_number}`, r.id);
+      }
+
+      let ok = 0;
+      let failed = 0;
+      const extractTasks: Promise<unknown>[] = [];
+
+      for (const [key, pair] of pairs) {
+        const { meta } = pair;
+        const tag = `${meta.year} ${meta.sitting} P${meta.paperNumber} Q${meta.questionNumber}`;
+        try {
+          const uploadOne = async (file: File, kind: "qp" | "ms") => {
+            const ext = file.name.split(".").pop() || "jpg";
+            const path = `bulk/${meta.year}/${meta.sitting.replace("/", "-")}/${meta.paperNumber}/${meta.questionNumber}-${kind}-${Date.now()}.${ext}`;
+            const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
+            if (error) throw error;
+            const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
+            return { path, url: signed?.signedUrl ?? null };
+          };
+
+          const qResult = pair.q ? await uploadOne(pair.q, "qp") : null;
+          const msResult = pair.ms ? await uploadOne(pair.ms, "ms") : null;
+
+          const payload: Record<string, unknown> = {
+            year: meta.year,
+            sitting: meta.sitting,
+            paper_number: meta.paperNumber,
+            question_number: meta.questionNumber,
+            is_published: true,
+          };
+          if (qResult) {
+            payload.question_image_path = qResult.path;
+            payload.question_url = null;
+            payload.question_text_status = "pending";
+          }
+          if (msResult) {
+            payload.markscheme_image_path = msResult.path;
+            payload.markscheme_url = null;
+            payload.markscheme_text_status = "pending";
+          }
+
+          let rowId = existingByKey.get(key);
+          if (rowId) {
+            const { error } = await supabase.from("questions").update(payload as never).eq("id", rowId);
+            if (error) throw error;
+          } else {
+            const { data: inserted, error } = await supabase
+              .from("questions")
+              .insert(payload as never)
+              .select("id")
+              .single();
+            if (error) throw error;
+            rowId = inserted!.id as string;
+          }
+
+          // Kick off text extraction in the background for each new image.
+          const extractAndSave = async (imageUrl: string, kind: "question" | "markscheme") => {
+            try {
+              const { data, error } = await supabase.functions.invoke("extract-question-text", {
+                body: { imageUrl, kind },
+              });
+              if (error) throw error;
+              const text = String((data as { text?: string })?.text ?? "").trim();
+              const update: Record<string, unknown> = kind === "question"
+                ? { question_text: text, question_text_status: text ? "ready" : "failed" }
+                : { markscheme_text: text, markscheme_text_status: text ? "ready" : "failed" };
+              await supabase.from("questions").update(update as never).eq("id", rowId!);
+            } catch (err) {
+              const update = kind === "question"
+                ? { question_text_status: "failed" }
+                : { markscheme_text_status: "failed" };
+              await supabase.from("questions").update(update as never).eq("id", rowId!);
+              console.error("extract failed", tag, kind, err);
+            }
+          };
+
+          if (qResult?.url) extractTasks.push(extractAndSave(qResult.url, "question"));
+          if (msResult?.url) extractTasks.push(extractAndSave(msResult.url, "markscheme"));
+
+          ok += 1;
+          log(`✓ ${tag} — uploaded${qResult ? " Q" : ""}${msResult ? " MS" : ""}`);
+        } catch (e) {
+          failed += 1;
+          log(`✗ ${tag} — ${e instanceof Error ? e.message : "failed"}`);
+        }
+      }
+
+      log(`Uploads complete: ${ok} ok, ${failed} failed. Text extraction is running in the background…`);
+      await fetchRows();
+      // Don't await all extractions before closing the dialog — let admin keep working.
+      void Promise.allSettled(extractTasks).then(() => {
+        log("Text extraction finished.");
+        fetchRows();
+      });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
 
   if (loading || loadingRows) {
     return (
@@ -274,6 +495,9 @@ const AdminQuestions = () => {
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-72"
               />
+              <Button variant="outline" onClick={() => { setBulkLog([]); setBulkOpen(true); }}>
+                <UploadCloud className="h-4 w-4 mr-2" />Bulk upload
+              </Button>
               <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add question</Button>
             </div>
           </CardHeader>
@@ -287,6 +511,7 @@ const AdminQuestions = () => {
                     <TableHead>Topic</TableHead>
                     <TableHead>Subtopics</TableHead>
                     <TableHead>Marks</TableHead>
+                    <TableHead>Text</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -306,6 +531,15 @@ const AdminQuestions = () => {
                       <TableCell>{r.topic ?? "-"}</TableCell>
                       <TableCell className="max-w-md truncate text-sm text-muted-foreground">{r.subtopics ?? "-"}</TableCell>
                       <TableCell>{r.marks ?? "-"}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        <span title="Question text" className={r.question_text_status === "ready" ? "text-primary" : r.question_text_status === "pending" ? "text-muted-foreground" : r.question_text_status === "failed" ? "text-destructive" : "text-muted-foreground/50"}>
+                          Q:{r.question_text_status === "ready" ? "✓" : r.question_text_status === "pending" ? "…" : r.question_text_status === "failed" ? "✗" : "–"}
+                        </span>
+                        {" "}
+                        <span title="Mark scheme text" className={r.markscheme_text_status === "ready" ? "text-primary" : r.markscheme_text_status === "pending" ? "text-muted-foreground" : r.markscheme_text_status === "failed" ? "text-destructive" : "text-muted-foreground/50"}>
+                          MS:{r.markscheme_text_status === "ready" ? "✓" : r.markscheme_text_status === "pending" ? "…" : r.markscheme_text_status === "failed" ? "✗" : "–"}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => handleDelete(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -372,6 +606,55 @@ const AdminQuestions = () => {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Text-only versions */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Text-only versions (used for faster, more accurate marking)</Label>
+            <Tabs defaultValue="q-text">
+              <TabsList>
+                <TabsTrigger value="q-text">Question text</TabsTrigger>
+                <TabsTrigger value="ms-text">Mark scheme text</TabsTrigger>
+              </TabsList>
+              {(["q", "ms"] as const).map((kind) => (
+                <TabsContent key={kind} value={kind === "q" ? "q-text" : "ms-text"} className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      Status: {(kind === "q" ? draft.question_text_status : draft.markscheme_text_status) ?? "none"}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={extracting === kind || !previews[kind]}
+                      onClick={() => previews[kind] && runExtract(kind, previews[kind]!)}
+                    >
+                      {extracting === kind ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                      {((kind === "q" ? draft.question_text : draft.markscheme_text)) ? "Re-extract from image" : "Extract from image"}
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Textarea
+                      rows={14}
+                      placeholder={`Paste or edit the ${kind === "q" ? "question" : "mark scheme"} text (LaTeX inside $...$ or $$...$$)`}
+                      value={(kind === "q" ? draft.question_text : draft.markscheme_text) ?? ""}
+                      onChange={(e) => setDraft((d) => ({
+                        ...d,
+                        ...(kind === "q"
+                          ? { question_text: e.target.value, question_text_status: e.target.value ? "ready" : "none" }
+                          : { markscheme_text: e.target.value, markscheme_text_status: e.target.value ? "ready" : "none" }),
+                      }))}
+                      className="font-mono text-xs"
+                    />
+                    <div className="border rounded-md p-3 bg-muted/20 max-h-[360px] overflow-auto">
+                      <LatexRenderer
+                        className="prose prose-sm max-w-none whitespace-pre-wrap"
+                        content={((kind === "q" ? draft.question_text : draft.markscheme_text) ?? "_(preview will appear here)_")}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
           </div>
 
           <div className="flex justify-end">
@@ -442,6 +725,50 @@ const AdminQuestions = () => {
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkOpen} onOpenChange={(o) => { if (!bulkBusy) setBulkOpen(o); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Bulk upload questions</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Drop or pick all the question and mark-scheme images at once. Filenames must follow the pattern
+              {" "}<code className="px-1 py-0.5 bg-muted rounded text-xs">9709_&#123;m|s|w&#125;YY_&#123;qp|ms&#125;_PP_qNN.ext</code>{" "}
+              (e.g. <code className="px-1 py-0.5 bg-muted rounded text-xs">9709_m24_qp_32_q01.jpg</code> pairs with
+              {" "}<code className="px-1 py-0.5 bg-muted rounded text-xs">9709_m24_ms_32_q01.jpg</code>).
+              Existing rows with the same year/sitting/paper/question are updated; new rows are created. Text versions are extracted automatically in the background.
+            </p>
+            <label className="block">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                disabled={bulkBusy}
+                onChange={(e) => {
+                  handleBulkUpload(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <Button asChild disabled={bulkBusy}>
+                <span>
+                  {bulkBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <UploadCloud className="h-4 w-4 mr-2" />}
+                  {bulkBusy ? "Uploading…" : "Select images"}
+                </span>
+              </Button>
+            </label>
+            {bulkLog.length > 0 && (
+              <div className="border rounded-md bg-muted/30 p-3 max-h-72 overflow-auto font-mono text-xs space-y-1">
+                {bulkLog.map((l, i) => <div key={i}>{l}</div>)}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={bulkBusy} onClick={() => setBulkOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

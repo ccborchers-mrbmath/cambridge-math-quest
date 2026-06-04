@@ -191,10 +191,30 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
 
     setIsMarkingWork(true);
     try {
+      // Try to look up the text-only Q/MS for this question so the AI can mark from text instead of the MS image.
+      let questionText: string | null = null;
+      let markschemeText: string | null = null;
+      try {
+        const { data: row } = await supabase
+          .from('questions')
+          .select('question_text, markscheme_text')
+          .eq('year', question.year)
+          .eq('sitting', question.sitting)
+          .eq('paper_number', question.paperNumber)
+          .eq('question_number', question.questionNumber)
+          .maybeSingle();
+        questionText = row?.question_text ?? null;
+        markschemeText = row?.markscheme_text ?? null;
+      } catch {
+        // ignore — fall back to images
+      }
+
       const { data, error } = await supabase.functions.invoke('mark-work', {
         body: {
           questionUrl: question.questionUrl,
           markschemeUrl: question.markschemeUrl,
+          questionText,
+          markschemeText,
           workImages: uploadedImages,
           questionMeta: {
             year: question.year,
