@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical, BookOpen, Eye, EyeOff, ImageDown } from "lucide-react";
-import { processQuestionImage, processMarkschemeImage } from "@/utils/imageProcessing";
+import { processQuestionImage } from "@/utils/imageProcessing";
+import { ensureMarkschemeText } from "@/utils/ensureMarkschemeText";
+import { renderLatexToHtml } from "@/utils/renderLatex";
+import { LatexRenderer } from "@/components/LatexRenderer";
+import html2canvas from "html2canvas";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +19,7 @@ interface ProcessedQuestion {
   original: Question;
   newNumber: number;
   processedImageUrl: string | null;
-  processedMarkschemeUrl: string | null;
+  markschemeText: string | null;
 }
 
 function getQuestionId(q: Question) {
@@ -141,15 +145,15 @@ const TestMaker = () => {
       compiledQuestions.map(async (q, index) => {
         const newNumber = index + 1;
         try {
-          const [processedImageUrl, processedMarkschemeUrl] = await Promise.all([
+          const [processedImageUrl, markschemeText] = await Promise.all([
             processQuestionImage(q.questionUrl, newNumber),
-            includeMarkschemes ? processMarkschemeImage(q.markschemeUrl) : Promise.resolve(null)
+            includeMarkschemes ? ensureMarkschemeText(q) : Promise.resolve(null),
           ]);
           return {
             original: q,
             newNumber,
             processedImageUrl,
-            processedMarkschemeUrl,
+            markschemeText,
           };
         } catch (error) {
           console.error("Error processing image:", error);
@@ -157,7 +161,7 @@ const TestMaker = () => {
             original: q,
             newNumber,
             processedImageUrl: null,
-            processedMarkschemeUrl: null,
+            markschemeText: null,
           };
         }
       })
