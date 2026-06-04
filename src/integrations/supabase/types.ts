@@ -48,11 +48,15 @@ export type Database = {
           is_published: boolean
           marks: number | null
           markscheme_image_path: string | null
+          markscheme_text: string | null
+          markscheme_text_status: string
           markscheme_url: string | null
           notes: string | null
           paper_number: number
           question_image_path: string | null
           question_number: number
+          question_text: string | null
+          question_text_status: string
           question_url: string | null
           sitting: string
           subtopics: string | null
@@ -66,11 +70,15 @@ export type Database = {
           is_published?: boolean
           marks?: number | null
           markscheme_image_path?: string | null
+          markscheme_text?: string | null
+          markscheme_text_status?: string
           markscheme_url?: string | null
           notes?: string | null
           paper_number: number
           question_image_path?: string | null
           question_number: number
+          question_text?: string | null
+          question_text_status?: string
           question_url?: string | null
           sitting: string
           subtopics?: string | null
@@ -84,11 +92,15 @@ export type Database = {
           is_published?: boolean
           marks?: number | null
           markscheme_image_path?: string | null
+          markscheme_text?: string | null
+          markscheme_text_status?: string
           markscheme_url?: string | null
           notes?: string | null
           paper_number?: number
           question_image_path?: string | null
           question_number?: number
+          question_text?: string | null
+          question_text_status?: string
           question_url?: string | null
           sitting?: string
           subtopics?: string | null
