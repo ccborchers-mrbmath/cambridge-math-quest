@@ -320,6 +320,142 @@ const AdminQuestions = () => {
     }
   };
 
+  // ---- Bulk upload ----------------------------------------------------------
+
+  const handleBulkUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setBulkBusy(true);
+    setBulkLog([]);
+    const log = (line: string) => setBulkLog((l) => [...l, line]);
+
+    try {
+      // 1. Parse + pair by question key
+      type Pair = { q?: File; ms?: File; meta: ParsedName };
+      const pairs = new Map<string, Pair>();
+      const skipped: string[] = [];
+      for (const file of Array.from(files)) {
+        const parsed = parseFilename(file.name);
+        if (!parsed) {
+          skipped.push(file.name);
+          continue;
+        }
+        const existing = pairs.get(parsed.key) ?? { meta: parsed };
+        if (parsed.kind === "qp") existing.q = file;
+        else existing.ms = file;
+        pairs.set(parsed.key, existing);
+      }
+      if (skipped.length) {
+        log(`Skipped ${skipped.length} file(s) (unrecognised name): ${skipped.slice(0, 5).join(", ")}${skipped.length > 5 ? "…" : ""}`);
+      }
+      log(`Found ${pairs.size} question pair(s) across ${files.length} file(s).`);
+
+      // 2. Pre-load existing rows so we can update instead of insert when keys collide.
+      const { data: existingRows } = await supabase
+        .from("questions")
+        .select("id, year, sitting, paper_number, question_number");
+      const existingByKey = new Map<string, string>();
+      for (const r of existingRows ?? []) {
+        existingByKey.set(`${r.year}|${r.sitting}|${r.paper_number}|${r.question_number}`, r.id);
+      }
+
+      let ok = 0;
+      let failed = 0;
+      const extractTasks: Promise<unknown>[] = [];
+
+      for (const [key, pair] of pairs) {
+        const { meta } = pair;
+        const tag = `${meta.year} ${meta.sitting} P${meta.paperNumber} Q${meta.questionNumber}`;
+        try {
+          const uploadOne = async (file: File, kind: "qp" | "ms") => {
+            const ext = file.name.split(".").pop() || "jpg";
+            const path = `bulk/${meta.year}/${meta.sitting.replace("/", "-")}/${meta.paperNumber}/${meta.questionNumber}-${kind}-${Date.now()}.${ext}`;
+            const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
+            if (error) throw error;
+            const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
+            return { path, url: signed?.signedUrl ?? null };
+          };
+
+          const qResult = pair.q ? await uploadOne(pair.q, "qp") : null;
+          const msResult = pair.ms ? await uploadOne(pair.ms, "ms") : null;
+
+          const payload: Record<string, unknown> = {
+            year: meta.year,
+            sitting: meta.sitting,
+            paper_number: meta.paperNumber,
+            question_number: meta.questionNumber,
+            is_published: true,
+          };
+          if (qResult) {
+            payload.question_image_path = qResult.path;
+            payload.question_url = null;
+            payload.question_text_status = "pending";
+          }
+          if (msResult) {
+            payload.markscheme_image_path = msResult.path;
+            payload.markscheme_url = null;
+            payload.markscheme_text_status = "pending";
+          }
+
+          let rowId = existingByKey.get(key);
+          if (rowId) {
+            const { error } = await supabase.from("questions").update(payload).eq("id", rowId);
+            if (error) throw error;
+          } else {
+            const { data: inserted, error } = await supabase
+              .from("questions")
+              .insert(payload)
+              .select("id")
+              .single();
+            if (error) throw error;
+            rowId = inserted!.id as string;
+          }
+
+          // Kick off text extraction in the background for each new image.
+          const extractAndSave = async (imageUrl: string, kind: "question" | "markscheme") => {
+            try {
+              const { data, error } = await supabase.functions.invoke("extract-question-text", {
+                body: { imageUrl, kind },
+              });
+              if (error) throw error;
+              const text = String((data as { text?: string })?.text ?? "").trim();
+              const update: Record<string, unknown> = kind === "question"
+                ? { question_text: text, question_text_status: text ? "ready" : "failed" }
+                : { markscheme_text: text, markscheme_text_status: text ? "ready" : "failed" };
+              await supabase.from("questions").update(update).eq("id", rowId!);
+            } catch (err) {
+              const update = kind === "question"
+                ? { question_text_status: "failed" }
+                : { markscheme_text_status: "failed" };
+              await supabase.from("questions").update(update).eq("id", rowId!);
+              console.error("extract failed", tag, kind, err);
+            }
+          };
+
+          if (qResult?.url) extractTasks.push(extractAndSave(qResult.url, "question"));
+          if (msResult?.url) extractTasks.push(extractAndSave(msResult.url, "markscheme"));
+
+          ok += 1;
+          log(`✓ ${tag} — uploaded${qResult ? " Q" : ""}${msResult ? " MS" : ""}`);
+        } catch (e) {
+          failed += 1;
+          log(`✗ ${tag} — ${e instanceof Error ? e.message : "failed"}`);
+        }
+      }
+
+      log(`Uploads complete: ${ok} ok, ${failed} failed. Text extraction is running in the background…`);
+      await fetchRows();
+      // Don't await all extractions before closing the dialog — let admin keep working.
+      void Promise.allSettled(extractTasks).then(() => {
+        log("Text extraction finished.");
+        fetchRows();
+      });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+
   if (loading || loadingRows) {
     return (
       <div className="min-h-screen flex items-center justify-center">
