@@ -264,6 +264,7 @@ const TestMaker = () => {
       </section>
     `;
 
+    const linesHtml = Array.from({ length: 40 }).map(() => `<div class="line"></div>`).join("");
     let pageNum = 0;
     const questionPages = processedQuestions.map(pq => {
       pageNum += 1;
@@ -276,10 +277,11 @@ const TestMaker = () => {
         ${pq.processedImageUrl
           ? `<img class="q-img" src="${pq.processedImageUrl}" alt="Question ${pq.newNumber}"/>`
           : `<p class="err">Question image unavailable</p>`}
+        <div class="lines-wrap"><div class="lines-inner">${linesHtml}</div></div>
       </section>
       <section class="page working-page">
         <div class="page-number">${wPageNo}</div>
-        <div class="working-head">Working space for Question ${pq.newNumber}</div>
+        <div class="lines-wrap"><div class="lines-inner">${linesHtml}</div></div>
       </section>
     `;
     }).join("");
@@ -307,11 +309,14 @@ const TestMaker = () => {
     display: flex; justify-content: space-between; align-items: center; color: #1e293b; }
   .topics { list-style: disc; padding-left: 6mm; color: #1e293b; }
   .topics li { margin: 1.5mm 0; }
-  .question-page { padding: 24mm 0 0; }
-  .q-img { display: block; width: 210mm; height: auto; margin: 0; }
+  .question-page { padding: 24mm 0 0; display: flex; flex-direction: column; }
+  .working-page { padding: 24mm 0 0; display: flex; flex-direction: column; }
+  .q-img { display: block; width: 210mm; height: auto; margin: 0; flex: 0 0 auto; }
+  .lines-wrap { flex: 1 1 auto; position: relative; }
+  .lines-inner { position: absolute; top: 6mm; left: 16mm; right: 16mm; bottom: 25mm; overflow: hidden; }
+  .line { height: 9mm; border-bottom: 1px dotted #0f172a; }
   .page-number { position: absolute; top: 15mm; left: 0; right: 0; text-align: center;
     font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #0f172a; }
-  .working-head { text-align: center; color: #cbd5e1; font-size: 11pt; }
   .err { color: #b91c1c; }
 </style></head>
 <body>
