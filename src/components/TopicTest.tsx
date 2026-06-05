@@ -4,10 +4,12 @@ import { Question, questionsDatabase } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Eye, EyeOff, Loader2 } from "lucide-react";
 import { processQuestionImage } from "@/utils/imageProcessing";
+import { moduleOf, ModuleCode } from "@/lib/modules";
 
 interface TopicTestProps {
   topic: string;
   onBack: () => void;
+  module?: ModuleCode;
 }
 
 interface ProcessedQuestion {
@@ -18,9 +20,11 @@ interface ProcessedQuestion {
 }
 
 // Get 3 varied questions for a topic, trying to get different subtopics
-const selectVariedQuestions = (topic: string): Question[] => {
+const selectVariedQuestions = (topic: string, module?: ModuleCode): Question[] => {
   const topicQuestions = questionsDatabase.filter(
-    (q) => q.topic.toLowerCase() === topic.toLowerCase()
+    (q) =>
+      q.topic.toLowerCase() === topic.toLowerCase() &&
+      (!module || moduleOf(q) === module)
   );
 
   if (topicQuestions.length <= 3) {
