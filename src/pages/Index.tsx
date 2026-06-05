@@ -353,15 +353,23 @@ const Index = () => {
               <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
                 <BookOpen className="h-6 w-6 text-primary-foreground" />
               </div>
-              <div>
+              <button
+                onClick={() => navigate("/")}
+                className="text-left hover:opacity-80 transition-opacity"
+              >
                 <h1 className="text-2xl font-serif font-bold text-foreground">
                   Cambridge Maths 9709
                 </h1>
-                <p className="text-sm text-muted-foreground">AS & A Level Paper 3 Practice</p>
-              </div>
+                <p className="text-sm text-muted-foreground">
+                  {module ? getModuleInfo(module).name : "AS & A Level Practice"}
+                </p>
+              </button>
             </div>
             
             <div className="flex items-center gap-3">
+              {module && (
+                <ModuleSwitcher module={module} onChange={setModule} />
+              )}
               {loading ? (
                 <div className="h-8 w-8 animate-pulse bg-secondary rounded-full" />
               ) : user ? (
