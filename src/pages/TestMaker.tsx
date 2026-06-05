@@ -298,7 +298,7 @@ const TestMaker = () => {
     display: flex; justify-content: space-between; align-items: center; color: #1e293b; }
   .topics { list-style: disc; padding-left: 6mm; color: #1e293b; }
   .topics li { margin: 1.5mm 0; }
-  .question-page { padding: 0; }
+  .question-page { padding: 10mm 0 0; }
   .q-img { display: block; width: 210mm; height: auto; margin: 0; }
   .working-head { text-align: center; color: #cbd5e1; font-size: 11pt; }
   .err { color: #b91c1c; }
