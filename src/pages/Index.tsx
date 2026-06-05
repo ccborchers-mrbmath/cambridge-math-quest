@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { SearchBar } from "@/components/SearchBar";
 import { QuestionDisplay } from "@/components/QuestionDisplay";
@@ -7,6 +7,8 @@ import { questionsDatabase, Question } from "@/data/questions";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
+import { ModuleSwitcher } from "@/components/ModuleSwitcher";
+import { useActiveModule, moduleOf, getModuleInfo } from "@/lib/modules";
 import {
   Select,
   SelectContent,
@@ -19,6 +21,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, userRole, loading, signOut } = useAuth();
+  const { module, setModule } = useActiveModule({ redirectIfMissing: true });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>("");
@@ -29,8 +32,26 @@ const Index = () => {
   const [viewedQuestionIds, setViewedQuestionIds] = useState<Set<string>>(new Set());
   const [testTopic, setTestTopic] = useState<string>("");
 
+  // Pool of questions scoped to the currently active module.
+  const pool = useMemo(
+    () => questionsDatabase.filter((q) => moduleOf(q) === module),
+    [module]
+  );
+
   // Get unique main topics for the "Test me on" dropdown
-  const mainTopics = Array.from(new Set(questionsDatabase.map(q => q.topic))).sort();
+  const mainTopics = Array.from(new Set(pool.map(q => q.topic))).sort();
+
+  // Reset any current question when switching modules.
+  useEffect(() => {
+    setSelectedQuestion(null);
+    setSelectedYear("");
+    setSelectedSitting("");
+    setSelectedPaper("");
+    setSelectedQuestionNum("");
+    setCurrentTopic("");
+    setViewedQuestionIds(new Set());
+    setTestTopic("");
+  }, [module]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -38,22 +59,22 @@ const Index = () => {
   };
 
   // Get unique values for dropdowns
-  const years = Array.from(new Set(questionsDatabase.map(q => q.year.toString()))).sort((a, b) => b.localeCompare(a));
+  const years = Array.from(new Set(pool.map(q => q.year.toString()))).sort((a, b) => b.localeCompare(a));
   
   const sittingOrder: Record<string, number> = { 'Feb/Mar': 1, 'May/Jun': 2, 'Oct/Nov': 3 };
   const sittings = selectedYear 
-    ? Array.from(new Set(questionsDatabase.filter(q => q.year.toString() === selectedYear).map(q => q.sitting)))
+    ? Array.from(new Set(pool.filter(q => q.year.toString() === selectedYear).map(q => q.sitting)))
         .sort((a, b) => (sittingOrder[a] || 99) - (sittingOrder[b] || 99))
     : [];
   
   const papers = selectedYear && selectedSitting
-    ? Array.from(new Set(questionsDatabase.filter(q => 
+    ? Array.from(new Set(pool.filter(q => 
         q.year.toString() === selectedYear && q.sitting === selectedSitting
       ).map(q => q.paperNumber.toString()))).sort()
     : [];
   
   const questionNumbers = selectedYear && selectedSitting && selectedPaper
-    ? Array.from(new Set(questionsDatabase.filter(q => 
+    ? Array.from(new Set(pool.filter(q => 
         q.year.toString() === selectedYear && 
         q.sitting === selectedSitting && 
         q.paperNumber.toString() === selectedPaper
@@ -63,7 +84,7 @@ const Index = () => {
   // Auto-select question when all dropdowns are filled
   useEffect(() => {
     if (selectedYear && selectedSitting && selectedPaper && selectedQuestionNum) {
-      const question = questionsDatabase.find(q => 
+      const question = pool.find(q => 
         q.year.toString() === selectedYear &&
         q.sitting === selectedSitting &&
         q.paperNumber.toString() === selectedPaper &&
@@ -76,7 +97,7 @@ const Index = () => {
         setViewedQuestionIds(prev => new Set(prev).add(questionId));
       }
     }
-  }, [selectedYear, selectedSitting, selectedPaper, selectedQuestionNum]);
+  }, [selectedYear, selectedSitting, selectedPaper, selectedQuestionNum, pool]);
 
   // Reset dependent dropdowns when parent changes
   useEffect(() => {
@@ -105,7 +126,7 @@ const Index = () => {
 
     if (!year || !sitting || !paper || !questionNumber) return;
 
-    const question = questionsDatabase.find(q =>
+    const question = pool.find(q =>
       q.year.toString() === year &&
       q.sitting === sitting &&
       q.paperNumber.toString() === paper &&
@@ -122,8 +143,11 @@ const Index = () => {
     setSelectedQuestion(question);
     setCurrentTopic(question.topic.toLowerCase());
     setViewedQuestionIds(prev => new Set(prev).add(getQuestionId(question)));
-    setSearchParams({}, { replace: true });
-  }, [searchParams, setSearchParams]);
+    // Preserve the module param when clearing other params.
+    const next = new URLSearchParams();
+    if (module) next.set("module", module);
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, pool, module]);
 
   // Calculate similarity score between search terms and text
   const calculateSimilarity = (searchTerms: string[], text: string): number => {
@@ -160,12 +184,12 @@ const Index = () => {
     return score;
   };
 
-  // Get questions matching a topic with fuzzy matching
+  // Get questions matching a topic with fuzzy matching (within active module).
   const getQuestionsForTopic = (topic: string) => {
     const searchTerms = topic.toLowerCase().split(/\s+/).filter(t => t.length > 1);
     
     // Score each question
-    const scored = questionsDatabase.map(q => {
+    const scored = pool.map(q => {
       const topicScore = calculateSimilarity(searchTerms, q.topic);
       const subtopicScore = calculateSimilarity(searchTerms, q.subtopics);
       return { question: q, score: topicScore + subtopicScore };
@@ -195,7 +219,7 @@ const Index = () => {
 
   // Get questions with exact topic match (for "show another" functionality)
   const getQuestionsWithExactTopic = (topic: string) => {
-    return questionsDatabase.filter(q => q.topic.toLowerCase() === topic.toLowerCase());
+    return pool.filter(q => q.topic.toLowerCase() === topic.toLowerCase());
   };
 
   // Handle showing another question on the same topic
@@ -250,7 +274,7 @@ const Index = () => {
     }
     
     // Enhanced search algorithm with scoring for non-topic searches
-    const matches = questionsDatabase.map((q) => {
+    const matches = pool.map((q) => {
       let score = 0;
       
       // Check for question number match (q3, question 3, etc.)
@@ -311,11 +335,11 @@ const Index = () => {
     if (rankedMatches.length > 0) {
       setCurrentTopic("");
       setSelectedQuestion(rankedMatches[0].question);
-    } else {
+    } else if (pool.length > 0) {
       // If no match, show a random question
       setCurrentTopic("");
-      const randomIndex = Math.floor(Math.random() * questionsDatabase.length);
-      setSelectedQuestion(questionsDatabase[randomIndex]);
+      const randomIndex = Math.floor(Math.random() * pool.length);
+      setSelectedQuestion(pool[randomIndex]);
     }
   };
 
@@ -329,15 +353,23 @@ const Index = () => {
               <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
                 <BookOpen className="h-6 w-6 text-primary-foreground" />
               </div>
-              <div>
+              <button
+                onClick={() => navigate("/")}
+                className="text-left hover:opacity-80 transition-opacity"
+              >
                 <h1 className="text-2xl font-serif font-bold text-foreground">
                   Cambridge Maths 9709
                 </h1>
-                <p className="text-sm text-muted-foreground">AS & A Level Paper 3 Practice</p>
-              </div>
+                <p className="text-sm text-muted-foreground">
+                  {module ? getModuleInfo(module).name : "AS & A Level Practice"}
+                </p>
+              </button>
             </div>
             
             <div className="flex items-center gap-3">
+              {module && (
+                <ModuleSwitcher module={module} onChange={setModule} />
+              )}
               {loading ? (
                 <div className="h-8 w-8 animate-pulse bg-secondary rounded-full" />
               ) : user ? (
@@ -379,7 +411,7 @@ const Index = () => {
       {/* Main content */}
       <main className="container mx-auto px-4 py-12">
         {testTopic ? (
-          <TopicTest topic={testTopic} onBack={() => setTestTopic("")} />
+          <TopicTest topic={testTopic} onBack={() => setTestTopic("")} module={module ?? undefined} />
         ) : !selectedQuestion ? (
           <div className="space-y-12">
             {/* Hero section */}

@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen, FileText, RefreshCw, UploadCloud, Wand2 } from "lucide-react";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MODULES, ModuleCode } from "@/lib/modules";
 
 const SITTINGS = ["Feb/Mar", "May/Jun", "Oct/Nov"] as const;
 const BUCKET = "exam-images";
@@ -64,6 +65,7 @@ type QuestionRow = {
   sitting: string;
   paper_number: number;
   question_number: number;
+  module: ModuleCode;
   topic: string | null;
   subtopics: string | null;
   marks: number | null;
@@ -84,6 +86,7 @@ const emptyDraft = (): Partial<QuestionRow> => ({
   sitting: "May/Jun",
   paper_number: 31,
   question_number: 1,
+  module: "P3",
   topic: "",
   subtopics: "",
   marks: null,
@@ -281,6 +284,7 @@ const AdminQuestions = () => {
         sitting: String(draft.sitting),
         paper_number: Number(draft.paper_number),
         question_number: Number(draft.question_number),
+        module: (draft.module as ModuleCode) || "P3",
         topic: draft.topic || null,
         subtopics: draft.subtopics || null,
         marks: draft.marks == null || draft.marks === ("" as unknown) ? null : Number(draft.marks),
@@ -386,6 +390,7 @@ const AdminQuestions = () => {
             sitting: meta.sitting,
             paper_number: meta.paperNumber,
             question_number: meta.questionNumber,
+            module: "P3", // Bulk uploads currently default to P3; edit later if needed.
             is_published: true,
           };
           if (qResult) {
@@ -753,6 +758,22 @@ const AdminQuestions = () => {
             <div>
               <Label>Question #</Label>
               <Input type="number" value={draft.question_number ?? ""} onChange={(e) => setDraft({ ...draft, question_number: Number(e.target.value) })} />
+            </div>
+            <div>
+              <Label>Module</Label>
+              <Select
+                value={(draft.module as string) ?? "P3"}
+                onValueChange={(v) => setDraft({ ...draft, module: v as ModuleCode })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MODULES.map((m) => (
+                    <SelectItem key={m.code} value={m.code}>
+                      {m.shortLabel} — {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="col-span-2">
               <Label>Topic</Label>
