@@ -421,10 +421,16 @@ const TestMaker = () => {
                   <ImageDown className="h-4 w-4 mr-2" />
                   Download Images
                 </Button>
-                <Button onClick={handleDownloadPDF}>
+                <Button variant="outline" onClick={handleDownloadQuestionPaper}>
                   <Download className="h-4 w-4 mr-2" />
-                  Download PDF
+                  Question Paper
                 </Button>
+                {hasMarkschemes && (
+                  <Button onClick={handleDownloadMarkScheme}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Mark Scheme
+                  </Button>
+                )}
               </div>
             </div>
           </div>
