@@ -411,7 +411,7 @@ const Index = () => {
       {/* Main content */}
       <main className="container mx-auto px-4 py-12">
         {testTopic ? (
-          <TopicTest topic={testTopic} onBack={() => setTestTopic("")} />
+          <TopicTest topic={testTopic} onBack={() => setTestTopic("")} module={module ?? undefined} />
         ) : !selectedQuestion ? (
           <div className="space-y-12">
             {/* Hero section */}

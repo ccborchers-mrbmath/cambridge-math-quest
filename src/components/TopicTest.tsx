@@ -65,7 +65,7 @@ const selectVariedQuestions = (topic: string, module?: ModuleCode): Question[] =
   return selected;
 };
 
-export const TopicTest = ({ topic, onBack }: TopicTestProps) => {
+export const TopicTest = ({ topic, onBack, module }: TopicTestProps) => {
   const [processedQuestions, setProcessedQuestions] = useState<ProcessedQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMarkschemes, setShowMarkschemes] = useState(false);
@@ -74,7 +74,7 @@ export const TopicTest = ({ topic, onBack }: TopicTestProps) => {
   useEffect(() => {
     const generateTest = async () => {
       setLoading(true);
-      const questions = selectVariedQuestions(topic);
+      const questions = selectVariedQuestions(topic, module);
 
       // Process each question image with new numbering
       const processed: ProcessedQuestion[] = await Promise.all(
