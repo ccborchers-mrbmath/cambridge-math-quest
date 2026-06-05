@@ -11,6 +11,8 @@ import { Progress } from '@/components/ui/progress';
 import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X } from 'lucide-react';
 import { LatexRenderer } from '@/components/LatexRenderer';
 import { getAllCurriculumSubtopics, getMasteredSubtopicCodes } from '@/lib/curriculum';
+import { questionsDatabase } from '@/data/questions';
+import { moduleOf } from '@/lib/modules';
 
 interface StudentAttempt {
   id: string;
@@ -77,14 +79,24 @@ const StudentProgress = () => {
   };
 
   const handleReattempt = (attempt: StudentAttempt) => {
+    // Find the originating question to recover its module.
+    const q = questionsDatabase.find(
+      (qq) =>
+        qq.year === attempt.year &&
+        qq.sitting === attempt.sitting &&
+        qq.paperNumber === attempt.paper_number &&
+        qq.questionNumber === attempt.question_number
+    );
+    const moduleCode = q ? moduleOf(q) : "P3";
     const params = new URLSearchParams({
+      module: moduleCode,
       year: attempt.year.toString(),
       sitting: attempt.sitting,
       paper: attempt.paper_number.toString(),
       question: attempt.question_number.toString(),
     });
 
-    navigate(`/?${params.toString()}`);
+    navigate(`/practice?${params.toString()}`);
   };
 
   if (loading || loadingData) {
