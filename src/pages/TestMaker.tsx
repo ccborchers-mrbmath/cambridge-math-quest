@@ -587,13 +587,17 @@ const TestMaker = () => {
               </Button>
               <div>
                 <h1 className="text-2xl font-serif font-bold text-foreground">Test Maker</h1>
-                <p className="text-sm text-muted-foreground">Create your custom practice test</p>
+                <p className="text-sm text-muted-foreground">
+                  Create your custom practice test
+                </p>
               </div>
             </div>
-            <Button 
-              onClick={handleCompileTest}
-              disabled={selectedQuestionIds.length === 0 || isProcessing}
-            >
+            <div className="flex items-center gap-3">
+              {module && <ModuleSwitcher module={module} onChange={setModule} />}
+              <Button
+                onClick={handleCompileTest}
+                disabled={selectedQuestionIds.length === 0 || isProcessing}
+              >
               {isProcessing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -605,7 +609,8 @@ const TestMaker = () => {
                   Compile Test ({selectedQuestionIds.length} questions)
                 </>
               )}
-            </Button>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
