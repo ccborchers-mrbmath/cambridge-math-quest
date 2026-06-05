@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { logger } from "@/lib/logger";
 import { useNavigate } from "react-router-dom";
 import { questionsDatabase, Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
@@ -186,7 +187,7 @@ const TestMaker = () => {
             markschemeText,
           };
         } catch (error) {
-          console.error("Error processing image:", error);
+          logger.error("Error processing image:", error);
           return {
             original: q,
             newNumber,

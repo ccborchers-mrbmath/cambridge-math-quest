@@ -1,3 +1,5 @@
+import { logger } from "@/lib/logger";
+
 // Proxy URL for images to bypass CORS
 export const getProxiedImageUrl = (originalUrl: string): string => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -213,7 +215,7 @@ export const processQuestionImage = async (
     };
 
     img.onerror = () => {
-      console.error("Failed to load image:", imageUrl);
+      logger.error("Failed to load image:", imageUrl);
       reject(new Error("Failed to load image"));
     };
 
@@ -245,7 +247,7 @@ export const processMarkschemeImage = async (
     };
 
     img.onerror = () => {
-      console.error("Failed to load markscheme:", markschemeUrl);
+      logger.error("Failed to load markscheme:", markschemeUrl);
       reject(new Error("Failed to load markscheme"));
     };
 
