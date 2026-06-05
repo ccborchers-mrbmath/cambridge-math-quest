@@ -390,6 +390,7 @@ const AdminQuestions = () => {
             sitting: meta.sitting,
             paper_number: meta.paperNumber,
             question_number: meta.questionNumber,
+            module: "P3", // Bulk uploads currently default to P3; edit later if needed.
             is_published: true,
           };
           if (qResult) {
