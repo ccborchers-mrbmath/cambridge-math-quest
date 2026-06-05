@@ -758,6 +758,22 @@ const AdminQuestions = () => {
               <Label>Question #</Label>
               <Input type="number" value={draft.question_number ?? ""} onChange={(e) => setDraft({ ...draft, question_number: Number(e.target.value) })} />
             </div>
+            <div>
+              <Label>Module</Label>
+              <Select
+                value={(draft.module as string) ?? "P3"}
+                onValueChange={(v) => setDraft({ ...draft, module: v as ModuleCode })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MODULES.map((m) => (
+                    <SelectItem key={m.code} value={m.code}>
+                      {m.shortLabel} — {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2">
               <Label>Topic</Label>
               <Input value={draft.topic ?? ""} onChange={(e) => setDraft({ ...draft, topic: e.target.value })} />
