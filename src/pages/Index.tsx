@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { SearchBar } from "@/components/SearchBar";
 import { QuestionDisplay } from "@/components/QuestionDisplay";
@@ -7,6 +7,8 @@ import { questionsDatabase, Question } from "@/data/questions";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
+import { ModuleSwitcher } from "@/components/ModuleSwitcher";
+import { useActiveModule, moduleOf, getModuleInfo } from "@/lib/modules";
 import {
   Select,
   SelectContent,
@@ -19,6 +21,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, userRole, loading, signOut } = useAuth();
+  const { module, setModule } = useActiveModule({ redirectIfMissing: true });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>("");
@@ -29,8 +32,26 @@ const Index = () => {
   const [viewedQuestionIds, setViewedQuestionIds] = useState<Set<string>>(new Set());
   const [testTopic, setTestTopic] = useState<string>("");
 
+  // Pool of questions scoped to the currently active module.
+  const pool = useMemo(
+    () => questionsDatabase.filter((q) => moduleOf(q) === module),
+    [module]
+  );
+
   // Get unique main topics for the "Test me on" dropdown
-  const mainTopics = Array.from(new Set(questionsDatabase.map(q => q.topic))).sort();
+  const mainTopics = Array.from(new Set(pool.map(q => q.topic))).sort();
+
+  // Reset any current question when switching modules.
+  useEffect(() => {
+    setSelectedQuestion(null);
+    setSelectedYear("");
+    setSelectedSitting("");
+    setSelectedPaper("");
+    setSelectedQuestionNum("");
+    setCurrentTopic("");
+    setViewedQuestionIds(new Set());
+    setTestTopic("");
+  }, [module]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -38,22 +59,22 @@ const Index = () => {
   };
 
   // Get unique values for dropdowns
-  const years = Array.from(new Set(questionsDatabase.map(q => q.year.toString()))).sort((a, b) => b.localeCompare(a));
+  const years = Array.from(new Set(pool.map(q => q.year.toString()))).sort((a, b) => b.localeCompare(a));
   
   const sittingOrder: Record<string, number> = { 'Feb/Mar': 1, 'May/Jun': 2, 'Oct/Nov': 3 };
   const sittings = selectedYear 
-    ? Array.from(new Set(questionsDatabase.filter(q => q.year.toString() === selectedYear).map(q => q.sitting)))
+    ? Array.from(new Set(pool.filter(q => q.year.toString() === selectedYear).map(q => q.sitting)))
         .sort((a, b) => (sittingOrder[a] || 99) - (sittingOrder[b] || 99))
     : [];
   
   const papers = selectedYear && selectedSitting
-    ? Array.from(new Set(questionsDatabase.filter(q => 
+    ? Array.from(new Set(pool.filter(q => 
         q.year.toString() === selectedYear && q.sitting === selectedSitting
       ).map(q => q.paperNumber.toString()))).sort()
     : [];
   
   const questionNumbers = selectedYear && selectedSitting && selectedPaper
-    ? Array.from(new Set(questionsDatabase.filter(q => 
+    ? Array.from(new Set(pool.filter(q => 
         q.year.toString() === selectedYear && 
         q.sitting === selectedSitting && 
         q.paperNumber.toString() === selectedPaper
@@ -63,7 +84,7 @@ const Index = () => {
   // Auto-select question when all dropdowns are filled
   useEffect(() => {
     if (selectedYear && selectedSitting && selectedPaper && selectedQuestionNum) {
-      const question = questionsDatabase.find(q => 
+      const question = pool.find(q => 
         q.year.toString() === selectedYear &&
         q.sitting === selectedSitting &&
         q.paperNumber.toString() === selectedPaper &&
@@ -76,7 +97,7 @@ const Index = () => {
         setViewedQuestionIds(prev => new Set(prev).add(questionId));
       }
     }
-  }, [selectedYear, selectedSitting, selectedPaper, selectedQuestionNum]);
+  }, [selectedYear, selectedSitting, selectedPaper, selectedQuestionNum, pool]);
 
   // Reset dependent dropdowns when parent changes
   useEffect(() => {
