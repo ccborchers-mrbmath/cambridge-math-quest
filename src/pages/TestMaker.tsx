@@ -151,7 +151,7 @@ const TestMaker = () => {
   };
 
   const selectAllInTopic = (topic: string) => {
-    const topicIds = questionsDatabase
+    const topicIds = pool
       .filter(q => q.topic === topic)
       .map(q => getQuestionId(q));
     setSelectedQuestionIds(prev => {
@@ -164,7 +164,7 @@ const TestMaker = () => {
   };
 
   const deselectAllInTopic = (topic: string) => {
-    const topicIds = questionsDatabase
+    const topicIds = pool
       .filter(q => q.topic === topic)
       .map(q => getQuestionId(q));
     setSelectedQuestionIds(prev => prev.filter(id => !topicIds.includes(id)));
