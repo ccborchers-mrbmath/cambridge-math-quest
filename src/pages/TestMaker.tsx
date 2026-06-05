@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { logger } from "@/lib/logger";
 import { useNavigate } from "react-router-dom";
 import { questionsDatabase, Question } from "@/data/questions";
@@ -13,6 +13,8 @@ import { LatexRenderer } from "@/components/LatexRenderer";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useActiveModule, moduleOf } from "@/lib/modules";
+import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 
 interface ProcessedQuestion {
   original: Question;
@@ -56,6 +58,7 @@ function withColgroups(html: string): string {
 
 const TestMaker = () => {
   const navigate = useNavigate();
+  const { module, setModule } = useActiveModule({ redirectIfMissing: true });
   const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [isCompiled, setIsCompiled] = useState(false);
@@ -64,24 +67,38 @@ const TestMaker = () => {
   const [includeMarkschemes, setIncludeMarkschemes] = useState(true);
   const [showMarkschemes, setShowMarkschemes] = useState(false);
 
-  // Get unique topics
-  const allTopics = useMemo(() => 
-    Array.from(new Set(questionsDatabase.map(q => q.topic))).sort(),
-    []
+  // Pool of source questions scoped to the active module.
+  const pool = useMemo(
+    () => questionsDatabase.filter((q) => moduleOf(q) === module),
+    [module]
+  );
+
+  // Reset selections when switching modules.
+  useEffect(() => {
+    setSelectedTopics(new Set());
+    setSelectedQuestionIds([]);
+    setIsCompiled(false);
+    setProcessedQuestions([]);
+  }, [module]);
+
+  // Get unique topics in the current module.
+  const allTopics = useMemo(
+    () => Array.from(new Set(pool.map(q => q.topic))).sort(),
+    [pool]
   );
 
   // Get questions for selected topics
   const filteredQuestions = useMemo(() => 
-    questionsDatabase.filter(q => selectedTopics.has(q.topic)),
-    [selectedTopics]
+    pool.filter(q => selectedTopics.has(q.topic)),
+    [pool, selectedTopics]
   );
 
   // Get selected question objects in order
   const compiledQuestions = useMemo(() => 
     selectedQuestionIds
-      .map(id => questionsDatabase.find(q => getQuestionId(q) === id))
+      .map(id => pool.find(q => getQuestionId(q) === id))
       .filter((q): q is Question => q !== undefined),
-    [selectedQuestionIds]
+    [selectedQuestionIds, pool]
   );
 
   // Helper to check if question is selected
