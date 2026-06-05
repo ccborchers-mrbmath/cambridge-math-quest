@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logger } from "@/lib/logger";
 import { Question, questionsDatabase } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Eye, EyeOff, Loader2 } from "lucide-react";
