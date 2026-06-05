@@ -126,7 +126,7 @@ const Index = () => {
 
     if (!year || !sitting || !paper || !questionNumber) return;
 
-    const question = questionsDatabase.find(q =>
+    const question = pool.find(q =>
       q.year.toString() === year &&
       q.sitting === sitting &&
       q.paperNumber.toString() === paper &&
@@ -143,8 +143,11 @@ const Index = () => {
     setSelectedQuestion(question);
     setCurrentTopic(question.topic.toLowerCase());
     setViewedQuestionIds(prev => new Set(prev).add(getQuestionId(question)));
-    setSearchParams({}, { replace: true });
-  }, [searchParams, setSearchParams]);
+    // Preserve the module param when clearing other params.
+    const next = new URLSearchParams();
+    if (module) next.set("module", module);
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, pool, module]);
 
   // Calculate similarity score between search terms and text
   const calculateSimilarity = (searchTerms: string[], text: string): number => {
@@ -181,12 +184,12 @@ const Index = () => {
     return score;
   };
 
-  // Get questions matching a topic with fuzzy matching
+  // Get questions matching a topic with fuzzy matching (within active module).
   const getQuestionsForTopic = (topic: string) => {
     const searchTerms = topic.toLowerCase().split(/\s+/).filter(t => t.length > 1);
     
     // Score each question
-    const scored = questionsDatabase.map(q => {
+    const scored = pool.map(q => {
       const topicScore = calculateSimilarity(searchTerms, q.topic);
       const subtopicScore = calculateSimilarity(searchTerms, q.subtopics);
       return { question: q, score: topicScore + subtopicScore };
@@ -216,7 +219,7 @@ const Index = () => {
 
   // Get questions with exact topic match (for "show another" functionality)
   const getQuestionsWithExactTopic = (topic: string) => {
-    return questionsDatabase.filter(q => q.topic.toLowerCase() === topic.toLowerCase());
+    return pool.filter(q => q.topic.toLowerCase() === topic.toLowerCase());
   };
 
   // Handle showing another question on the same topic
@@ -271,7 +274,7 @@ const Index = () => {
     }
     
     // Enhanced search algorithm with scoring for non-topic searches
-    const matches = questionsDatabase.map((q) => {
+    const matches = pool.map((q) => {
       let score = 0;
       
       // Check for question number match (q3, question 3, etc.)
@@ -332,11 +335,11 @@ const Index = () => {
     if (rankedMatches.length > 0) {
       setCurrentTopic("");
       setSelectedQuestion(rankedMatches[0].question);
-    } else {
+    } else if (pool.length > 0) {
       // If no match, show a random question
       setCurrentTopic("");
-      const randomIndex = Math.floor(Math.random() * questionsDatabase.length);
-      setSelectedQuestion(questionsDatabase[randomIndex]);
+      const randomIndex = Math.floor(Math.random() * pool.length);
+      setSelectedQuestion(pool[randomIndex]);
     }
   };
 
