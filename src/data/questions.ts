@@ -1,3 +1,5 @@
+import type { ModuleCode } from "@/lib/modules";
+
 export interface Question {
   year: number;
   sitting: string;
@@ -8,6 +10,11 @@ export interface Question {
   questionUrl: string;
   markschemeUrl: string;
   marks: number;
+  /**
+   * Cambridge 9709 module code. Optional in source data: any entry without an
+   * explicit module is treated as "P3" (the platform's original scope).
+   */
+  module?: ModuleCode;
 }
 
 export const questionsDatabase: Question[] = [
