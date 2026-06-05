@@ -266,12 +266,9 @@ const TestMaker = () => {
 
     const questionPages = processedQuestions.map(pq => `
       <section class="page question-page">
-        <div class="q-number">${pq.newNumber}</div>
-        <div class="q-body">
-          ${pq.processedImageUrl
-            ? `<img class="q-img" src="${pq.processedImageUrl}" alt="Question ${pq.newNumber}"/>`
-            : `<p class="err">Question image unavailable</p>`}
-        </div>
+        ${pq.processedImageUrl
+          ? `<img class="q-img" src="${pq.processedImageUrl}" alt="Question ${pq.newNumber}"/>`
+          : `<p class="err">Question image unavailable</p>`}
       </section>
       <section class="page working-page">
         <div class="working-head">Working space for Question ${pq.newNumber}</div>
@@ -301,10 +298,8 @@ const TestMaker = () => {
     display: flex; justify-content: space-between; align-items: center; color: #1e293b; }
   .topics { list-style: disc; padding-left: 6mm; color: #1e293b; }
   .topics li { margin: 1.5mm 0; }
-  .question-page { padding: 18mm 0 18mm; display: flex; }
-  .question-page .q-number { width: 14mm; padding-left: 8mm; font-size: 14pt; font-weight: 700; color: #0f172a; flex: 0 0 auto; }
-  .question-page .q-body { flex: 1; padding-right: 8mm; }
-  .q-img { display: block; width: 100%; height: auto; }
+  .question-page { padding: 0; }
+  .q-img { display: block; width: 210mm; height: auto; margin: 0; }
   .working-head { text-align: center; color: #cbd5e1; font-size: 11pt; }
   .err { color: #b91c1c; }
 </style></head>
