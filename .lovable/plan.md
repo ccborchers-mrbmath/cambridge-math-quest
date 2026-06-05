@@ -1,45 +1,54 @@
-# Plan: Text-rendered mark schemes in Test Maker
-
 ## Goal
-Replace the pixel-scanning renumbering of mark scheme images with crisp, text-rendered mark scheme tables in both the on-screen Test Maker view and the booklet PDF export. Question images stay as-is (images, renumbered as today). Only mark schemes change.
 
-## Behaviour
+Lay the foundation for supporting all six CIE 9709 modules — **Pure Math 1, Pure Math 2, Pure Math 3, Probability & Statistics 1, Probability & Statistics 2, Mechanics** — in a single unified app. This phase introduces the concept of a "module" everywhere, gates the app behind a module picker, and scopes all existing content to P3. No new question content is added yet — that comes module-by-module afterward.
 
-1. When the Test Maker assembles a test, for each selected question:
-   - If `extracted_markscheme_text` exists in the DB, use it directly.
-   - If it is missing, call the existing `extract-question-text` edge function (kind=`markscheme`) on the fly, **save the result back to the `questions` row**, then use it. Subsequent tests get it instantly.
-2. The original part labels in the extracted text (e.g. `(a)`, `(b)(i)`) are kept verbatim. The question's new test number (1, 2, 3…) is shown as a heading above the rendered table — no rewriting of the table contents needed.
-3. Question images continue to be rendered via the current image pipeline (no change).
+## What changes for the user
 
-## On-screen rendering
+1. **New landing page at `/`** — "Choose your module" picker with six cards (P1, P2, P3, S1, S2, M1). Each card shows the module name and a question count (e.g. "P3 — 412 questions", "S1 — coming soon"). Modules with zero questions are visibly tagged "Coming soon" but still selectable so admins can preview.
+2. **Selected module is remembered** in `localStorage` and reflected in the URL (e.g. `/practice?module=P3`). A small "Module: P3 ▾" chip in the header lets users switch without going back to the picker.
+3. **The current home screen** (search, dropdowns, popular topics, "Test me on", Test Maker entry) moves to `/practice` and operates only within the selected module.
+4. **Test Maker, "Show me another", "Test me on", Progress page, Admin question list** all filter by the active module.
+5. **Admin question upload** gets a required Module field.
 
-- Render the markdown table via the existing `LatexRenderer` (already supports tables + KaTeX + the `\lvert\rvert` modulus fix).
-- Wrap each MS in a card with heading `Mark scheme — Question N`.
-- Loading skeleton + spinner while a missing MS is being extracted; toast on failure with a "Retry" button.
+## Data model
 
-## PDF export
+Add a `module` column to `public.questions`:
 
-- Mark scheme pages switch from embedded images to HTML content rendered by the existing PDF pipeline.
-- CSS rules on the MS wrapper:
-  - `page-break-before: always` on each mark-scheme block → guarantees a fresh page per question's MS.
-  - `page-break-inside: avoid` on each `<tr>` (or on a wrapper around each part group) → if a long MS overflows, it breaks between parts/rows rather than mid-row.
-  - Table styled to match the on-screen rendering (same column widths, header repeat via `thead { display: table-header-group }` so a continued MS still shows the column headers on the next page).
-- Question pages (images) remain unchanged.
+- Type: a new Postgres enum `module_code` with values `P1, P2, P3, S1, S2, M1`.
+- `NOT NULL`, no default — backfill all existing rows to `P3` in the same migration (current DB is 100% P3).
+- Index on `(module, topic)` to keep search fast.
 
-## Admin: backfill helper (small addition)
+No other table changes needed in Phase 1. `student_attempts` inherits the module via its FK to `questions`; the Progress page joins to read it.
 
-To avoid first-run latency for students, add a single "Extract all missing mark scheme text" button on `AdminQuestions` that iterates rows where `extracted_markscheme_text IS NULL` and calls the extract function for each, with a progress counter. Optional but recommended — purely admin-facing, doesn't change student flow.
+## Files touched
+
+- **Migration** (one call): create enum, add column with backfill, set NOT NULL, add index.
+- `src/data/questions.ts` — add `module: ModuleCode` to the `Question` type; existing entries get `module: "P3"`.
+- `src/lib/modules.ts` *(new)* — single source of truth: `ModuleCode` type, ordered list, display names, short labels, route helpers, and a `useActiveModule()` hook backed by URL + localStorage.
+- `src/pages/ModulePicker.tsx` *(new)* — the new landing page at `/`. Six cards, each with live question count from `questionsDatabase` filtered by module.
+- `src/pages/Index.tsx` — moves to route `/practice`, reads active module, filters every question query by it, updates header to show module chip + switcher, updates dropdowns/popular topics/Test me on to be module-scoped.
+- `src/App.tsx` — new routes: `/` → ModulePicker, `/practice` → Index, keep `/test-maker`, `/progress`, `/admin`, `/auth` unchanged but they read active module from the hook.
+- `src/pages/TestMaker.tsx` — filter source pool by active module; module name appears on PDF cover/header.
+- `src/pages/StudentProgress.tsx` — show module filter tabs (default to active module); subtopic curriculum scoped per module.
+- `src/pages/AdminQuestions.tsx` + upload/edit forms — add Module dropdown (required); list view gets a module filter.
+- `src/lib/curriculum.ts` — accept an optional `module` filter; the existing subtopic logic stays, just narrowed.
+- `src/components/TopicTest.tsx` — accept and respect active module when picking questions.
+
+## Header / navigation
+
+The current header stays, with one addition: a compact "Module: **P3** ▾" button next to the existing nav buttons that opens a small popover with the six modules. Clicking one updates URL + storage and reloads the current page's query.
+
+## Out of scope (future phases)
+
+- Uploading P1/P2/S1/S2/M1 question images and markschemes (admin will do this module-by-module via existing tools, now with a Module field).
+- Per-module syllabus subtopic trees beyond what already exists for P3 — these come with the content for each module.
+- Cross-module analytics on the Progress page (e.g. "weak across all modules"). Phase 1 keeps Progress scoped to one module at a time.
+- Branding/copy tweaks ("Paper 3 Practice" → "AS & A Level Practice") will be a small follow-up once all modules have content.
 
 ## Technical notes
 
-- No schema change. Reuses existing `questions.extracted_markscheme_text` column and `extract-question-text` edge function.
-- New shared helper `ensureMarkschemeText(questionId)` in `src/utils/` that returns the text, extracting + persisting if absent. Called by both Test Maker view and PDF export.
-- PDF pipeline: the current export already builds HTML for each page; the MS page just swaps `<img>` for `<div class="ms-block">…rendered table…</div>` with the page-break CSS above.
-- The old pixel-renumbering code path for mark schemes (`processQuestionImage` for MS) becomes dead code for the Test Maker. Keep `processQuestionImage` for questions; remove only the MS call sites.
-- Memory update: `mem://features/question-renumbering` should note that MS renumbering is now text-based; image renumbering still applies to questions only.
-
-## Out of scope
-
-- Changing question images to text.
-- Editing the extraction prompt (already produces the table format we need).
-- Bulk re-extraction of already-extracted MS texts.
+- The enum approach (rather than free-text) prevents typos and makes the admin dropdown trivial.
+- Backfilling existing rows to `P3` is safe: a `SELECT count(*) FROM questions WHERE module IS DISTINCT FROM 'P3'` after migration must return 0.
+- `useActiveModule()` reads from URL search param first, then localStorage, then redirects to `/` (picker) if neither is set and the route requires a module.
+- RLS policies on `questions` already allow public read of published rows; no policy changes needed.
+- Memory update at the end: the project memory still says "Paper 3 practice platform" — I'll update `mem://index.md` and `mem://project/core-purpose` to reflect the multi-module scope.
