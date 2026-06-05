@@ -39,8 +39,8 @@ const ModulePicker = () => {
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
       <header className="border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
                 <BookOpen className="h-6 w-6 text-primary-foreground" />
               </div>
@@ -54,7 +54,7 @@ const ModulePicker = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap flex-nowrap [&>*]:shrink-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {loading ? (
                 <div className="h-8 w-8 animate-pulse bg-secondary rounded-full" />
               ) : user ? (
