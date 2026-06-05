@@ -20,7 +20,7 @@ const Auth = () => {
     const { error } = await signInWithGoogle();
     if (error) {
       toast.error(error.message || 'Failed to sign in with Google');
-      console.error('Google sign in error:', error);
+      logger.error('Google sign in error:', error);
     }
   };
 

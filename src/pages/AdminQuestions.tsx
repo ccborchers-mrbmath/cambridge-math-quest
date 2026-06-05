@@ -429,7 +429,7 @@ const AdminQuestions = () => {
                 ? { question_text_status: "failed" }
                 : { markscheme_text_status: "failed" };
               await supabase.from("questions").update(update as never).eq("id", rowId!);
-              console.error("extract failed", tag, kind, err);
+              logger.error("extract failed", tag, kind, err);
             }
           };
 
@@ -506,7 +506,7 @@ const AdminQuestions = () => {
           }
         }
       } catch (e) {
-        console.error("backfill failed", row.id, e);
+        logger.error("backfill failed", row.id, e);
         failed++;
       }
       setBackfillProgress({ done: i + 1, total: candidates.length });

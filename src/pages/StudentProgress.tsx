@@ -64,7 +64,7 @@ const StudentProgress = () => {
       }));
       setAttempts(normalized);
     } catch (error) {
-      console.error('Error fetching attempts:', error);
+      logger.error('Error fetching attempts:', error);
     } finally {
       setLoadingData(false);
     }

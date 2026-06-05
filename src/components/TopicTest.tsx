@@ -87,7 +87,7 @@ export const TopicTest = ({ topic, onBack }: TopicTestProps) => {
               processedMarkschemeUrl: null,
             };
           } catch (error) {
-            console.error("Error processing image:", error);
+            logger.error("Error processing image:", error);
             return {
               original: q,
               newNumber,
@@ -129,7 +129,7 @@ export const TopicTest = ({ topic, onBack }: TopicTestProps) => {
             );
             return { ...pq, processedMarkschemeUrl };
           } catch (error) {
-            console.error("Error processing markscheme:", error);
+            logger.error("Error processing markscheme:", error);
             return pq;
           }
         })

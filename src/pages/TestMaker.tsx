@@ -186,7 +186,7 @@ const TestMaker = () => {
             markschemeText,
           };
         } catch (error) {
-          console.error("Error processing image:", error);
+          logger.error("Error processing image:", error);
           return {
             original: q,
             newNumber,

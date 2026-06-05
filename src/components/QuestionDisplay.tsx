@@ -61,7 +61,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
         toast.error("Failed to generate hint");
       }
     } catch (error) {
-      console.error("Error generating hint:", error);
+      logger.error("Error generating hint:", error);
       toast.error("Failed to generate hint. Please try again.");
     } finally {
       setIsLoadingHint(false);
@@ -105,7 +105,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
             const pages = await pdfFileToImages(file);
             collected.push(...pages);
           } catch (err) {
-            console.error("PDF processing failed:", err);
+            logger.error("PDF processing failed:", err);
             toast.error(`Couldn't read ${file.name} as a PDF`);
           }
         } else if (file.type.startsWith("image/")) {
@@ -147,7 +147,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       await copyImageUrlToClipboard(question.questionUrl);
       toast.success("Question copied — paste it into your drawing app");
     } catch (err) {
-      console.error("Copy question failed:", err);
+      logger.error("Copy question failed:", err);
       const msg = (err as Error).message;
       if (msg === "CLIPBOARD_UNSUPPORTED") {
         toast.error("Your browser doesn't support copying images. Long-press the question image instead.");
@@ -165,7 +165,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       const file = await readImageFromClipboard();
       await ingestSingleImage(file, "Pasted from clipboard!");
     } catch (err) {
-      console.error("Paste answer failed:", err);
+      logger.error("Paste answer failed:", err);
       const msg = (err as Error).message;
       if (msg === "NO_IMAGE_ON_CLIPBOARD") {
         toast.error("No image found on the clipboard. Copy a screenshot of your work first.");
@@ -238,7 +238,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       setTotalMarks(typeof data.totalMarks === 'number' ? data.totalMarks : null);
       toast.success("AI marking complete");
     } catch (error) {
-      console.error('Error marking work:', error);
+      logger.error('Error marking work:', error);
       toast.error("Failed to mark work. Please try again.");
     } finally {
       setIsMarkingWork(false);
@@ -288,7 +288,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       setMarksAwarded(null);
       setTotalMarks(null);
     } catch (error) {
-      console.error('Error saving attempt:', error);
+      logger.error('Error saving attempt:', error);
       toast.error("Failed to save attempt. Please try again.");
     } finally {
       setIsSavingAttempt(false);

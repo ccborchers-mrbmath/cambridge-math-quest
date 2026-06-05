@@ -72,7 +72,7 @@ const AdminDashboard = () => {
       if (error) throw error;
       setAttempts(data || []);
     } catch (error) {
-      console.error('Error fetching attempts:', error);
+      logger.error('Error fetching attempts:', error);
     } finally {
       setLoadingData(false);
     }
@@ -102,7 +102,7 @@ const AdminDashboard = () => {
 
       setErrorPatterns(sortedPatterns);
     } catch (error) {
-      console.error('Error fetching error patterns:', error);
+      logger.error('Error fetching error patterns:', error);
     }
   };
 
