@@ -1,0 +1,1 @@
+COMMENT ON FUNCTION public.has_role(uuid, public.app_role) IS 'SECURITY CRITICAL: SECURITY DEFINER function used in all RLS policies. Any change requires security review. Must preserve SET search_path = public and parameterized arguments.';
