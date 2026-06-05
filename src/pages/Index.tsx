@@ -366,7 +366,7 @@ const Index = () => {
               </button>
             </div>
 
-            <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap flex-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap flex-nowrap [&>*]:shrink-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {module && (
                 <ModuleSwitcher module={module} onChange={setModule} />
               )}
