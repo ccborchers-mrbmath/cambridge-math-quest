@@ -348,8 +348,8 @@ const Index = () => {
       {/* Header */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
                 <BookOpen className="h-6 w-6 text-primary-foreground" />
               </div>
@@ -365,8 +365,8 @@ const Index = () => {
                 </p>
               </button>
             </div>
-            
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap flex-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {module && (
                 <ModuleSwitcher module={module} onChange={setModule} />
               )}
