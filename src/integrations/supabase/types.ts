@@ -51,6 +51,7 @@ export type Database = {
           markscheme_text: string | null
           markscheme_text_status: string
           markscheme_url: string | null
+          module: Database["public"]["Enums"]["module_code"]
           notes: string | null
           paper_number: number
           question_image_path: string | null
@@ -73,6 +74,7 @@ export type Database = {
           markscheme_text?: string | null
           markscheme_text_status?: string
           markscheme_url?: string | null
+          module?: Database["public"]["Enums"]["module_code"]
           notes?: string | null
           paper_number: number
           question_image_path?: string | null
@@ -95,6 +97,7 @@ export type Database = {
           markscheme_text?: string | null
           markscheme_text_status?: string
           markscheme_url?: string | null
+          module?: Database["public"]["Enums"]["module_code"]
           notes?: string | null
           paper_number?: number
           question_image_path?: string | null
@@ -211,6 +214,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "student"
+      module_code: "P1" | "P2" | "P3" | "S1" | "S2" | "M1"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -339,6 +343,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "student"],
+      module_code: ["P1", "P2", "P3", "S1", "S2", "M1"],
     },
   },
 } as const
