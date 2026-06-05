@@ -44,9 +44,24 @@ const AdminDashboard = () => {
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    if (!loading && (!user || userRole !== 'admin')) {
+    if (loading) return;
+    if (!user) {
       navigate('/auth');
+      return;
     }
+    // Server-side verification: don't trust client `userRole` state alone.
+    let cancelled = false;
+    (async () => {
+      const { data: isAdmin, error } = await supabase.rpc('has_role', {
+        _user_id: user.id,
+        _role: 'admin',
+      });
+      if (cancelled) return;
+      if (error || !isAdmin) {
+        navigate('/auth');
+      }
+    })();
+    return () => { cancelled = true; };
   }, [user, userRole, loading, navigate]);
 
   useEffect(() => {
