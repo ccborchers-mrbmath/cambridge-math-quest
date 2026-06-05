@@ -264,16 +264,25 @@ const TestMaker = () => {
       </section>
     `;
 
-    const questionPages = processedQuestions.map(pq => `
+    let pageNum = 0;
+    const questionPages = processedQuestions.map(pq => {
+      pageNum += 1;
+      const qPageNo = pageNum;
+      pageNum += 1;
+      const wPageNo = pageNum;
+      return `
       <section class="page question-page">
+        <div class="page-number">${qPageNo}</div>
         ${pq.processedImageUrl
           ? `<img class="q-img" src="${pq.processedImageUrl}" alt="Question ${pq.newNumber}"/>`
           : `<p class="err">Question image unavailable</p>`}
       </section>
       <section class="page working-page">
+        <div class="page-number">${wPageNo}</div>
         <div class="working-head">Working space for Question ${pq.newNumber}</div>
       </section>
-    `).join("");
+    `;
+    }).join("");
 
     const date = new Date().toISOString().split("T")[0];
     const docHtml = `<!doctype html>
@@ -298,8 +307,10 @@ const TestMaker = () => {
     display: flex; justify-content: space-between; align-items: center; color: #1e293b; }
   .topics { list-style: disc; padding-left: 6mm; color: #1e293b; }
   .topics li { margin: 1.5mm 0; }
-  .question-page { padding: 10mm 0 0; }
+  .question-page { padding: 24mm 0 0; }
   .q-img { display: block; width: 210mm; height: auto; margin: 0; }
+  .page-number { position: absolute; top: 15mm; left: 0; right: 0; text-align: center;
+    font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #0f172a; }
   .working-head { text-align: center; color: #cbd5e1; font-size: 11pt; }
   .err { color: #b91c1c; }
 </style></head>
