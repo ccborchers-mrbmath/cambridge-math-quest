@@ -313,7 +313,7 @@ const TestMaker = () => {
   .working-page { padding: 24mm 0 0; display: flex; flex-direction: column; }
   .q-img { display: block; width: 210mm; height: auto; margin: 0; flex: 0 0 auto; }
   .lines-wrap { flex: 1 1 auto; position: relative; }
-  .lines-inner { position: absolute; top: 6mm; left: 16mm; right: 16mm; bottom: 25mm; overflow: hidden; }
+  .lines-inner { position: absolute; top: 6mm; left: 25mm; right: 16mm; bottom: 25mm; overflow: hidden; }
   .line { height: 9mm; border-bottom: 1px dotted #0f172a; }
   .page-number { position: absolute; top: 15mm; left: 0; right: 0; text-align: center;
     font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #0f172a; }
