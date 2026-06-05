@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen, FileText, RefreshCw, UploadCloud, Wand2 } from "lucide-react";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MODULES, ModuleCode } from "@/lib/modules";
 
 const SITTINGS = ["Feb/Mar", "May/Jun", "Oct/Nov"] as const;
 const BUCKET = "exam-images";
@@ -64,6 +65,7 @@ type QuestionRow = {
   sitting: string;
   paper_number: number;
   question_number: number;
+  module: ModuleCode;
   topic: string | null;
   subtopics: string | null;
   marks: number | null;
@@ -84,6 +86,7 @@ const emptyDraft = (): Partial<QuestionRow> => ({
   sitting: "May/Jun",
   paper_number: 31,
   question_number: 1,
+  module: "P3",
   topic: "",
   subtopics: "",
   marks: null,
@@ -281,6 +284,7 @@ const AdminQuestions = () => {
         sitting: String(draft.sitting),
         paper_number: Number(draft.paper_number),
         question_number: Number(draft.question_number),
+        module: (draft.module as ModuleCode) || "P3",
         topic: draft.topic || null,
         subtopics: draft.subtopics || null,
         marks: draft.marks == null || draft.marks === ("" as unknown) ? null : Number(draft.marks),
