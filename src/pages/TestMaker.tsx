@@ -217,137 +217,9 @@ const TestMaker = () => {
     });
   };
 
-  // Open a print-ready HTML document in a hidden iframe and trigger the
-  // browser's "Save as PDF" dialog. Mark schemes are rendered as real HTML
-  // (vector text, selectable, with proper table reflow + page breaks); question
-  // images are embedded edge-to-edge as today.
-  const handleDownloadPDF = async () => {
-    const topics = Array.from(new Set(processedQuestions.map(pq => pq.original.topic)));
-    const thresholds = `A: ${testStats.gradeThresholds.A}  ·  B: ${testStats.gradeThresholds.B}  ·  C: ${testStats.gradeThresholds.C}  ·  D: ${testStats.gradeThresholds.D}  ·  E: ${testStats.gradeThresholds.E}`;
-    const hasMarkschemes = includeMarkschemes && processedQuestions.some(pq => pq.markschemeText);
-
-    const coverHtml = `
-      <section class="page cover">
-        <div class="cover-bar-top"></div>
-        <h1>Custom Practice Test</h1>
-        <hr/>
-        <p class="stats">${processedQuestions.length} Questions  ·  ${testStats.totalMarks} Marks  ·  Time: ${testStats.timeString}</p>
-        <div class="thresholds"><strong>Grade Thresholds</strong><span>${thresholds}</span></div>
-        <h2>Topics Covered</h2>
-        <ul class="topics">${topics.map(t => `<li>${t}</li>`).join("")}</ul>
-        <div class="cover-bar-bottom">Good luck!</div>
-      </section>
-    `;
-
-    const questionPages = processedQuestions.map(pq => `
-      <section class="page question-page">
-        <header class="q-head">
-          <div class="q-title">Question ${pq.newNumber}</div>
-          <div class="q-meta">${pq.original.marks} marks · ${pq.original.topic}</div>
-        </header>
-        ${pq.processedImageUrl
-          ? `<img class="q-img" src="${pq.processedImageUrl}" alt="Question ${pq.newNumber}"/>`
-          : `<p class="err">Question image unavailable</p>`}
-      </section>
-      <section class="page working-page">
-        <div class="working-head">Working space for Question ${pq.newNumber}</div>
-      </section>
-    `).join("");
-
-    const markschemePages = hasMarkschemes ? `
-      <section class="page ms-cover">
-        <h1>Mark Schemes</h1>
-        <p>${processedQuestions.length} Questions</p>
-      </section>
-      ${processedQuestions.map(pq => `
-        <section class="page ms-page">
-          <header class="q-head">
-            <div class="q-title">Mark Scheme — Question ${pq.newNumber}</div>
-            <div class="q-meta">${pq.original.marks} marks · ${pq.original.topic}</div>
-          </header>
-          <div class="ms-render">
-            ${pq.markschemeText
-              ? withColgroups(renderLatexToHtml(renumberMarkschemeText(pq.markschemeText, pq.newNumber)))
-              : `<p class="muted">Mark scheme text not yet available</p>`}
-          </div>
-        </section>
-      `).join("")}
-    ` : "";
-
-    const date = new Date().toISOString().split("T")[0];
-    const docHtml = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <title>practice-test-${date}</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous"/>
-  <style>
-    @page { size: A4 portrait; margin: 0; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: #fff; color: #0f172a;
-      font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
-    .page { width: 210mm; min-height: 297mm; padding: 18mm 16mm; page-break-after: always; position: relative; }
-    .page:last-child { page-break-after: auto; }
-    h1 { font-size: 32pt; margin: 24mm 0 4mm; text-align: center; }
-    h2 { font-size: 14pt; margin: 14mm 0 4mm; border-bottom: 1px solid #1e293b; display: inline-block; padding-bottom: 2mm; }
-    hr { border: 0; border-top: 1px solid #cbd5e1; margin: 0 0 4mm; }
-    .cover .stats { text-align: center; color: #475569; margin: 0 0 8mm; }
-    .cover-bar-top { position: absolute; top: 0; left: 0; right: 0; height: 8mm; background: #1e293b; }
-    .cover-bar-bottom { position: absolute; bottom: 0; left: 0; right: 0; height: 12mm;
-      background: #1e293b; color: #fff; font-style: italic; display: flex;
-      align-items: center; justify-content: center; }
-    .thresholds { background: #f1f5f9; padding: 4mm 6mm; border-radius: 2mm;
-      display: flex; justify-content: space-between; align-items: center; color: #1e293b; }
-    .topics { list-style: disc; padding-left: 6mm; color: #1e293b; }
-    .topics li { margin: 1.5mm 0; }
-    .q-head { margin-bottom: 4mm; }
-    .q-title { font-size: 14pt; font-weight: 700; color: #1e293b; }
-    .q-meta  { font-size: 9pt; color: #64748b; margin-top: 1mm; }
-    .question-page { padding: 18mm 0 18mm; }
-    .question-page .q-head { padding: 0 16mm; }
-    .q-img { display: block; width: 100%; height: auto; }
-    .working-head { text-align: center; color: #cbd5e1; font-size: 11pt; }
-    .ms-cover { display: flex; flex-direction: column; align-items: center;
-      justify-content: center; background: #1e293b; color: #fff; }
-    .ms-cover h1 { color: #fff; }
-    .ms-cover p { font-size: 14pt; }
-    .ms-page .ms-render { font-size: 10.5pt; line-height: 1.45; }
-    .ms-render table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 2mm 0; }
-    .ms-render thead { display: table-header-group; }
-    .ms-render tr { page-break-inside: avoid; }
-    .ms-render th, .ms-render td { border: 1px solid #94a3b8; padding: 2mm 2.5mm;
-      vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; }
-    .ms-render th { background: #f1f5f9; font-weight: 600; text-align: left; }
-    .ms-render col.col-part     { width: 10%; }
-    .ms-render col.col-answer   { width: 45%; }
-    .ms-render col.col-marks    { width: 10%; }
-    .ms-render col.col-guidance { width: 35%; }
-    .ms-render .katex { font-size: 1em; }
-    .muted { color: #94a3b8; }
-    .err { color: #b91c1c; }
-  </style>
-</head>
-<body>
-  ${coverHtml}
-  ${questionPages}
-  ${markschemePages}
-  <script>
-    (function () {
-      function go() {
-        window.focus();
-        window.print();
-      }
-      if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(go).catch(go);
-      } else {
-        window.addEventListener('load', go);
-      }
-    })();
-  </script>
-</body>
-</html>`;
-
-    // Render via a hidden iframe so we don't get blocked by popup blockers.
+  // Shared helper: render an HTML document into a hidden iframe and trigger
+  // the browser's print dialog (user picks "Save as PDF").
+  const printHtmlDocument = (docHtml: string) => {
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
     iframe.style.right = "0";
@@ -364,15 +236,154 @@ const TestMaker = () => {
     doc.open();
     doc.write(docHtml);
     doc.close();
-    // Clean up the iframe a little after the print dialog closes.
     const cleanup = () => {
       setTimeout(() => {
         if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
       }, 1000);
     };
     iframe.contentWindow?.addEventListener("afterprint", cleanup);
-    // Safety net in case afterprint never fires.
     setTimeout(cleanup, 60000);
+  };
+
+  // Question paper: portrait A4. Cambridge-style — bold question number on the
+  // left margin of each question page, no "Question N" header banner.
+  const handleDownloadQuestionPaper = () => {
+    const topics = Array.from(new Set(processedQuestions.map(pq => pq.original.topic)));
+    const thresholds = `A: ${testStats.gradeThresholds.A}  ·  B: ${testStats.gradeThresholds.B}  ·  C: ${testStats.gradeThresholds.C}  ·  D: ${testStats.gradeThresholds.D}  ·  E: ${testStats.gradeThresholds.E}`;
+
+    const coverHtml = `
+      <section class="page cover">
+        <div class="cover-bar-top"></div>
+        <h1>Custom Practice Test</h1>
+        <hr/>
+        <p class="stats">${processedQuestions.length} Questions  ·  ${testStats.totalMarks} Marks  ·  Time: ${testStats.timeString}</p>
+        <div class="thresholds"><strong>Grade Thresholds</strong><span>${thresholds}</span></div>
+        <h2>Topics Covered</h2>
+        <ul class="topics">${topics.map(t => `<li>${t}</li>`).join("")}</ul>
+        <div class="cover-bar-bottom">Good luck!</div>
+      </section>
+    `;
+
+    const questionPages = processedQuestions.map(pq => `
+      <section class="page question-page">
+        <div class="q-number">${pq.newNumber}</div>
+        <div class="q-body">
+          ${pq.processedImageUrl
+            ? `<img class="q-img" src="${pq.processedImageUrl}" alt="Question ${pq.newNumber}"/>`
+            : `<p class="err">Question image unavailable</p>`}
+        </div>
+      </section>
+      <section class="page working-page">
+        <div class="working-head">Working space for Question ${pq.newNumber}</div>
+      </section>
+    `).join("");
+
+    const date = new Date().toISOString().split("T")[0];
+    const docHtml = `<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>practice-test-${date}</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #0f172a;
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  .page { width: 210mm; min-height: 297mm; padding: 18mm 16mm; page-break-after: always; position: relative; }
+  .page:last-child { page-break-after: auto; }
+  h1 { font-size: 32pt; margin: 24mm 0 4mm; text-align: center; }
+  h2 { font-size: 14pt; margin: 14mm 0 4mm; border-bottom: 1px solid #1e293b; display: inline-block; padding-bottom: 2mm; }
+  hr { border: 0; border-top: 1px solid #cbd5e1; margin: 0 0 4mm; }
+  .cover .stats { text-align: center; color: #475569; margin: 0 0 8mm; }
+  .cover-bar-top { position: absolute; top: 0; left: 0; right: 0; height: 8mm; background: #1e293b; }
+  .cover-bar-bottom { position: absolute; bottom: 0; left: 0; right: 0; height: 12mm;
+    background: #1e293b; color: #fff; font-style: italic; display: flex;
+    align-items: center; justify-content: center; }
+  .thresholds { background: #f1f5f9; padding: 4mm 6mm; border-radius: 2mm;
+    display: flex; justify-content: space-between; align-items: center; color: #1e293b; }
+  .topics { list-style: disc; padding-left: 6mm; color: #1e293b; }
+  .topics li { margin: 1.5mm 0; }
+  .question-page { padding: 18mm 0 18mm; display: flex; }
+  .question-page .q-number { width: 14mm; padding-left: 8mm; font-size: 14pt; font-weight: 700; color: #0f172a; flex: 0 0 auto; }
+  .question-page .q-body { flex: 1; padding-right: 8mm; }
+  .q-img { display: block; width: 100%; height: auto; }
+  .working-head { text-align: center; color: #cbd5e1; font-size: 11pt; }
+  .err { color: #b91c1c; }
+</style></head>
+<body>
+  ${coverHtml}
+  ${questionPages}
+  <script>
+    (function () {
+      function go() { window.focus(); window.print(); }
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(go).catch(go);
+      } else { window.addEventListener('load', go); }
+    })();
+  </script>
+</body></html>`;
+    printHtmlDocument(docHtml);
+  };
+
+  // Mark scheme: landscape A4. Wide Answer + Guidance columns, narrow Part +
+  // Marks columns. One question's mark scheme per page; rows avoid splitting.
+  const handleDownloadMarkScheme = () => {
+    const hasMarkschemes = includeMarkschemes && processedQuestions.some(pq => pq.markschemeText);
+    if (!hasMarkschemes) return;
+
+    const msPages = processedQuestions.map(pq => `
+      <section class="page ms-page">
+        <header class="ms-head">
+          <div class="ms-title">Mark Scheme — Question ${pq.newNumber}</div>
+          <div class="ms-meta">${pq.original.marks} marks · ${pq.original.topic}</div>
+        </header>
+        <div class="ms-render">
+          ${pq.markschemeText
+            ? withColgroups(renderLatexToHtml(renumberMarkschemeText(pq.markschemeText, pq.newNumber)))
+            : `<p class="muted">Mark scheme text not yet available</p>`}
+        </div>
+      </section>
+    `).join("");
+
+    const date = new Date().toISOString().split("T")[0];
+    const docHtml = `<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>mark-scheme-${date}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous"/>
+<style>
+  @page { size: A4 landscape; margin: 12mm 14mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #0f172a;
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .ms-head { margin-bottom: 4mm; border-bottom: 1px solid #cbd5e1; padding-bottom: 2mm; }
+  .ms-title { font-size: 13pt; font-weight: 700; color: #1e293b; }
+  .ms-meta  { font-size: 9pt; color: #64748b; margin-top: 1mm; }
+  .ms-render { font-size: 10.5pt; line-height: 1.45; }
+  .ms-render table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 2mm 0; }
+  .ms-render thead { display: table-header-group; }
+  .ms-render tr { page-break-inside: avoid; }
+  .ms-render th, .ms-render td { border: 1px solid #94a3b8; padding: 2mm 2.5mm;
+    vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; }
+  .ms-render th { background: #f1f5f9; font-weight: 600; text-align: left; }
+  .ms-render col.col-part     { width: 8%; }
+  .ms-render col.col-answer   { width: 42%; }
+  .ms-render col.col-marks    { width: 7%; }
+  .ms-render col.col-guidance { width: 43%; }
+  .ms-render .katex { font-size: 1em; }
+  .muted { color: #94a3b8; }
+</style></head>
+<body>
+  ${msPages}
+  <script>
+    (function () {
+      function go() { window.focus(); window.print(); }
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(go).catch(go);
+      } else { window.addEventListener('load', go); }
+    })();
+  </script>
+</body></html>`;
+    printHtmlDocument(docHtml);
   };
 
   if (isCompiled) {
@@ -410,10 +421,16 @@ const TestMaker = () => {
                   <ImageDown className="h-4 w-4 mr-2" />
                   Download Images
                 </Button>
-                <Button onClick={handleDownloadPDF}>
+                <Button variant="outline" onClick={handleDownloadQuestionPaper}>
                   <Download className="h-4 w-4 mr-2" />
-                  Download PDF
+                  Question Paper
                 </Button>
+                {hasMarkschemes && (
+                  <Button onClick={handleDownloadMarkScheme}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Mark Scheme
+                  </Button>
+                )}
               </div>
             </div>
           </div>
