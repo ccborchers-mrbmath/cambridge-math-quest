@@ -1,3 +1,5 @@
+import { logger } from "@/lib/logger";
+
 // Proxy URL for images to bypass CORS
 export const getProxiedImageUrl = (originalUrl: string): string => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
