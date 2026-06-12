@@ -1,54 +1,40 @@
 ## Goal
 
-Lay the foundation for supporting all six CIE 9709 modules — **Pure Math 1, Pure Math 2, Pure Math 3, Probability & Statistics 1, Probability & Statistics 2, Mechanics** — in a single unified app. This phase introduces the concept of a "module" everywhere, gates the app behind a module picker, and scopes all existing content to P3. No new question content is added yet — that comes module-by-module afterward.
+Unblock you. Stop the redirect loops, stop role checks from hiding the admin button or `/admin` page, and fix "My Progress" — without exposing other users' data.
 
-## What changes for the user
+Approach: treat every signed-in user as an admin for now (frontend + backend). Keep "My Progress" scoped per-user as it always was.
 
-1. **New landing page at `/`** — "Choose your module" picker with six cards (P1, P2, P3, S1, S2, M1). Each card shows the module name and a question count (e.g. "P3 — 412 questions", "S1 — coming soon"). Modules with zero questions are visibly tagged "Coming soon" but still selectable so admins can preview.
-2. **Selected module is remembered** in `localStorage` and reflected in the URL (e.g. `/practice?module=P3`). A small "Module: P3 ▾" chip in the header lets users switch without going back to the picker.
-3. **The current home screen** (search, dropdowns, popular topics, "Test me on", Test Maker entry) moves to `/practice` and operates only within the selected module.
-4. **Test Maker, "Show me another", "Test me on", Progress page, Admin question list** all filter by the active module.
-5. **Admin question upload** gets a required Module field.
+## What changes
 
-## Data model
+### Frontend (gating off)
+- `src/hooks/useAuth.tsx`: any signed-in user gets `userRole = 'admin'` immediately after the session loads. No more `user_roles` query, no race, no loading deadlock.
+- `src/pages/AdminDashboard.tsx`: remove the "if student then redirect" / "Checking access…" branches. Only redirect to `/auth` if not signed in.
+- `src/pages/AdminQuestions.tsx`: same — only the signed-in check remains.
+- `src/pages/Auth.tsx`: after sign-in, just navigate to the requested redirect (default `/`). Drop the extra `user_roles` lookup.
+- `src/pages/ModulePicker.tsx`: always show the "Admin Dashboard" button for signed-in users.
 
-Add a `module` column to `public.questions`:
+### Backend (RLS opened to all signed-in users, except progress)
+A single migration that rewrites policies so:
+- `questions`: any signed-in user can SELECT / INSERT / UPDATE / DELETE (lets you upload + edit question and mark-scheme images).
+- `storage.objects` on the `exam-images` bucket: any signed-in user can read/write/delete.
+- `profiles`: a signed-in user can read/update their own row (unchanged in spirit).
+- `user_roles`: readable by signed-in users (harmless now that the frontend ignores it). No writes from the client.
+- `student_attempts`: **unchanged** — each user still only sees and writes their own rows. This is what restores "My Progress" for you (the loop and role confusion were making the page error out / show nothing).
 
-- Type: a new Postgres enum `module_code` with values `P1, P2, P3, S1, S2, M1`.
-- `NOT NULL`, no default — backfill all existing rows to `P3` in the same migration (current DB is 100% P3).
-- Index on `(module, topic)` to keep search fast.
+No tables are opened to anonymous visitors. The published app still requires sign-in for everything that matters.
 
-No other table changes needed in Phase 1. `student_attempts` inherits the module via its FK to `questions`; the Progress page joins to read it.
+## Why "My Progress" came back empty
 
-## Files touched
+Your account is signed in, but the previous changes left the role resolver in a state where `userRole` never settled to `'admin'`, which made `/admin` bounce and `/progress` render its "loading…" branch indefinitely. The attempts row in the database is fine — the migration below doesn't touch your data, and once the frontend stops gating, your history will reappear.
 
-- **Migration** (one call): create enum, add column with backfill, set NOT NULL, add index.
-- `src/data/questions.ts` — add `module: ModuleCode` to the `Question` type; existing entries get `module: "P3"`.
-- `src/lib/modules.ts` *(new)* — single source of truth: `ModuleCode` type, ordered list, display names, short labels, route helpers, and a `useActiveModule()` hook backed by URL + localStorage.
-- `src/pages/ModulePicker.tsx` *(new)* — the new landing page at `/`. Six cards, each with live question count from `questionsDatabase` filtered by module.
-- `src/pages/Index.tsx` — moves to route `/practice`, reads active module, filters every question query by it, updates header to show module chip + switcher, updates dropdowns/popular topics/Test me on to be module-scoped.
-- `src/App.tsx` — new routes: `/` → ModulePicker, `/practice` → Index, keep `/test-maker`, `/progress`, `/admin`, `/auth` unchanged but they read active module from the hook.
-- `src/pages/TestMaker.tsx` — filter source pool by active module; module name appears on PDF cover/header.
-- `src/pages/StudentProgress.tsx` — show module filter tabs (default to active module); subtopic curriculum scoped per module.
-- `src/pages/AdminQuestions.tsx` + upload/edit forms — add Module dropdown (required); list view gets a module filter.
-- `src/lib/curriculum.ts` — accept an optional `module` filter; the existing subtopic logic stays, just narrowed.
-- `src/components/TopicTest.tsx` — accept and respect active module when picking questions.
+## How we put real admin gating back later
 
-## Header / navigation
+When you're ready, we re-introduce role checks in two small steps: (1) restore the `private.has_role` based RLS on `questions`/storage, (2) put the role check back in `useAuth` and the admin pages. Your `user_roles` row stays in place the whole time, so nothing needs to be re-seeded.
 
-The current header stays, with one addition: a compact "Module: **P3** ▾" button next to the existing nav buttons that opens a small popover with the six modules. Clicking one updates URL + storage and reloads the current page's query.
+## Technical details
 
-## Out of scope (future phases)
+- Migration drops and recreates the existing policies on `public.questions`, `public.user_roles`, `public.profiles`, and the `exam-images` policies on `storage.objects`. Each `CREATE POLICY` uses `TO authenticated` with `USING (true)` / `WITH CHECK (true)` for the opened tables; `student_attempts` keeps `auth.uid() = user_id`. GRANTs to `authenticated` and `service_role` are reasserted on every touched public table; no GRANTs to `anon`.
+- `useAuth` keeps the `useSyncExternalStore` shape but the role resolver becomes synchronous: `userRole = session?.user ? 'admin' : null`, `loading` flips to `false` as soon as `getSession()` resolves.
+- No edits to `src/integrations/supabase/client.ts` or generated types.
 
-- Uploading P1/P2/S1/S2/M1 question images and markschemes (admin will do this module-by-module via existing tools, now with a Module field).
-- Per-module syllabus subtopic trees beyond what already exists for P3 — these come with the content for each module.
-- Cross-module analytics on the Progress page (e.g. "weak across all modules"). Phase 1 keeps Progress scoped to one module at a time.
-- Branding/copy tweaks ("Paper 3 Practice" → "AS & A Level Practice") will be a small follow-up once all modules have content.
-
-## Technical notes
-
-- The enum approach (rather than free-text) prevents typos and makes the admin dropdown trivial.
-- Backfilling existing rows to `P3` is safe: a `SELECT count(*) FROM questions WHERE module IS DISTINCT FROM 'P3'` after migration must return 0.
-- `useActiveModule()` reads from URL search param first, then localStorage, then redirects to `/` (picker) if neither is set and the route requires a module.
-- RLS policies on `questions` already allow public read of published rows; no policy changes needed.
-- Memory update at the end: the project memory still says "Paper 3 practice platform" — I'll update `mem://index.md` and `mem://project/core-purpose` to reflect the multi-module scope.
+After you approve, I run the migration first, then make the frontend edits, then ask you to click **Update** in the Publish dialog so the live site picks up the changes.
