@@ -13,6 +13,7 @@ import { LatexRenderer } from '@/components/LatexRenderer';
 import { getAllCurriculumSubtopics, getMasteredSubtopicCodes } from '@/lib/curriculum';
 import { questionsDatabase } from '@/data/questions';
 import { moduleOf } from '@/lib/modules';
+import { useQuestionsVersion } from '@/lib/questionStore';
 
 interface StudentAttempt {
   id: string;
@@ -36,6 +37,7 @@ type SortMode = 'recent' | 'reference' | 'topic' | 'score';
 const StudentProgress = () => {
   const navigate = useNavigate();
   const { user, loading, signOut } = useAuth();
+  useQuestionsVersion();
   const [attempts, setAttempts] = useState<StudentAttempt[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [sortMode, setSortMode] = useState<SortMode>('recent');

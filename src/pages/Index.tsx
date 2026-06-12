@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { useActiveModule, moduleOf, getModuleInfo } from "@/lib/modules";
+import { useQuestionsVersion } from "@/lib/questionStore";
 import {
   Select,
   SelectContent,
@@ -22,6 +23,8 @@ const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, userRole, loading, signOut } = useAuth();
   const { module, setModule } = useActiveModule({ redirectIfMissing: true });
+  // Subscribe to DB question loads so dropdowns/search reflect uploads.
+  const questionsVersion = useQuestionsVersion();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>("");
@@ -35,7 +38,7 @@ const Index = () => {
   // Pool of questions scoped to the currently active module.
   const pool = useMemo(
     () => questionsDatabase.filter((q) => moduleOf(q) === module),
-    [module]
+    [module, questionsVersion]
   );
 
   // Get unique main topics for the "Test me on" dropdown
