@@ -27,7 +27,9 @@ const SESSION_MAP: Record<string, typeof SITTINGS[number]> = {
 };
 
 // Matches e.g. 9709_m24_qp_32_q01.jpg / 9709_s24_ms_31_q1.png
-const FILENAME_RE = /^9709_([msw])(\d{2})_(qp|ms)_(\d{1,2})_q(\d{1,2})\b/i;
+// Also accepts the underscore between qp|ms and the paper number being omitted,
+// e.g. 9709_m24_qp32_q01.jpg
+const FILENAME_RE = /^9709_([msw])(\d{2})_(qp|ms)_?(\d{1,2})_q(\d{1,2})\b/i;
 
 type ParsedName = {
   year: number;
@@ -826,9 +828,10 @@ const AdminQuestions = () => {
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">
               Drop or pick all the question and mark-scheme images at once. Filenames must follow the pattern
-              {" "}<code className="px-1 py-0.5 bg-muted rounded text-xs">9709_&#123;m|s|w&#125;YY_&#123;qp|ms&#125;_PP_qNN.ext</code>{" "}
-              (e.g. <code className="px-1 py-0.5 bg-muted rounded text-xs">9709_m24_qp_32_q01.jpg</code> pairs with
-              {" "}<code className="px-1 py-0.5 bg-muted rounded text-xs">9709_m24_ms_32_q01.jpg</code>).
+              {" "}<code className="px-1 py-0.5 bg-muted rounded text-xs">9709_&#123;m|s|w&#125;YY_&#123;qp|ms&#125;[_]PP_qNN.ext</code>{" "}
+              (e.g. <code className="px-1 py-0.5 bg-muted rounded text-xs">9709_m24_qp_32_q01.jpg</code> or
+              {" "}<code className="px-1 py-0.5 bg-muted rounded text-xs">9709_m24_qp32_q01.jpg</code>, each pairing with the matching
+              {" "}<code className="px-1 py-0.5 bg-muted rounded text-xs">ms</code> file).
               Existing rows with the same year/sitting/paper/question are updated; new rows are created. Text versions are extracted automatically in the background.
             </p>
             <label className="block">
