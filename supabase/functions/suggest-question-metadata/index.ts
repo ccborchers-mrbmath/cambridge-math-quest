@@ -43,26 +43,42 @@ serve(async (req) => {
     });
     if (!isAdmin) return jsonResponse({ error: "Forbidden" }, 403);
 
-    const { questionImage, markschemeImage } = await req.json();
+    const { questionImage, markschemeImage, module: moduleRaw } = await req.json();
     if (typeof questionImage !== "string" || !questionImage) {
       return jsonResponse({ error: "questionImage is required" }, 400);
     }
+    const module: string =
+      typeof moduleRaw === "string" && SYLLABI[moduleRaw] ? moduleRaw : "P3";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       return jsonResponse({ error: "AI key not configured" }, 500);
     }
 
+    const syllabus = SYLLABI[module];
+    const syllabusBlock = syllabus
+      ? `Use ONLY the following ${syllabus.name} syllabus for classification. ` +
+        `Topic must be EXACTLY one of: ${syllabus.topics.map((t) => t.name).join("; ")}. ` +
+        `Subtopics must be a comma-separated list of entries chosen verbatim from this list (use the exact code and label):\n` +
+        syllabus.topics
+          .map(
+            (t) =>
+              `${t.number} ${t.name}: ` +
+              t.subtopics.map((s) => `${s.code} ${s.label}`).join("; "),
+          )
+          .join("\n")
+      : "Use the standard Cambridge 9709 syllabus topics and subtopics for this paper. " +
+        "Subtopics is a comma-separated list of syllabus codes + labels (e.g. '7.2 Partial fractions, 8.4 Integration by substitution').";
+
     const content: unknown[] = [
       {
         type: "text",
         text:
-          "You are given image(s) of a Cambridge A-Level Math 9709 Paper 3 exam question and (optionally) its mark scheme. " +
+          `You are given image(s) of a Cambridge A-Level Math 9709 ${syllabus?.name ?? "Paper 3"} exam question and (optionally) its mark scheme. ` +
           "Extract metadata as STRICT JSON with this shape: " +
           '{"year": number|null, "sitting": "Feb/Mar"|"May/Jun"|"Oct/Nov"|null, "paper_number": number|null, "question_number": number|null, "topic": string|null, "subtopics": string|null, "marks": number|null}. ' +
           "Sitting must be exactly one of Feb/Mar, May/Jun, Oct/Nov. " +
-          "Topic should be the high-level Paper 3 topic (e.g. Algebra, Trigonometry, Differentiation, Integration, Further calculus, Complex numbers, Vectors, Differential equations, Numerical solutions of equations, Logarithmic and exponential functions, Further algebra). " +
-          "Subtopics is a comma-separated list of syllabus codes + labels (e.g. '7.2 Partial fractions, 8.4 Integration by substitution'). " +
+          syllabusBlock + " " +
           "Use null for any field you cannot confidently determine. Return ONLY JSON.",
       },
       { type: "image_url", image_url: { url: questionImage } },
