@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { logger } from "@/lib/logger";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,13 +9,15 @@ import { toast } from 'sonner';
 
 const Auth = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, signInWithGoogle, loading } = useAuth();
+  const redirectTarget = searchParams.get('redirect') || '/';
 
   useEffect(() => {
     if (user && !loading) {
-      navigate('/');
+      navigate(redirectTarget, { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, redirectTarget]);
 
   const handleGoogleSignIn = async () => {
     const { error } = await signInWithGoogle();
