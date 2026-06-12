@@ -100,12 +100,6 @@ serve(async (req) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const { data: isAdmin } = await supabase.rpc("has_role", {
-      _user_id: userData.user.id,
-      _role: "admin",
-    });
-    if (!isAdmin) return jsonResponse({ error: "Forbidden" }, 403);
-
     const { questionImage, markschemeImage, module: moduleRaw } = await req.json();
     if (typeof questionImage !== "string" || !questionImage) {
       return jsonResponse({ error: "questionImage is required" }, 400);
