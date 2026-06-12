@@ -45,12 +45,13 @@ export const useAuth = () => {
 
   const fetchUserRole = async (userId: string) => {
     try {
-      const { data: isAdmin, error } = await supabase.rpc('has_role', {
-        _user_id: userId,
-        _role: 'admin',
-      });
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
 
       if (error) throw error;
+      const isAdmin = (data ?? []).some((row) => row.role === 'admin');
       setUserRole(isAdmin ? 'admin' : 'student');
     } catch (error) {
       logger.error('Error fetching user role', error);
