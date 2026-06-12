@@ -3,6 +3,11 @@ import { logger } from "@/lib/logger";
 // Proxy URL for images to bypass CORS
 export const getProxiedImageUrl = (originalUrl: string): string => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  // Supabase Storage signed URLs already serve CORS-friendly headers,
+  // so we can load them directly without going through the proxy.
+  if (supabaseUrl && originalUrl.startsWith(supabaseUrl)) {
+    return originalUrl;
+  }
   return `${supabaseUrl}/functions/v1/image-proxy?url=${encodeURIComponent(originalUrl)}`;
 };
 
