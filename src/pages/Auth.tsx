@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { logger } from "@/lib/logger";
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 import { BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -12,47 +11,11 @@ const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, signInWithGoogle, loading } = useAuth();
-  const [resolvingRedirect, setResolvingRedirect] = useState(false);
   const redirectTarget = searchParams.get('redirect') || '/';
 
   useEffect(() => {
     if (!user || loading) return;
-
-    let cancelled = false;
-
-    const resolveRedirect = async () => {
-      if (redirectTarget !== '/admin') {
-        navigate(redirectTarget, { replace: true });
-        return;
-      }
-
-      setResolvingRedirect(true);
-
-      try {
-        const { data, error } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id);
-
-        if (cancelled) return;
-        if (error) throw error;
-
-        const isAdmin = (data ?? []).some((row) => row.role === 'admin');
-        navigate(isAdmin ? '/admin' : '/', { replace: true });
-      } catch (error) {
-        if (cancelled) return;
-        logger.error('Error resolving post-login redirect', error);
-        navigate('/', { replace: true });
-      } finally {
-        if (!cancelled) setResolvingRedirect(false);
-      }
-    };
-
-    void resolveRedirect();
-
-    return () => {
-      cancelled = true;
-    };
+    navigate(redirectTarget, { replace: true });
   }, [user, loading, navigate, redirectTarget]);
 
   const handleGoogleSignIn = async () => {
@@ -63,7 +26,7 @@ const Auth = () => {
     }
   };
 
-  if (loading || resolvingRedirect) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/30">
         <div className="text-center">

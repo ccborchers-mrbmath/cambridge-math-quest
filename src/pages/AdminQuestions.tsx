@@ -127,13 +127,10 @@ const AdminQuestions = () => {
   const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
-    if (loading || userRole === null) return;
+    if (loading) return;
     if (!user) {
       navigate("/auth?redirect=/admin/questions", { replace: true });
       return;
-    }
-    if (userRole !== "admin") {
-      navigate("/", { replace: true });
     }
   }, [user, userRole, loading, navigate]);
 
@@ -155,8 +152,8 @@ const AdminQuestions = () => {
   };
 
   useEffect(() => {
-    if (user && userRole === "admin") fetchRows();
-  }, [user, userRole]);
+    if (user) fetchRows();
+  }, [user]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

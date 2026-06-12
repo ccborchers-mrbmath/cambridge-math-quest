@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { logger } from "@/lib/logger";
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -52,11 +52,11 @@ const AdminDashboard = () => {
   }, [user, userRole, loading, navigate]);
 
   useEffect(() => {
-    if (user && userRole === 'admin') {
+    if (user) {
       fetchAllAttempts();
       fetchErrorPatterns();
     }
-  }, [user, userRole]);
+  }, [user]);
 
   const fetchAllAttempts = async () => {
     setLoadingAttempts(true);
@@ -118,7 +118,7 @@ const AdminDashboard = () => {
     navigate('/auth');
   };
 
-  if (loading || (userRole === 'admin' && (loadingAttempts || loadingErrors))) {
+  if (loading || loadingAttempts || loadingErrors) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -131,21 +131,6 @@ const AdminDashboard = () => {
 
   if (!user) {
     return null;
-  }
-
-  if (userRole === null) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Checking access...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (userRole === 'student') {
-    return <Navigate to="/" replace />;
   }
 
   const totalAttempts = attempts.length;
