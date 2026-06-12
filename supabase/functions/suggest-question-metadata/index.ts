@@ -7,6 +7,69 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+interface SyllabusSubtopic { code: string; label: string }
+interface SyllabusTopic { number: number; name: string; subtopics: SyllabusSubtopic[] }
+interface Syllabus { name: string; topics: SyllabusTopic[] }
+
+const SYLLABI: Record<string, Syllabus> = {
+  P1: {
+    name: "Pure Mathematics 1 (Paper 1)",
+    topics: [
+      { number: 1, name: "Quadratics", subtopics: [
+        { code: "1.1", label: "Completing the square for a quadratic polynomial" },
+        { code: "1.2", label: "Discriminant and nature of roots" },
+        { code: "1.3", label: "Quadratic equations and inequalities in one unknown" },
+        { code: "1.4", label: "Simultaneous equations (one linear, one quadratic) by substitution" },
+        { code: "1.5", label: "Equations quadratic in some function of x" },
+      ]},
+      { number: 2, name: "Functions", subtopics: [
+        { code: "2.1", label: "Function, domain, range, one-one, inverse, composition" },
+        { code: "2.2", label: "Range of a function and composition of two functions" },
+        { code: "2.3", label: "One-one functions and finding inverses" },
+        { code: "2.4", label: "Graphical relationship between a one-one function and its inverse" },
+        { code: "2.5", label: "Graph transformations (translation, reflection, stretch) and combinations" },
+      ]},
+      { number: 3, name: "Coordinate Geometry", subtopics: [
+        { code: "3.1", label: "Equation of a straight line from given information" },
+        { code: "3.2", label: "Standard forms of straight-line equations" },
+        { code: "3.3", label: "Equation of a circle (including expanded form)" },
+        { code: "3.4", label: "Algebraic problems involving lines and circles" },
+        { code: "3.5", label: "Points of intersection of graphs and solutions of equations" },
+      ]},
+      { number: 4, name: "Circular Measure", subtopics: [
+        { code: "4.1", label: "Radians and conversion between radians and degrees" },
+        { code: "4.2", label: "Arc length and sector area" },
+      ]},
+      { number: 5, name: "Trigonometry", subtopics: [
+        { code: "5.1", label: "Graphs of sine, cosine and tangent" },
+        { code: "5.2", label: "Exact values of sin, cos, tan of 30°, 45°, 60° and related angles" },
+        { code: "5.3", label: "Principal values of inverse trigonometric relations" },
+        { code: "5.4", label: "Trigonometric identities — prove, simplify, solve" },
+        { code: "5.5", label: "Solving trigonometric equations in a specified interval" },
+      ]},
+      { number: 6, name: "Series", subtopics: [
+        { code: "6.1", label: "Binomial expansion of (a + b)^n for positive integer n" },
+        { code: "6.2", label: "Arithmetic and geometric progressions" },
+        { code: "6.3", label: "nth term and sum of first n terms of AP and GP" },
+        { code: "6.4", label: "Convergence and sum to infinity of a geometric progression" },
+      ]},
+      { number: 7, name: "Differentiation", subtopics: [
+        { code: "7.1", label: "Gradient of a curve and standard derivative notation" },
+        { code: "7.2", label: "Differentiate powers, multiples, sums, differences, composites (chain rule)" },
+        { code: "7.3", label: "Gradients, tangents, normals, increasing/decreasing functions, rates of change" },
+        { code: "7.4", label: "Stationary points — locate, classify, use in sketching" },
+      ]},
+      { number: 8, name: "Integration", subtopics: [
+        { code: "8.1", label: "Integration as reverse of differentiation; integrate power functions and sums" },
+        { code: "8.2", label: "Evaluating the constant of integration" },
+        { code: "8.3", label: "Definite integrals" },
+        { code: "8.4", label: "Area of a region bounded by curves and lines" },
+        { code: "8.5", label: "Volume of revolution about an axis" },
+      ]},
+    ],
+  },
+};
+
 const jsonResponse = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
