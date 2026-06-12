@@ -41,7 +41,8 @@ const AdminDashboard = () => {
   const { user, userRole, loading, signOut } = useAuth();
   const [attempts, setAttempts] = useState<StudentAttempt[]>([]);
   const [errorPatterns, setErrorPatterns] = useState<ErrorPattern[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
+  const [loadingAttempts, setLoadingAttempts] = useState(false);
+  const [loadingErrors, setLoadingErrors] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -58,6 +59,7 @@ const AdminDashboard = () => {
   }, [user, userRole]);
 
   const fetchAllAttempts = async () => {
+    setLoadingAttempts(true);
     try {
       const { data, error } = await supabase
         .from('student_attempts')
@@ -76,11 +78,12 @@ const AdminDashboard = () => {
     } catch (error) {
       logger.error('Error fetching attempts:', error);
     } finally {
-      setLoadingData(false);
+      setLoadingAttempts(false);
     }
   };
 
   const fetchErrorPatterns = async () => {
+    setLoadingErrors(true);
     try {
       const { data, error } = await supabase
         .from('student_attempts')
@@ -105,6 +108,8 @@ const AdminDashboard = () => {
       setErrorPatterns(sortedPatterns);
     } catch (error) {
       logger.error('Error fetching error patterns:', error);
+    } finally {
+      setLoadingErrors(false);
     }
   };
 
@@ -113,7 +118,7 @@ const AdminDashboard = () => {
     navigate('/auth');
   };
 
-  if (loading || loadingData) {
+  if (loading || (userRole === 'admin' && (loadingAttempts || loadingErrors))) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -126,6 +131,17 @@ const AdminDashboard = () => {
 
   if (!user) {
     return null;
+  }
+
+  if (userRole === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Checking access...</p>
+        </div>
+      </div>
+    );
   }
 
   if (userRole === 'student') {

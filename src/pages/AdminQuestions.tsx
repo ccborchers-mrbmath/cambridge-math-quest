@@ -127,7 +127,14 @@ const AdminQuestions = () => {
   const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
-    if (!loading && (!user || userRole !== "admin")) navigate("/auth");
+    if (loading || userRole === null) return;
+    if (!user) {
+      navigate("/auth?redirect=/admin/questions", { replace: true });
+      return;
+    }
+    if (userRole !== "admin") {
+      navigate("/", { replace: true });
+    }
   }, [user, userRole, loading, navigate]);
 
   const fetchRows = async () => {

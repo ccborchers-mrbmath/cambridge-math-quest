@@ -56,7 +56,7 @@ const Auth = () => {
   }, [user, loading, navigate, redirectTarget]);
 
   const handleGoogleSignIn = async () => {
-    const { error } = await signInWithGoogle();
+    const { error } = await signInWithGoogle(redirectTarget);
     if (error) {
       toast.error(error.message || 'Failed to sign in with Google');
       logger.error('Google sign in error:', error);
