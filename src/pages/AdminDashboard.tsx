@@ -49,7 +49,7 @@ const AdminDashboard = () => {
       navigate('/auth?redirect=/admin', { replace: true });
       return;
     }
-    if (userRole && userRole !== 'admin') {
+    if (userRole === 'student') {
       navigate('/auth?redirect=/admin', { replace: true });
     }
   }, [user, userRole, loading, navigate]);
