@@ -4,10 +4,6 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable';
 
-interface UserRole {
-  role: 'admin' | 'student';
-}
-
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -52,13 +48,13 @@ export const useAuth = () => {
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('user_id', userId)
-        .single<UserRole>();
+        .eq('user_id', userId);
 
       if (error) throw error;
-      setUserRole(data.role);
+      const isAdmin = (data ?? []).some((row) => row.role === 'admin');
+      setUserRole(isAdmin ? 'admin' : 'student');
     } catch (error) {
-      logger.error('Error fetching user role');
+      logger.error('Error fetching user role', error);
       setUserRole('student'); // Default to student
     } finally {
       setLoading(false);
