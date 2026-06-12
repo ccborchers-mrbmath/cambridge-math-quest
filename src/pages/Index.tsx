@@ -42,7 +42,9 @@ const Index = () => {
   );
 
   // Get unique main topics for the "Test me on" dropdown
-  const mainTopics = Array.from(new Set(pool.map(q => q.topic))).sort();
+  const mainTopics = Array.from(
+    new Set(pool.map((q) => q.topic?.trim()).filter((topic): topic is string => Boolean(topic)))
+  ).sort();
 
   // Reset any current question when switching modules.
   useEffect(() => {
