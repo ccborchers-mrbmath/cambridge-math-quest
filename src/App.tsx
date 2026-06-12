@@ -13,16 +13,16 @@ import TestMaker from "./pages/TestMaker";
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { loadQuestionsFromDb, refreshQuestionsFromDb } from "@/lib/questionStore";
-
-// Kick off loading DB questions as soon as the app boots so the practice
-// flows, picker counts, dropdowns, search, and Test Maker see admin uploads.
-loadQuestionsFromDb();
+import { refreshQuestionsFromDb } from "@/lib/questionStore";
 
 const queryClient = new QueryClient();
 
 const AppShell = () => {
   useEffect(() => {
+    void supabase.auth.getSession().then(() => {
+      void refreshQuestionsFromDb();
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
       void refreshQuestionsFromDb();
     });
