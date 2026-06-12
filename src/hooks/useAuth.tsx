@@ -1,65 +1,107 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { logger } from "@/lib/logger";
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable';
 
+type AuthRole = 'admin' | 'student' | null;
+
+interface AuthState {
+  loading: boolean;
+  session: Session | null;
+  user: User | null;
+  userRole: AuthRole;
+}
+
+const subscribers = new Set<() => void>();
+
+let authState: AuthState = {
+  loading: true,
+  session: null,
+  user: null,
+  userRole: null,
+};
+
+let initialized = false;
+let roleRequestToken = 0;
+
+const notify = () => {
+  subscribers.forEach((callback) => callback());
+};
+
+const updateAuthState = (patch: Partial<AuthState>) => {
+  authState = { ...authState, ...patch };
+  notify();
+};
+
+const fetchUserRole = async (userId: string) => {
+  const requestToken = ++roleRequestToken;
+
+  try {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId);
+
+    if (requestToken !== roleRequestToken) return;
+    if (error) throw error;
+
+    const isAdmin = (data ?? []).some((row) => row.role === 'admin');
+    updateAuthState({ userRole: isAdmin ? 'admin' : 'student', loading: false });
+  } catch (error) {
+    if (requestToken !== roleRequestToken) return;
+    logger.error('Error fetching user role', error);
+    updateAuthState({ userRole: 'student', loading: false });
+  }
+};
+
+const syncSession = async (session: Session | null) => {
+  updateAuthState({
+    session,
+    user: session?.user ?? null,
+    userRole: session?.user ? authState.userRole : null,
+    loading: Boolean(session?.user),
+  });
+
+  if (!session?.user) {
+    roleRequestToken += 1;
+    updateAuthState({ userRole: null, loading: false });
+    return;
+  }
+
+  await fetchUserRole(session.user.id);
+};
+
+const initializeAuth = () => {
+  if (initialized) return;
+  initialized = true;
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    (_event, session) => {
+      void syncSession(session);
+    }
+  );
+
+  void supabase.auth.getSession().then(({ data: { session } }) => {
+    void syncSession(session);
+  });
+
+  return subscription;
+};
+
 export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [userRole, setUserRole] = useState<'admin' | 'student' | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [, forceRender] = useState(0);
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        // Fetch user role after authentication
-        if (session?.user) {
-          setTimeout(() => {
-            fetchUserRole(session.user.id);
-          }, 0);
-        } else {
-          setUserRole(null);
-        }
-      }
-    );
+    initializeAuth();
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchUserRole(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
+    const handleStoreChange = () => {
+      forceRender((value) => value + 1);
+    };
 
-    return () => subscription.unsubscribe();
+    subscribers.add(handleStoreChange);
+    return () => subscribers.delete(handleStoreChange);
   }, []);
-
-  const fetchUserRole = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-
-      if (error) throw error;
-      const isAdmin = (data ?? []).some((row) => row.role === 'admin');
-      setUserRole(isAdmin ? 'admin' : 'student');
-    } catch (error) {
-      logger.error('Error fetching user role', error);
-      setUserRole('student'); // Default to student
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const signInWithGoogle = async () => {
     const result = await lovable.auth.signInWithOAuth('google', {
@@ -71,18 +113,17 @@ export const useAuth = () => {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (!error) {
-      setUser(null);
-      setSession(null);
-      setUserRole(null);
+      roleRequestToken += 1;
+      updateAuthState({ user: null, session: null, userRole: null, loading: false });
     }
     return { error };
   };
 
   return {
-    user,
-    session,
-    userRole,
-    loading,
+    user: authState.user,
+    session: authState.session,
+    userRole: authState.userRole,
+    loading: authState.loading,
     signInWithGoogle,
     signOut,
   };
