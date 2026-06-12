@@ -510,7 +510,7 @@ const Index = () => {
               <div className="pt-8 border-t border-border mt-8">
                 <p className="text-sm text-muted-foreground mb-4">Or generate a 3-question test:</p>
                 <div className="max-w-sm mx-auto">
-                  <Select value="" onValueChange={(value) => setTestTopic(value)}>
+                  <Select value={testTopic || undefined} onValueChange={(value) => setTestTopic(value)}>
                     <SelectTrigger className="bg-card">
                       <SelectValue placeholder="Test me on..." />
                     </SelectTrigger>
