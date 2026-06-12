@@ -27,7 +27,9 @@ const SESSION_MAP: Record<string, typeof SITTINGS[number]> = {
 };
 
 // Matches e.g. 9709_m24_qp_32_q01.jpg / 9709_s24_ms_31_q1.png
-const FILENAME_RE = /^9709_([msw])(\d{2})_(qp|ms)_(\d{1,2})_q(\d{1,2})\b/i;
+// Also accepts the underscore between qp|ms and the paper number being omitted,
+// e.g. 9709_m24_qp32_q01.jpg
+const FILENAME_RE = /^9709_([msw])(\d{2})_(qp|ms)_?(\d{1,2})_q(\d{1,2})\b/i;
 
 type ParsedName = {
   year: number;
