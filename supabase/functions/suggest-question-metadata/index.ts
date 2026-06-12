@@ -151,7 +151,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3-flash-preview",
         messages: [{ role: "user", content }],
         response_format: { type: "json_object" },
       }),
@@ -159,6 +159,7 @@ serve(async (req) => {
 
     if (!aiRes.ok) {
       const text = await aiRes.text();
+      console.error("suggest-question-metadata AI failure", aiRes.status, text);
       return jsonResponse({ error: `AI error ${aiRes.status}: ${text}` }, 502);
     }
 
