@@ -100,7 +100,9 @@ export const useAuth = () => {
     };
 
     subscribers.add(handleStoreChange);
-    return () => subscribers.delete(handleStoreChange);
+    return () => {
+      subscribers.delete(handleStoreChange);
+    };
   }, []);
 
   const signInWithGoogle = async () => {
