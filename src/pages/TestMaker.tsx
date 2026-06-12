@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveModule, moduleOf } from "@/lib/modules";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
+import { useQuestionsVersion } from "@/lib/questionStore";
 
 interface ProcessedQuestion {
   original: Question;
@@ -59,6 +60,7 @@ function withColgroups(html: string): string {
 const TestMaker = () => {
   const navigate = useNavigate();
   const { module, setModule } = useActiveModule({ redirectIfMissing: true });
+  const questionsVersion = useQuestionsVersion();
   const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [isCompiled, setIsCompiled] = useState(false);
@@ -70,7 +72,7 @@ const TestMaker = () => {
   // Pool of source questions scoped to the active module.
   const pool = useMemo(
     () => questionsDatabase.filter((q) => moduleOf(q) === module),
-    [module]
+    [module, questionsVersion]
   );
 
   // Reset selections when switching modules.

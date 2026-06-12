@@ -4,6 +4,7 @@ import { BookOpen, User, Settings, FileEdit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuestionsVersion } from "@/lib/questionStore";
 import {
   MODULES,
   ModuleCode,
@@ -15,6 +16,8 @@ import {
 const ModulePicker = () => {
   const navigate = useNavigate();
   const { user, userRole, loading, signOut } = useAuth();
+  // Re-render once DB questions finish loading so counts reflect uploads.
+  useQuestionsVersion();
   const counts = countByModule();
 
   // Keep stored module fresh but don't auto-redirect — the picker is the home.

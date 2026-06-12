@@ -11,6 +11,11 @@ import AdminQuestions from "./pages/AdminQuestions";
 import StudentProgress from "./pages/StudentProgress";
 import TestMaker from "./pages/TestMaker";
 import NotFound from "./pages/NotFound";
+import { loadQuestionsFromDb } from "@/lib/questionStore";
+
+// Kick off loading DB questions as soon as the app boots so the practice
+// flows, picker counts, dropdowns, search, and Test Maker see admin uploads.
+loadQuestionsFromDb();
 
 const queryClient = new QueryClient();
 
