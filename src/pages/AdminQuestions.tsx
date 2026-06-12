@@ -256,7 +256,7 @@ const AdminQuestions = () => {
         return;
       }
       const { data, error } = await supabase.functions.invoke("suggest-question-metadata", {
-        body: { questionImage, markschemeImage },
+        body: { questionImage, markschemeImage, module: draft.module ?? "P3" },
       });
       if (error) throw error;
       const s = (data as { suggestion?: Record<string, unknown> })?.suggestion ?? {};
