@@ -115,3 +115,8 @@ export function loadQuestionsFromDb(): Promise<void> {
   })();
   return loadPromise;
 }
+
+export function refreshQuestionsFromDb(): Promise<void> {
+  loadPromise = null;
+  return loadQuestionsFromDb();
+}
