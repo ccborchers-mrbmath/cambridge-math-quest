@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { logger } from "@/lib/logger";
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,6 +28,15 @@ let roleRequestToken = 0;
 const notify = () => {
   subscribers.forEach((callback) => callback());
 };
+
+const subscribe = (callback: () => void) => {
+  subscribers.add(callback);
+  return () => {
+    subscribers.delete(callback);
+  };
+};
+
+const getSnapshot = () => authState;
 
 const updateAuthState = (patch: Partial<AuthState>) => {
   authState = { ...authState, ...patch };
@@ -90,19 +99,10 @@ const initializeAuth = () => {
 };
 
 export const useAuth = () => {
-  const [, forceRender] = useState(0);
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   useEffect(() => {
     initializeAuth();
-
-    const handleStoreChange = () => {
-      forceRender((value) => value + 1);
-    };
-
-    subscribers.add(handleStoreChange);
-    return () => {
-      subscribers.delete(handleStoreChange);
-    };
   }, []);
 
   const signInWithGoogle = async () => {
@@ -122,10 +122,10 @@ export const useAuth = () => {
   };
 
   return {
-    user: authState.user,
-    session: authState.session,
-    userRole: authState.userRole,
-    loading: authState.loading,
+    user: snapshot.user,
+    session: snapshot.session,
+    userRole: snapshot.userRole,
+    loading: snapshot.loading,
     signInWithGoogle,
     signOut,
   };

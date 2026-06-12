@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { logger } from "@/lib/logger";
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -46,10 +46,6 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      navigate('/auth?redirect=/admin', { replace: true });
-      return;
-    }
-    if (userRole === 'student') {
       navigate('/auth?redirect=/admin', { replace: true });
     }
   }, [user, userRole, loading, navigate]);
@@ -126,6 +122,14 @@ const AdminDashboard = () => {
         </div>
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  if (userRole === 'student') {
+    return <Navigate to="/" replace />;
   }
 
   const totalAttempts = attempts.length;
