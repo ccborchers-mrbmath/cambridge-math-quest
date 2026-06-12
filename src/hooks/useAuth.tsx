@@ -23,7 +23,6 @@ let authState: AuthState = {
 };
 
 let initialized = false;
-let roleRequestToken = 0;
 
 const notify = () => {
   subscribers.forEach((callback) => callback());
@@ -43,42 +42,15 @@ const updateAuthState = (patch: Partial<AuthState>) => {
   notify();
 };
 
-const fetchUserRole = async (userId: string) => {
-  const requestToken = ++roleRequestToken;
-
-  try {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId);
-
-    if (requestToken !== roleRequestToken) return;
-    if (error) throw error;
-
-    const isAdmin = (data ?? []).some((row) => row.role === 'admin');
-    updateAuthState({ userRole: isAdmin ? 'admin' : 'student', loading: false });
-  } catch (error) {
-    if (requestToken !== roleRequestToken) return;
-    logger.error('Error fetching user role', error);
-    updateAuthState({ userRole: 'student', loading: false });
-  }
-};
-
-const syncSession = async (session: Session | null) => {
+const syncSession = (session: Session | null) => {
+  // Temporary: every signed-in user is treated as admin while role-based
+  // gating is rolled back. See plan in .lovable/plan.md.
   updateAuthState({
     session,
     user: session?.user ?? null,
-    userRole: session?.user ? authState.userRole : null,
-    loading: Boolean(session?.user),
+    userRole: session?.user ? 'admin' : null,
+    loading: false,
   });
-
-  if (!session?.user) {
-    roleRequestToken += 1;
-    updateAuthState({ userRole: null, loading: false });
-    return;
-  }
-
-  await fetchUserRole(session.user.id);
 };
 
 const initializeAuth = () => {
@@ -87,12 +59,12 @@ const initializeAuth = () => {
 
   const { data: { subscription } } = supabase.auth.onAuthStateChange(
     (_event, session) => {
-      void syncSession(session);
+      syncSession(session);
     }
   );
 
   void supabase.auth.getSession().then(({ data: { session } }) => {
-    void syncSession(session);
+    syncSession(session);
   });
 
   return subscription;
@@ -122,7 +94,6 @@ export const useAuth = () => {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (!error) {
-      roleRequestToken += 1;
       updateAuthState({ user: null, session: null, userRole: null, loading: false });
     }
     return { error };
