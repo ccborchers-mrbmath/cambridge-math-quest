@@ -12,6 +12,7 @@ import StudentProgress from "./pages/StudentProgress";
 import TestMaker from "./pages/TestMaker";
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { loadQuestionsFromDb, refreshQuestionsFromDb } from "@/lib/questionStore";
 
 // Kick off loading DB questions as soon as the app boots so the practice
@@ -22,11 +23,11 @@ const queryClient = new QueryClient();
 
 const AppShell = () => {
   useEffect(() => {
-    const { data: subscription } = supabase.auth.onAuthStateChange(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
       void refreshQuestionsFromDb();
     });
 
-    return () => subscription.subscription.unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
   return (
