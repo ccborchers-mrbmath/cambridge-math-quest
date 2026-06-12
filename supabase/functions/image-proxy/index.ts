@@ -23,8 +23,11 @@ serve(async (req) => {
       });
     }
 
-    // Validate it's from the expected domain
-    if (!imageUrl.startsWith('https://storage.googleapis.com/exam_coach/')) {
+    // Validate it's from an allowed domain (legacy GCS bucket or Supabase Storage)
+    const allowed =
+      imageUrl.startsWith('https://storage.googleapis.com/exam_coach/') ||
+      /^https:\/\/[a-z0-9]+\.supabase\.co\/storage\/v1\/object\//.test(imageUrl);
+    if (!allowed) {
       console.error('Invalid URL domain:', imageUrl);
       return new Response(JSON.stringify({ error: 'Invalid image source' }), {
         status: 400,
