@@ -87,7 +87,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: kind === "question" ? SYSTEM_QUESTION : SYSTEM_MARKSCHEME },
           {
@@ -106,6 +106,7 @@ serve(async (req) => {
       if (aiRes.status === 429) return jsonResponse({ error: "Rate limit, try again shortly" }, 429);
       if (aiRes.status === 402) return jsonResponse({ error: "AI credits depleted" }, 402);
       const text = await aiRes.text();
+      console.error("extract-question-text AI failure", aiRes.status, text);
       return jsonResponse({ error: `AI error ${aiRes.status}: ${text}` }, 502);
     }
 
@@ -113,6 +114,7 @@ serve(async (req) => {
     const text = String(data?.choices?.[0]?.message?.content ?? "").trim();
     return jsonResponse({ text });
   } catch (err) {
+    console.error("extract-question-text unexpected error", err);
     return jsonResponse(
       { error: err instanceof Error ? err.message : "Unknown error" },
       500,
