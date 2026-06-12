@@ -105,9 +105,16 @@ export const useAuth = () => {
     initializeAuth();
   }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (redirectPath?: string) => {
+    const redirectUrl = new URL(window.location.origin);
+
+    if (redirectPath) {
+      redirectUrl.pathname = '/auth';
+      redirectUrl.searchParams.set('redirect', redirectPath);
+    }
+
     const result = await lovable.auth.signInWithOAuth('google', {
-      redirect_uri: window.location.origin,
+      redirect_uri: redirectUrl.toString(),
     });
     return { error: result.error ?? null };
   };
