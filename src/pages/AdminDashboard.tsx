@@ -46,11 +46,11 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      navigate('/auth');
+      navigate('/auth?redirect=/admin', { replace: true });
       return;
     }
     if (userRole && userRole !== 'admin') {
-      navigate('/auth');
+      navigate('/auth?redirect=/admin', { replace: true });
     }
   }, [user, userRole, loading, navigate]);
 
