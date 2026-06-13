@@ -135,8 +135,9 @@ serve(async (req) => {
           "Extract metadata as STRICT JSON with this shape: " +
           '{"year": number|null, "sitting": "Feb/Mar"|"May/Jun"|"Oct/Nov"|null, "paper_number": number|null, "question_number": number|null, "topic": string|null, "subtopics": string|null, "marks": number|null}. ' +
           "Sitting must be exactly one of Feb/Mar, May/Jun, Oct/Nov. " +
-          "paper_number is the TWO-DIGIT Cambridge 9709 paper code shown on the exam paper (e.g. 11, 12, 13, 21, 22, 23, 31, 32, 33, 41, 42, 43, 51, 52, 53, 61, 62, 63). " +
-          "The first digit identifies the module (1=Pure 1, 2=Pure 2, 3=Pure 3, 4=Mechanics, 5=Stats 1, 6=Stats 2) and the second digit (1, 2 or 3) is the variant within the sitting. " +
+          "paper_number is the TWO-DIGIT Cambridge 9709 paper code shown on the exam paper. " +
+          "The first digit identifies the module (1=Pure 1, 2=Pure 2, 3=Pure 3, 4=Mechanics, 5=Stats 1, 6=Stats 2). " +
+          "The second digit is the variant within the sitting: 1, 2 or 3 in any sitting; from 2025 onward a variant 5 (e.g. 15, 35, 45, 65) also appears in May/Jun and Oct/Nov sittings, while Feb/Mar sittings typically only have the variant 2 paper (e.g. 12, 22, 32, 42, 52, 62). " +
           "Never return a single-digit value such as 1 or 3 — always return the full two-digit code (e.g. 12, not 1). It is usually printed on the cover sheet next to '9709/'. " +
           syllabusBlock + " " +
           "Use null for any field you cannot confidently determine. Return ONLY JSON.",
