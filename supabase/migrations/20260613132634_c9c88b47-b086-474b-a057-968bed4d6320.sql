@@ -1,0 +1,1 @@
+ALTER TABLE public.questions DROP CONSTRAINT IF EXISTS questions_year_sitting_paper_number_question_number_key; ALTER TABLE public.questions ADD CONSTRAINT questions_module_year_sitting_paper_question_key UNIQUE (module, year, sitting, paper_number, question_number);
