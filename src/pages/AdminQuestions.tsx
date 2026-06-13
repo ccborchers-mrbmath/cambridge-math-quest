@@ -112,6 +112,7 @@ const AdminQuestions = () => {
   const { user, userRole, loading } = useAuth();
   const [rows, setRows] = useState<QuestionRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [topicFilter, setTopicFilter] = useState<Set<string>>(new Set());
   const [subtopicFilter, setSubtopicFilter] = useState<Set<string>>(new Set());
@@ -155,7 +156,24 @@ const AdminQuestions = () => {
     if (error) {
       toast.error("Failed to load questions");
     } else {
-      setRows((data ?? []) as QuestionRow[]);
+      const rs = (data ?? []) as QuestionRow[];
+      setRows(rs);
+      // Batch-sign storage paths so the Preview column shows uploaded images.
+      const paths = Array.from(
+        new Set(rs.map((r) => r.question_image_path).filter((p): p is string => !!p))
+      );
+      if (paths.length) {
+        const { data: signed } = await supabase.storage
+          .from(BUCKET)
+          .createSignedUrls(paths, 60 * 60);
+        const map: Record<string, string> = {};
+        for (const s of signed ?? []) {
+          if (s.path && s.signedUrl) map[s.path] = s.signedUrl;
+        }
+        setPreviewUrls(map);
+      } else {
+        setPreviewUrls({});
+      }
     }
     setLoadingRows(false);
   };
