@@ -909,7 +909,7 @@ const AdminQuestions = () => {
           </div>
 
           <div className="flex justify-end">
-            <Button variant="secondary" size="sm" onClick={suggestFromImages} disabled={suggesting}>
+            <Button variant="secondary" size="sm" onClick={() => suggestFromImages()} disabled={suggesting}>
               {suggesting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               Suggest fields with AI
             </Button>
