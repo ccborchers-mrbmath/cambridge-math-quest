@@ -881,6 +881,19 @@ const AdminQuestions = () => {
                     <span className="text-sm text-muted-foreground">no image</span>
                   )}
                 </div>
+                {(() => {
+                  const path = kind === "q" ? draft.question_image_path : draft.markscheme_image_path;
+                  const url = kind === "q" ? draft.question_url : draft.markscheme_url;
+                  const source = path || url || "";
+                  if (!source) return null;
+                  let name = source.split("?")[0].split("/").pop() || source;
+                  try { name = decodeURIComponent(name); } catch { /* keep raw */ }
+                  return (
+                    <p className="text-xs text-muted-foreground break-all" title={name}>
+                      {name}
+                    </p>
+                  );
+                })()}
                 <div className="flex gap-2">
                   <label className="inline-flex">
                     <input
