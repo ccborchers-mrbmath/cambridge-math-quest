@@ -31,6 +31,27 @@ export const getModuleInfo = (code: ModuleCode): ModuleInfo =>
 /** Treat questions without an explicit `module` as P3 (legacy data). */
 export const moduleOf = (q: { module?: ModuleCode }): ModuleCode => q.module ?? "P3";
 
+/**
+ * Cambridge 9709 paper-number convention:
+ *   11/12/13 → P1   21/22/23 → P2   31/32/33 → P3
+ *   41/42/43 → M1   51/52/53 → S1   61/62/63 → S1 (Stats 1, alt centre)
+ *   71/72/73 → S2
+ */
+export const moduleFromPaperNumber = (paperNumber: number | null | undefined): ModuleCode | null => {
+  if (paperNumber == null || !Number.isFinite(paperNumber)) return null;
+  const tens = Math.floor(paperNumber / 10);
+  switch (tens) {
+    case 1: return "P1";
+    case 2: return "P2";
+    case 3: return "P3";
+    case 4: return "M1";
+    case 5: return "S1";
+    case 6: return "S1";
+    case 7: return "S2";
+    default: return null;
+  }
+};
+
 export const questionsInModule = (code: ModuleCode) =>
   questionsDatabase.filter((q) => moduleOf(q) === code);
 
