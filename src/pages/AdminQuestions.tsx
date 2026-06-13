@@ -117,6 +117,10 @@ const AdminQuestions = () => {
   const [subtopicFilter, setSubtopicFilter] = useState<Set<string>>(new Set());
   const [marksFilter, setMarksFilter] = useState<Set<string>>(new Set());
   const [textFilter, setTextFilter] = useState<Set<string>>(new Set());
+  const [yearFilter, setYearFilter] = useState<Set<string>>(new Set());
+  const [moduleFilter, setModuleFilter] = useState<Set<string>>(new Set());
+  const [sittingFilter, setSittingFilter] = useState<Set<string>>(new Set());
+  const [paperNumberFilter, setPaperNumberFilter] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<QuestionRow | null>(null);
   const [draft, setDraft] = useState<Partial<QuestionRow>>(emptyDraft());
   const [open, setOpen] = useState(false);
@@ -164,7 +168,7 @@ const AdminQuestions = () => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (q) {
-        const hay = [r.year, r.sitting, r.paper_number, r.question_number, r.topic, r.subtopics]
+        const hay = [r.year, r.sitting, r.paper_number, r.question_number, r.module, r.topic, r.subtopics]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -200,9 +204,21 @@ const AdminQuestions = () => {
         }
         if (!match) return false;
       }
+      if (yearFilter.size) {
+        if (!yearFilter.has(String(r.year))) return false;
+      }
+      if (moduleFilter.size) {
+        if (!moduleFilter.has(r.module)) return false;
+      }
+      if (sittingFilter.size) {
+        if (!sittingFilter.has(r.sitting)) return false;
+      }
+      if (paperNumberFilter.size) {
+        if (!paperNumberFilter.has(String(r.paper_number))) return false;
+      }
       return true;
     });
-  }, [rows, search, topicFilter, subtopicFilter, marksFilter, textFilter]);
+  }, [rows, search, topicFilter, subtopicFilter, marksFilter, textFilter, yearFilter, moduleFilter, sittingFilter, paperNumberFilter]);
 
   const topicOptions = useMemo(() => {
     const set = new Set<string>();
@@ -254,6 +270,30 @@ const AdminQuestions = () => {
     { value: "ms:failed", label: "Mark scheme text failed" },
     { value: "ms:ready", label: "Mark scheme text ready" },
   ]), []);
+
+  const yearOptions = useMemo(() => {
+    const set = new Set<number>();
+    for (const r of rows) set.add(r.year);
+    return [...set].sort((a, b) => b - a).map((v) => ({ value: String(v), label: String(v) }));
+  }, [rows]);
+
+  const moduleOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) set.add(r.module);
+    return [...set].sort().map((v) => ({ value: v, label: v }));
+  }, [rows]);
+
+  const sittingOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) set.add(r.sitting);
+    return [...set].sort().map((v) => ({ value: v, label: v }));
+  }, [rows]);
+
+  const paperNumberOptions = useMemo(() => {
+    const set = new Set<number>();
+    for (const r of rows) set.add(r.paper_number);
+    return [...set].sort((a, b) => a - b).map((v) => ({ value: String(v), label: String(v) }));
+  }, [rows]);
 
   const openCreate = () => {
     setEditing(null);
@@ -651,7 +691,7 @@ const AdminQuestions = () => {
             <CardTitle>{rows.length} questions</CardTitle>
             <div className="flex gap-2">
               <Input
-                placeholder="Search year, sitting, topic..."
+                placeholder="Search year, module, sitting, topic..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-72"
@@ -674,7 +714,19 @@ const AdminQuestions = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Preview</TableHead>
-                    <TableHead>ID</TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Year" options={yearOptions} selected={yearFilter} onChange={setYearFilter} />
+                    </TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Module" options={moduleOptions} selected={moduleFilter} onChange={setModuleFilter} />
+                    </TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Sitting" options={sittingOptions} selected={sittingFilter} onChange={setSittingFilter} />
+                    </TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Paper" options={paperNumberOptions} selected={paperNumberFilter} onChange={setPaperNumberFilter} />
+                    </TableHead>
+                    <TableHead>Q#</TableHead>
                     <TableHead>
                       <ColumnFilter label="Topic" options={topicOptions} selected={topicFilter} onChange={setTopicFilter} />
                     </TableHead>
@@ -700,9 +752,11 @@ const AdminQuestions = () => {
                           <div className="h-16 w-24 rounded border bg-muted text-xs flex items-center justify-center text-muted-foreground">no img</div>
                         )}
                       </TableCell>
-                      <TableCell className="font-medium whitespace-nowrap">
-                        {r.year} {r.sitting} P{r.paper_number} Q{r.question_number}
-                      </TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">{r.year}</TableCell>
+                      <TableCell>{r.module}</TableCell>
+                      <TableCell>{r.sitting}</TableCell>
+                      <TableCell>P{r.paper_number}</TableCell>
+                      <TableCell>Q{r.question_number}</TableCell>
                       <TableCell>{r.topic ?? "-"}</TableCell>
                       <TableCell className="max-w-md truncate text-sm text-muted-foreground">{r.subtopics ?? "-"}</TableCell>
                       <TableCell>{r.marks ?? "-"}</TableCell>
