@@ -168,7 +168,7 @@ const AdminQuestions = () => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (q) {
-        const hay = [r.year, r.sitting, r.paper_number, r.question_number, r.topic, r.subtopics]
+        const hay = [r.year, r.sitting, r.paper_number, r.question_number, r.module, r.topic, r.subtopics]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -204,9 +204,21 @@ const AdminQuestions = () => {
         }
         if (!match) return false;
       }
+      if (yearFilter.size) {
+        if (!yearFilter.has(String(r.year))) return false;
+      }
+      if (moduleFilter.size) {
+        if (!moduleFilter.has(r.module)) return false;
+      }
+      if (sittingFilter.size) {
+        if (!sittingFilter.has(r.sitting)) return false;
+      }
+      if (paperNumberFilter.size) {
+        if (!paperNumberFilter.has(String(r.paper_number))) return false;
+      }
       return true;
     });
-  }, [rows, search, topicFilter, subtopicFilter, marksFilter, textFilter]);
+  }, [rows, search, topicFilter, subtopicFilter, marksFilter, textFilter, yearFilter, moduleFilter, sittingFilter, paperNumberFilter]);
 
   const topicOptions = useMemo(() => {
     const set = new Set<string>();
