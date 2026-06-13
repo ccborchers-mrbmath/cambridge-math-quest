@@ -495,7 +495,14 @@ const AdminQuestions = () => {
       setOpen(false);
       await fetchRows();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Save failed");
+      const msg =
+        (e as { message?: string } | null)?.message ||
+        (typeof e === "string" ? e : null) ||
+        "Save failed";
+      const details = (e as { details?: string } | null)?.details;
+      const hint = (e as { hint?: string } | null)?.hint;
+      logger.error("Save failed", e);
+      toast.error(`Save failed: ${msg}${details ? ` — ${details}` : ""}${hint ? ` (${hint})` : ""}`);
     } finally {
       setSaving(false);
     }
