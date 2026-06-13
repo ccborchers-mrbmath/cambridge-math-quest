@@ -714,7 +714,19 @@ const AdminQuestions = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Preview</TableHead>
-                    <TableHead>ID</TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Year" options={yearOptions} selected={yearFilter} onChange={setYearFilter} />
+                    </TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Module" options={moduleOptions} selected={moduleFilter} onChange={setModuleFilter} />
+                    </TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Sitting" options={sittingOptions} selected={sittingFilter} onChange={setSittingFilter} />
+                    </TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Paper" options={paperNumberOptions} selected={paperNumberFilter} onChange={setPaperNumberFilter} />
+                    </TableHead>
+                    <TableHead>Q#</TableHead>
                     <TableHead>
                       <ColumnFilter label="Topic" options={topicOptions} selected={topicFilter} onChange={setTopicFilter} />
                     </TableHead>
