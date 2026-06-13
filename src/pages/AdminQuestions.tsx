@@ -440,7 +440,13 @@ const AdminQuestions = () => {
         ...d,
         year: typeof s.year === "number" ? s.year : d.year,
         sitting: typeof s.sitting === "string" && SITTINGS.includes(s.sitting as typeof SITTINGS[number]) ? s.sitting : d.sitting,
-        paper_number: typeof s.paper_number === "number" ? s.paper_number : d.paper_number,
+        // Paper number must be the 2-digit variant within the sitting (e.g. 12, 32).
+        // If the AI returns a single-digit base paper (e.g. 1 for "Paper 1"), keep the
+        // value that filename parsing already populated rather than overwriting it.
+        paper_number:
+          typeof s.paper_number === "number" && s.paper_number >= 11 && s.paper_number <= 99
+            ? s.paper_number
+            : d.paper_number,
         question_number: typeof s.question_number === "number" ? s.question_number : d.question_number,
         topic: typeof s.topic === "string" ? s.topic : d.topic,
         subtopics: typeof s.subtopics === "string" ? s.subtopics : d.subtopics,
