@@ -546,7 +546,7 @@ const AdminQuestions = () => {
             sitting: meta.sitting,
             paper_number: meta.paperNumber,
             question_number: meta.questionNumber,
-            module: "P3", // Bulk uploads currently default to P3; edit later if needed.
+            module: moduleFromPaperNumber(meta.paperNumber) ?? "P3",
             is_published: true,
           };
           if (qResult) {
@@ -597,6 +597,35 @@ const AdminQuestions = () => {
 
           if (qResult?.url) extractTasks.push(extractAndSave(qResult.url, "question"));
           if (msResult?.url) extractTasks.push(extractAndSave(msResult.url, "markscheme"));
+
+          // Kick off AI metadata suggestion (topic / subtopics / marks) in
+          // the background so admins don't have to open each row to click
+          // "Suggest fields with AI" themselves.
+          if (qResult?.url) {
+            const suggestModule = moduleFromPaperNumber(meta.paperNumber) ?? "P3";
+            extractTasks.push((async () => {
+              try {
+                const { data, error } = await supabase.functions.invoke("suggest-question-metadata", {
+                  body: {
+                    questionImage: qResult.url,
+                    markschemeImage: msResult?.url ?? null,
+                    module: suggestModule,
+                  },
+                });
+                if (error) throw error;
+                const s = (data as { suggestion?: Record<string, unknown> })?.suggestion ?? {};
+                const update: Record<string, unknown> = {};
+                if (typeof s.topic === "string" && s.topic) update.topic = s.topic;
+                if (typeof s.subtopics === "string" && s.subtopics) update.subtopics = s.subtopics;
+                if (typeof s.marks === "number") update.marks = s.marks;
+                if (Object.keys(update).length) {
+                  await supabase.from("questions").update(update as never).eq("id", rowId!);
+                }
+              } catch (err) {
+                logger.error(`metadata suggest failed ${tag}`, err);
+              }
+            })());
+          }
 
           ok += 1;
           log(`✓ ${tag} — uploaded${qResult ? " Q" : ""}${msResult ? " MS" : ""}`);
