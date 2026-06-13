@@ -778,7 +778,7 @@ const AdminQuestions = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="max-h-[70vh] overflow-auto">
+            <div className="max-h-[70vh] overflow-auto pr-3" style={{ scrollbarGutter: "stable" }}>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -815,11 +815,14 @@ const AdminQuestions = () => {
                   {filtered.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell>
-                        {r.question_url ? (
-                          <img src={r.question_url} alt="" className="h-16 w-24 object-cover rounded border" loading="lazy" />
-                        ) : (
-                          <div className="h-16 w-24 rounded border bg-muted text-xs flex items-center justify-center text-muted-foreground">no img</div>
-                        )}
+                        {(() => {
+                          const src = (r.question_image_path && previewUrls[r.question_image_path]) || r.question_url;
+                          return src ? (
+                            <img src={src} alt="" className="h-16 w-24 object-cover rounded border" loading="lazy" />
+                          ) : (
+                            <div className="h-16 w-24 rounded border bg-muted text-xs flex items-center justify-center text-muted-foreground">no img</div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="font-medium whitespace-nowrap">{r.year}</TableCell>
                       <TableCell>{r.module}</TableCell>
