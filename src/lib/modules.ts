@@ -16,7 +16,7 @@ export const MODULES: ModuleInfo[] = [
   { code: "P2", shortLabel: "P2", name: "Pure Mathematics 2", tagline: "A Level — Paper 2" },
   { code: "P3", shortLabel: "P3", name: "Pure Mathematics 3", tagline: "A Level — Paper 3" },
   { code: "S1", shortLabel: "S1", name: "Probability & Statistics 1", tagline: "AS / A Level — Paper 5" },
-  { code: "S2", shortLabel: "S2", name: "Probability & Statistics 2", tagline: "A Level — Paper 7" },
+  { code: "S2", shortLabel: "S2", name: "Probability & Statistics 2", tagline: "A Level — Paper 6" },
   { code: "M1", shortLabel: "M1", name: "Mechanics", tagline: "AS / A Level — Paper 4" },
 ];
 
