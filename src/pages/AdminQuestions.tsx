@@ -691,7 +691,7 @@ const AdminQuestions = () => {
             <CardTitle>{rows.length} questions</CardTitle>
             <div className="flex gap-2">
               <Input
-                placeholder="Search year, sitting, topic..."
+                placeholder="Search year, module, sitting, topic..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-72"
@@ -752,9 +752,11 @@ const AdminQuestions = () => {
                           <div className="h-16 w-24 rounded border bg-muted text-xs flex items-center justify-center text-muted-foreground">no img</div>
                         )}
                       </TableCell>
-                      <TableCell className="font-medium whitespace-nowrap">
-                        {r.year} {r.sitting} P{r.paper_number} Q{r.question_number}
-                      </TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">{r.year}</TableCell>
+                      <TableCell>{r.module}</TableCell>
+                      <TableCell>{r.sitting}</TableCell>
+                      <TableCell>P{r.paper_number}</TableCell>
+                      <TableCell>Q{r.question_number}</TableCell>
                       <TableCell>{r.topic ?? "-"}</TableCell>
                       <TableCell className="max-w-md truncate text-sm text-muted-foreground">{r.subtopics ?? "-"}</TableCell>
                       <TableCell>{r.marks ?? "-"}</TableCell>
