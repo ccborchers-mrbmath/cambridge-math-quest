@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen, FileText, RefreshCw, UploadCloud, Wand2 } from "lucide-react";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MODULES, ModuleCode } from "@/lib/modules";
+import { MODULES, ModuleCode, moduleFromPaperNumber } from "@/lib/modules";
 import { ColumnFilter, MISSING } from "@/components/admin/ColumnFilter";
 
 const SITTINGS = ["Feb/Mar", "May/Jun", "Oct/Nov"] as const;
@@ -322,17 +322,36 @@ const AdminQuestions = () => {
       const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true });
       if (error) throw error;
       const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
-      setDraft((d) => ({
-        ...d,
-        ...(kind === "q"
-          ? { question_image_path: path, question_url: null }
-          : { markscheme_image_path: path, markscheme_url: null }),
-      }));
+      // Derive year/sitting/paper/qnum/module from the filename when recognisable
+      // (e.g. 9709_s25_qp_12_q09.jpg → 2025 May/Jun Paper 12 Q9 → module P1).
+      const parsed = parseFilename(file.name);
+      setDraft((d) => {
+        const next: Partial<QuestionRow> = {
+          ...d,
+          ...(kind === "q"
+            ? { question_image_path: path, question_url: null }
+            : { markscheme_image_path: path, markscheme_url: null }),
+        };
+        if (parsed) {
+          next.year = parsed.year;
+          next.sitting = parsed.sitting;
+          next.paper_number = parsed.paperNumber;
+          next.question_number = parsed.questionNumber;
+          const mod = moduleFromPaperNumber(parsed.paperNumber);
+          if (mod) next.module = mod;
+        }
+        return next;
+      });
       setPreviews((p) => ({ ...p, [kind]: signed?.signedUrl ?? null }));
       toast.success("Image uploaded — extracting text…");
       // Auto-extract text from the freshly uploaded image
       if (signed?.signedUrl) {
         void runExtract(kind, signed.signedUrl);
+        // After the question image lands, also ask the AI to suggest
+        // topic / subtopics / marks so the admin doesn't have to click.
+        if (kind === "q") {
+          void suggestFromImages({ questionImage: signed.signedUrl });
+        }
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
@@ -377,18 +396,21 @@ const AdminQuestions = () => {
       r.readAsDataURL(file);
     });
 
-  const suggestFromImages = async () => {
+  const suggestFromImages = async (override?: { questionImage?: string | null; markschemeImage?: string | null }) => {
     setSuggesting(true);
     try {
       // Prefer existing previews; fall back to URLs in draft.
-      const questionImage = previews.q ?? draft.question_url ?? null;
-      const markschemeImage = previews.ms ?? draft.markscheme_url ?? null;
+      const questionImage = override?.questionImage ?? previews.q ?? draft.question_url ?? null;
+      const markschemeImage = override?.markschemeImage ?? previews.ms ?? draft.markscheme_url ?? null;
       if (!questionImage) {
-        toast.error("Upload or set a question image first");
+        if (!override) toast.error("Upload or set a question image first");
         return;
       }
+      // Use the freshest module guess (handleUpload may have just set it from
+      // the filename) so the suggestion runs against the correct syllabus.
+      const moduleForSuggest = draft.module ?? "P3";
       const { data, error } = await supabase.functions.invoke("suggest-question-metadata", {
-        body: { questionImage, markschemeImage, module: draft.module ?? "P3" },
+        body: { questionImage, markschemeImage, module: moduleForSuggest },
       });
       if (error) throw error;
       const s = (data as { suggestion?: Record<string, unknown> })?.suggestion ?? {};
