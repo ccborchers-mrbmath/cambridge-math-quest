@@ -117,6 +117,10 @@ const AdminQuestions = () => {
   const [subtopicFilter, setSubtopicFilter] = useState<Set<string>>(new Set());
   const [marksFilter, setMarksFilter] = useState<Set<string>>(new Set());
   const [textFilter, setTextFilter] = useState<Set<string>>(new Set());
+  const [yearFilter, setYearFilter] = useState<Set<string>>(new Set());
+  const [moduleFilter, setModuleFilter] = useState<Set<string>>(new Set());
+  const [sittingFilter, setSittingFilter] = useState<Set<string>>(new Set());
+  const [paperNumberFilter, setPaperNumberFilter] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<QuestionRow | null>(null);
   const [draft, setDraft] = useState<Partial<QuestionRow>>(emptyDraft());
   const [open, setOpen] = useState(false);
