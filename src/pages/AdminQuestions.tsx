@@ -271,6 +271,30 @@ const AdminQuestions = () => {
     { value: "ms:ready", label: "Mark scheme text ready" },
   ]), []);
 
+  const yearOptions = useMemo(() => {
+    const set = new Set<number>();
+    for (const r of rows) set.add(r.year);
+    return [...set].sort((a, b) => b - a).map((v) => ({ value: String(v), label: String(v) }));
+  }, [rows]);
+
+  const moduleOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) set.add(r.module);
+    return [...set].sort().map((v) => ({ value: v, label: v }));
+  }, [rows]);
+
+  const sittingOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) set.add(r.sitting);
+    return [...set].sort().map((v) => ({ value: v, label: v }));
+  }, [rows]);
+
+  const paperNumberOptions = useMemo(() => {
+    const set = new Set<number>();
+    for (const r of rows) set.add(r.paper_number);
+    return [...set].sort((a, b) => a - b).map((v) => ({ value: String(v), label: String(v) }));
+  }, [rows]);
+
   const openCreate = () => {
     setEditing(null);
     setDraft(emptyDraft());
