@@ -30,7 +30,11 @@ const SESSION_MAP: Record<string, typeof SITTINGS[number]> = {
 // Matches e.g. 9709_m24_qp_32_q01.jpg / 9709_s24_ms_31_q1.png
 // Also accepts the underscore between qp|ms and the paper number being omitted,
 // e.g. 9709_m24_qp32_q01.jpg
-const FILENAME_RE = /^9709_([msw])(\d{2})_(qp|ms)_?(\d{1,2})_q(\d{1,2})\b/i;
+// `qp`/`ms` is always followed by a 2-digit paper number that encodes both the
+// module (first digit: 1=P1, 2=P2, 3=P3, 4=M1, 5=S1, 6=S2) and the variant within
+// the sitting (second digit: 1, 2 or 3). The underscore between qp|ms and the
+// number is optional.
+const FILENAME_RE = /^9709_([msw])(\d{2})_(qp|ms)_?(\d{2})_q(\d{1,2})\b/i;
 
 type ParsedName = {
   year: number;
@@ -436,7 +440,13 @@ const AdminQuestions = () => {
         ...d,
         year: typeof s.year === "number" ? s.year : d.year,
         sitting: typeof s.sitting === "string" && SITTINGS.includes(s.sitting as typeof SITTINGS[number]) ? s.sitting : d.sitting,
-        paper_number: typeof s.paper_number === "number" ? s.paper_number : d.paper_number,
+        // Paper number must be the 2-digit variant within the sitting (e.g. 12, 32).
+        // If the AI returns a single-digit base paper (e.g. 1 for "Paper 1"), keep the
+        // value that filename parsing already populated rather than overwriting it.
+        paper_number:
+          typeof s.paper_number === "number" && s.paper_number >= 11 && s.paper_number <= 99
+            ? s.paper_number
+            : d.paper_number,
         question_number: typeof s.question_number === "number" ? s.question_number : d.question_number,
         topic: typeof s.topic === "string" ? s.topic : d.topic,
         subtopics: typeof s.subtopics === "string" ? s.subtopics : d.subtopics,
