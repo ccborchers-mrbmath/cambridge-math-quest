@@ -16,6 +16,7 @@ import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen, FileText, Re
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MODULES, ModuleCode } from "@/lib/modules";
+import { ColumnFilter, MISSING } from "@/components/admin/ColumnFilter";
 
 const SITTINGS = ["Feb/Mar", "May/Jun", "Oct/Nov"] as const;
 const BUCKET = "exam-images";
@@ -112,6 +113,10 @@ const AdminQuestions = () => {
   const [rows, setRows] = useState<QuestionRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
   const [search, setSearch] = useState("");
+  const [topicFilter, setTopicFilter] = useState<Set<string>>(new Set());
+  const [subtopicFilter, setSubtopicFilter] = useState<Set<string>>(new Set());
+  const [marksFilter, setMarksFilter] = useState<Set<string>>(new Set());
+  const [textFilter, setTextFilter] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<QuestionRow | null>(null);
   const [draft, setDraft] = useState<Partial<QuestionRow>>(emptyDraft());
   const [open, setOpen] = useState(false);
@@ -157,15 +162,98 @@ const AdminQuestions = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      [r.year, r.sitting, r.paper_number, r.question_number, r.topic, r.subtopics]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [rows, search]);
+    return rows.filter((r) => {
+      if (q) {
+        const hay = [r.year, r.sitting, r.paper_number, r.question_number, r.topic, r.subtopics]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (topicFilter.size) {
+        const t = (r.topic ?? "").trim();
+        const key = t || MISSING;
+        if (!topicFilter.has(key)) return false;
+      }
+      if (subtopicFilter.size) {
+        const raw = (r.subtopics ?? "").trim();
+        if (!raw) {
+          if (!subtopicFilter.has(MISSING)) return false;
+        } else {
+          const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+          if (!parts.some((p) => subtopicFilter.has(p))) return false;
+        }
+      }
+      if (marksFilter.size) {
+        const key = r.marks == null ? MISSING : String(r.marks);
+        if (!marksFilter.has(key)) return false;
+      }
+      if (textFilter.size) {
+        const qs = r.question_text_status || "none";
+        const ms = r.markscheme_text_status || "none";
+        const tokens = new Set<string>([`q:${qs}`, `ms:${ms}`]);
+        if (!qs || qs === "none") tokens.add("q:missing");
+        if (!ms || ms === "none") tokens.add("ms:missing");
+        let match = false;
+        for (const sel of textFilter) {
+          if (tokens.has(sel)) { match = true; break; }
+        }
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [rows, search, topicFilter, subtopicFilter, marksFilter, textFilter]);
+
+  const topicOptions = useMemo(() => {
+    const set = new Set<string>();
+    let hasMissing = false;
+    for (const r of rows) {
+      const t = (r.topic ?? "").trim();
+      if (!t) hasMissing = true;
+      else set.add(t);
+    }
+    const opts = [...set].sort().map((v) => ({ value: v, label: v }));
+    if (hasMissing) opts.unshift({ value: MISSING, label: "(Missing)" });
+    return opts;
+  }, [rows]);
+
+  const subtopicOptions = useMemo(() => {
+    const set = new Set<string>();
+    let hasMissing = false;
+    for (const r of rows) {
+      const raw = (r.subtopics ?? "").trim();
+      if (!raw) { hasMissing = true; continue; }
+      for (const part of raw.split(",").map((s) => s.trim()).filter(Boolean)) {
+        set.add(part);
+      }
+    }
+    const opts = [...set].sort().map((v) => ({ value: v, label: v }));
+    if (hasMissing) opts.unshift({ value: MISSING, label: "(Missing)" });
+    return opts;
+  }, [rows]);
+
+  const marksOptions = useMemo(() => {
+    const set = new Set<number>();
+    let hasMissing = false;
+    for (const r of rows) {
+      if (r.marks == null) hasMissing = true;
+      else set.add(r.marks);
+    }
+    const opts = [...set].sort((a, b) => a - b).map((v) => ({ value: String(v), label: String(v) }));
+    if (hasMissing) opts.unshift({ value: MISSING, label: "(Missing)" });
+    return opts;
+  }, [rows]);
+
+  const textOptions = useMemo(() => ([
+    { value: "q:missing", label: "Question text missing" },
+    { value: "q:pending", label: "Question text pending" },
+    { value: "q:failed", label: "Question text failed" },
+    { value: "q:ready", label: "Question text ready" },
+    { value: "ms:missing", label: "Mark scheme text missing" },
+    { value: "ms:pending", label: "Mark scheme text pending" },
+    { value: "ms:failed", label: "Mark scheme text failed" },
+    { value: "ms:ready", label: "Mark scheme text ready" },
+  ]), []);
 
   const openCreate = () => {
     setEditing(null);
@@ -587,10 +675,18 @@ const AdminQuestions = () => {
                   <TableRow>
                     <TableHead>Preview</TableHead>
                     <TableHead>ID</TableHead>
-                    <TableHead>Topic</TableHead>
-                    <TableHead>Subtopics</TableHead>
-                    <TableHead>Marks</TableHead>
-                    <TableHead>Text</TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Topic" options={topicOptions} selected={topicFilter} onChange={setTopicFilter} />
+                    </TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Subtopics" options={subtopicOptions} selected={subtopicFilter} onChange={setSubtopicFilter} />
+                    </TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Marks" options={marksOptions} selected={marksFilter} onChange={setMarksFilter} />
+                    </TableHead>
+                    <TableHead>
+                      <ColumnFilter label="Text" options={textOptions} selected={textFilter} onChange={setTextFilter} />
+                    </TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
