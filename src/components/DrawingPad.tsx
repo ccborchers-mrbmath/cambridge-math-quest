@@ -206,13 +206,20 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   useEffect(() => {
     const update = () => {
       const w = containerRef.current?.clientWidth ?? 800;
+      // When the user zooms out (<100%) the displayed canvas would shrink
+      // and leave empty whitespace inside the container. Instead, grow the
+      // logical canvas width so the ruled lines (and writable surface)
+      // always fill the full container width. Zooming in (>=100%) keeps the
+      // native width and just enlarges pixels as usual.
+      const effectiveZoom = Math.min(1, zoom);
+      const logicalW = Math.round(w / effectiveZoom);
       const h = Math.max(1400, Math.round(w * 1.6));
-      setSize({ w, h: h + extraHeight });
+      setSize({ w: logicalW, h: h + extraHeight });
     };
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, [extraHeight]);
+  }, [extraHeight, zoom]);
 
   /**
    * Centripetal Catmull-Rom interpolation between p1 and p2 (with p0,p3 as
