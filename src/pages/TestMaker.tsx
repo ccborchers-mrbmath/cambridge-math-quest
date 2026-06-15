@@ -768,6 +768,19 @@ const TestMaker = () => {
                                     {question.marks} marks
                                   </p>
                                 </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-primary hover:text-primary shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewQuestion(question);
+                                  }}
+                                  title="Preview question"
+                                  aria-label="Preview question"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
                               </div>
                             );
                           })}
