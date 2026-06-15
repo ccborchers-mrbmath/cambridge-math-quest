@@ -247,12 +247,13 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       // Reserve extra vertical room for the background diagram so the
       // writable area beneath it isn't squashed.
       const bgH = bgImageRatio ? Math.round(logicalW * bgImageRatio) : 0;
-      setSize({ w: logicalW, h: baseH + bgH + extraHeight });
+      const effectiveBgH = showBackgroundImage ? bgH : 0;
+      setSize({ w: logicalW, h: baseH + effectiveBgH + extraHeight });
     };
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, [extraHeight, zoom, bgImageRatio]);
+  }, [extraHeight, zoom, bgImageRatio, showBackgroundImage]);
 
   // Load the optional background image (question diagram). Uses crossOrigin
   // so the resulting canvas isn't tainted and can still be exported via
@@ -391,13 +392,13 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     ctx.fillRect(0, 0, size.w, size.h);
     // Question diagram, stretched edge-to-edge across the canvas width.
     const bgImg = bgImageRef.current;
-    if (bgImg && bgImageHeight > 0) {
+    if (showBackgroundImage && bgImg && bgImageHeight > 0) {
       ctx.drawImage(bgImg, 0, 0, size.w, bgImageHeight);
     }
     const lineSpacing = 36;
     // Ruled lines start just beneath the diagram (or at the top if there
     // is no diagram), aligned to the line-spacing grid.
-    const linesStartY = bgImageHeight > 0
+    const linesStartY = (showBackgroundImage && bgImageHeight > 0)
       ? Math.ceil((bgImageHeight + lineSpacing) / lineSpacing) * lineSpacing
       : lineSpacing;
     ctx.save();
@@ -410,7 +411,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       ctx.stroke();
     }
     ctx.restore();
-  }, [size, bgImageHeight]);
+  }, [size, bgImageHeight, showBackgroundImage]);
 
   // Paints a single stroke onto an already-scaled context. Used both for
   // building the committed cache and for painting the live in-progress
@@ -728,7 +729,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
   useEffect(() => {
     bgDirtyRef.current = true;
     inkDirtyRef.current = true;
-  }, [size, zoom]);
+  }, [size, zoom, showBackgroundImage]);
 
   // rAF-batched redraw. Multiple pointer-move events between frames coalesce
   // into a single repaint, which is what keeps inking fluid on touch.
