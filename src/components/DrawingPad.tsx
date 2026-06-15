@@ -129,6 +129,9 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
   const lastPenAtRef = useRef(0);
   const PALM_REJECT_COOLDOWN_MS = 1500;
   const [palmRejectionActive, setPalmRejectionActive] = useState(false);
+  // Whether to render the question diagram as the canvas background.
+  // Users can toggle this off if they'd rather have a blank ruled page.
+  const [showBackgroundImage, setShowBackgroundImage] = useState(true);
   // Select / move state.
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const dragRef = useRef<
