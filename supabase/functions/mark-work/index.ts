@@ -42,7 +42,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { questionUrl, markschemeUrl, workImage, workImages, questionMeta, markschemeText, questionText } = body;
+    const { questionUrl, markschemeUrl, workImage, workImages, questionMeta, markschemeText, questionText, previousAttempts } = body;
 
     if (typeof questionUrl !== 'string' || typeof markschemeUrl !== 'string') {
       return jsonResponse({ error: 'Question and markscheme are required' }, 400);
@@ -69,6 +69,27 @@ serve(async (req) => {
         return jsonResponse({ error: 'Each page must be a valid image under 10MB' }, 400);
       }
       validatedImages.push(img);
+    }
+
+    // Compact, validated history of this student's recent prior attempts of
+    // the same question. Used by the AI to call out concrete improvements or
+    // regressions in feedback. Never includes prior images.
+    let historyBlock = '';
+    if (Array.isArray(previousAttempts) && previousAttempts.length > 0) {
+      const trimmed = previousAttempts.slice(0, 3).map((a: Record<string, unknown>, i: number) => {
+        const pct = typeof a?.percentageAttained === 'number' ? `${Math.round(a.percentageAttained)}%` : 'n/a';
+        const when = typeof a?.createdAt === 'string' ? a.createdAt.slice(0, 10) : '';
+        const errors = typeof a?.natureOfErrors === 'string' ? a.natureOfErrors.slice(0, 600) : '';
+        let breakdown = '';
+        if (Array.isArray(a?.markBreakdown)) {
+          breakdown = (a.markBreakdown as Array<Record<string, unknown>>)
+            .slice(0, 30)
+            .map((m) => `${String(m?.label ?? '?')}${m?.earned ? '✓' : '✗'}${m?.note ? `(${String(m.note).slice(0, 120)})` : ''}`)
+            .join(' ');
+        }
+        return `Attempt ${i + 1} (${when}, ${pct}): errors=${errors}; per-mark: ${breakdown}`;
+      });
+      historyBlock = `\n\n=== PREVIOUS ATTEMPTS BY THIS STUDENT (oldest → newest) ===\n${trimmed.join('\n')}\n`;
     }
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -116,6 +137,10 @@ Every mathematical expression in natureOfErrors, feedback, and markBreakdown not
 
 Be encouraging but precise. Name what the student did well, what cost them marks, and one concrete next step.
 
+## Referencing prior attempts
+
+If the user message contains a "PREVIOUS ATTEMPTS BY THIS STUDENT" section, compare this attempt against the most recent prior attempt(s) and explicitly acknowledge concrete improvements or regressions in the \`feedback\` field. Be specific about the mathematical aspect that changed — e.g. "In your earlier attempt you used the wrong ratio for $\\sin 60°$; this time you used $\\frac{\\sqrt{3}}{2}$ correctly and earned the A1." If the student has now corrected an error from a previous attempt, say so. If there are no previous attempts, do NOT mention history at all. Never invent prior errors that are not in the supplied history.
+
 ## Output
 
 Return ONLY valid JSON (no markdown fences, no commentary) matching exactly this shape:
@@ -145,7 +170,8 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching exactly this
                       : '')
                   + (typeof markschemeText === 'string' && markschemeText.trim()
                       ? `\n\n=== MARK SCHEME (authoritative text version — use this in preference to any image) ===\n${markschemeText}\n`
-                      : ''),
+                      : '')
+                  + historyBlock,
               },
               { type: 'image_url', image_url: { url: questionUrl } },
               ...(typeof markschemeText === 'string' && markschemeText.trim()
