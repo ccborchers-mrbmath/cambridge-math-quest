@@ -60,8 +60,10 @@ export type Database = {
           question_text_status: string
           question_url: string | null
           sitting: string
+          subtopic_ids: string[] | null
           subtopics: string | null
           topic: string | null
+          topic_id: string | null
           updated_at: string
           year: number
         }
@@ -83,8 +85,10 @@ export type Database = {
           question_text_status?: string
           question_url?: string | null
           sitting: string
+          subtopic_ids?: string[] | null
           subtopics?: string | null
           topic?: string | null
+          topic_id?: string | null
           updated_at?: string
           year: number
         }
@@ -106,8 +110,10 @@ export type Database = {
           question_text_status?: string
           question_url?: string | null
           sitting?: string
+          subtopic_ids?: string[] | null
           subtopics?: string | null
           topic?: string | null
+          topic_id?: string | null
           updated_at?: string
           year?: number
         }
