@@ -1454,15 +1454,15 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
 
   return (
     <div className="space-y-3">
-      <Card className="p-3 border-border">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
+      <Card className="p-3 border-border overflow-hidden">
+        <div className="flex flex-wrap items-center gap-y-2 gap-x-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Button
               type="button"
               size="sm"
               variant={mode === "draw" ? "default" : "outline"}
               onClick={() => setMode("draw")}
-              className="gap-1"
+              className="gap-1 h-8 px-2.5"
             >
               <Pencil className="h-4 w-4" /> Pen
             </Button>
@@ -1471,7 +1471,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
               size="sm"
               variant={mode === "line" ? "default" : "outline"}
               onClick={() => setMode("line")}
-              className="gap-1"
+              className="gap-1 h-8 px-2.5"
             >
               <Minus className="h-4 w-4" /> Line
             </Button>
@@ -1480,7 +1480,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
               size="sm"
               variant={mode === "ellipse" ? "default" : "outline"}
               onClick={() => setMode("ellipse")}
-              className="gap-1"
+              className="gap-1 h-8 px-2.5"
             >
               <Circle className="h-4 w-4" /> Ellipse
             </Button>
@@ -1489,7 +1489,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
               size="sm"
               variant={mode === "select" ? "default" : "outline"}
               onClick={() => setMode("select")}
-              className="gap-1"
+              className="gap-1 h-8 px-2.5"
             >
               <MousePointer2 className="h-4 w-4" /> Select
             </Button>
@@ -1498,7 +1498,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
               size="sm"
               variant={mode === "lasso" ? "default" : "outline"}
               onClick={() => setMode("lasso")}
-              className="gap-1"
+              className="gap-1 h-8 px-2.5"
             >
               <Lasso className="h-4 w-4" /> Lasso
             </Button>
@@ -1519,7 +1519,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
                 }
               }}
               disabled={!strokes.length}
-              className="gap-1"
+              className="gap-1 h-8 px-2.5"
             >
               <BoxSelect className="h-4 w-4" /> Select all
             </Button>
@@ -1528,7 +1528,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
               size="sm"
               variant={mode === "erase" ? "default" : "outline"}
               onClick={() => setMode("erase")}
-              className="gap-1"
+              className="gap-1 h-8 px-2.5"
             >
               <Eraser className="h-4 w-4" /> Eraser
             </Button>
@@ -1555,7 +1555,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
                 !(lassoSelection && lassoSelection.length) &&
                 selectedIndex === null
               }
-              className="gap-1"
+              className="gap-1 h-8 px-2.5"
               title="Delete the lassoed / selected ink"
             >
               <Trash2 className="h-4 w-4" /> Delete
@@ -1580,14 +1580,14 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
                   return next;
                 });
               }}
-              className="gap-1"
+              className="gap-1 h-8 px-2.5"
               title="Ignore palm and finger touches while drawing with a stylus"
             >
               ✋ Palm reject
             </Button>
             {backgroundImageUrl && (
               <label
-                className="flex items-center gap-2 text-xs text-muted-foreground pl-1"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground pl-1"
                 title="Show the question diagram as the canvas background"
               >
                 <Switch
@@ -1599,7 +1599,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {COLORS.map((c) => (
               <button
                 key={c.value}
@@ -1615,7 +1615,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
             ))}
           </div>
 
-          <div className="flex items-center gap-2 min-w-[140px]">
+          <div className="flex items-center gap-1.5 min-w-[120px]">
             <span className="text-xs text-muted-foreground">Size</span>
             <Slider
               value={[width]}
@@ -1623,14 +1623,14 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
               max={8}
               step={1}
               onValueChange={(v) => setWidth(v[0])}
-              className="w-24"
+              className="w-20"
             />
             <span className="text-xs text-muted-foreground w-4">{width}</span>
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex flex-wrap items-center gap-1.5 ml-auto">
             <div className="flex items-center gap-1">
-              <Button type="button" size="sm" variant="outline" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out" className="px-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out" className="px-2 h-8">
                 <ZoomOut className="h-4 w-4" />
               </Button>
               <button
@@ -1641,14 +1641,14 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
               >
                 {Math.round(zoom * 100)}%
               </button>
-              <Button type="button" size="sm" variant="outline" onClick={() => zoomBy(1.25)} aria-label="Zoom in" className="px-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => zoomBy(1.25)} aria-label="Zoom in" className="px-2 h-8">
                 <ZoomIn className="h-4 w-4" />
               </Button>
             </div>
-            <Button type="button" size="sm" variant="outline" onClick={undo} disabled={!strokes.length} className="gap-1">
+            <Button type="button" size="sm" variant="outline" onClick={undo} disabled={!strokes.length} className="gap-1 h-8 px-2.5">
               <Undo2 className="h-4 w-4" /> Undo
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={clearAll} disabled={!strokes.length} className="gap-1">
+            <Button type="button" size="sm" variant="outline" onClick={clearAll} disabled={!strokes.length} className="gap-1 h-8 px-2.5">
               <Trash2 className="h-4 w-4" /> Clear
             </Button>
           </div>
