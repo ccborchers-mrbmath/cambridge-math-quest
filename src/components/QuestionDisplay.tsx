@@ -484,10 +484,26 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
 
             {showDrawing ? (
               <DrawingPad
-                onComplete={(dataUrl) => {
-                  setUploadedImages((prev) => [...prev, dataUrl]);
+                initialStrokes={drawingStrokes ?? undefined}
+                initialExtraHeight={drawingExtraHeight}
+                onComplete={(dataUrl, strokes, extra) => {
+                  setUploadedImages((prev) => {
+                    if (drawingPageIndex !== null && drawingPageIndex < prev.length) {
+                      const next = [...prev];
+                      next[drawingPageIndex] = dataUrl;
+                      return next;
+                    }
+                    return [...prev, dataUrl];
+                  });
+                  setDrawingStrokes(strokes);
+                  setDrawingExtraHeight(extra);
+                  setDrawingPageIndex((idx) => {
+                    if (idx !== null) return idx;
+                    // New drawing — its index is the last position we just appended to.
+                    return uploadedImages.length;
+                  });
                   setShowDrawing(false);
-                  toast.success("Drawing added");
+                  toast.success(drawingStrokes ? "Drawing updated" : "Drawing added");
                 }}
                 onCancel={() => setShowDrawing(false)}
               />
@@ -704,6 +720,31 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                               </li>
                             ))}
                           </ul>
+                        </div>
+                      )}
+                      {drawingStrokes && drawingStrokes.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-border/60 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Re-open the drawing pad with the student's prior
+                              // annotations so they can keep editing. Clear AI
+                              // feedback so they can press "AI mark" again on
+                              // the improved attempt.
+                              setShowDrawing(true);
+                              setAiFeedback("");
+                              setMarkBreakdown([]);
+                              setMarksAwarded(null);
+                              setTotalMarks(null);
+                              setPercentageAttained("");
+                            }}
+                            className="gap-2"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Reattempt — edit your drawing
+                          </Button>
                         </div>
                       )}
                     </Card>
