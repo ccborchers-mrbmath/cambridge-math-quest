@@ -1327,7 +1327,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     octx.fillStyle = "#ffffff";
     octx.fillRect(0, 0, out.width, out.height);
     octx.drawImage(canvas, 0, 0);
-    onComplete(out.toDataURL("image/png"));
+    onComplete(out.toDataURL("image/png"), strokes, extraHeight);
   };
 
   return (
