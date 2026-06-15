@@ -663,6 +663,39 @@ const TestMaker = () => {
                   Add markschemes to compiled test & PDF
                 </p>
               </div>
+
+              {/* Test summary: total marks + grade boundary estimates */}
+              {selectedQuestionIds.length > 0 && (
+                <div className="pt-4 mt-4 border-t space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium flex items-center gap-2">
+                      <Award className="h-4 w-4" />
+                      Total Marks
+                    </span>
+                    <span className="text-sm font-semibold text-primary">
+                      {testStats.totalMarks}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Estimated Grade Boundaries
+                    </p>
+                    <div className="grid grid-cols-5 gap-1 text-center">
+                      {(["A","B","C","D","E"] as const).map((g) => (
+                        <div key={g} className="rounded-md bg-secondary/60 py-1.5">
+                          <div className="text-[10px] font-semibold text-muted-foreground">{g}</div>
+                          <div className="text-xs font-bold text-foreground">
+                            {testStats.gradeThresholds[g]}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-2 italic leading-snug">
+                      These grade boundaries are AI estimates and are not official Cambridge-approved boundaries.
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
