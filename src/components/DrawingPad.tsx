@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { getStroke } from "perfect-freehand";
 
 type Mode = "draw" | "line" | "ellipse" | "select" | "lasso" | "erase";
-interface Point {
+export interface Point {
   x: number;
   y: number;
   /** Normalized pressure 0..1. 0.5 when the device doesn't report pressure. */
@@ -18,7 +18,7 @@ interface Point {
   /** Timestamp (ms) used for velocity-based width fallback. */
   t: number;
 }
-interface Stroke {
+export interface Stroke {
   mode: Mode;
   color: string;
   /** Base width selected by the user — modulated per-point by pressure / velocity. */
@@ -33,8 +33,12 @@ const COLORS = [
 ];
 
 interface DrawingPadProps {
-  onComplete: (dataUrl: string) => void;
+  onComplete: (dataUrl: string, strokes: Stroke[], extraHeight: number) => void;
   onCancel: () => void;
+  /** Resume editing a previous drawing — restores all strokes. */
+  initialStrokes?: Stroke[];
+  /** Restore the previous extended canvas height (from "Add more space"). */
+  initialExtraHeight?: number;
 }
 
 /**
@@ -48,10 +52,10 @@ interface DrawingPadProps {
  *   4. Pen rendered as a single filled ribbon polygon (not many stroked
  *      segments) so the edges are smoothly anti-aliased.
  */
-export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
+export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraHeight }: DrawingPadProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [strokes, setStrokes] = useState<Stroke[]>(() => initialStrokes ?? []);
   // The in-progress stroke is intentionally kept in a ref (not React state)
   // so each pointer-move event doesn't trigger a React re-render. Drawing at
   // ~120 Hz with React state reconciliation was the main source of input lag
@@ -70,7 +74,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
   const [color, setColor] = useState(COLORS[0].value);
   const [width, setWidth] = useState(3);
   const [size, setSize] = useState({ w: 800, h: 600 });
-  const [extraHeight, setExtraHeight] = useState(0);
+  const [extraHeight, setExtraHeight] = useState(initialExtraHeight ?? 0);
   // CSS zoom factor applied to the canvas. 1 = native. Tablet users pinch
   // to zoom; everyone can use the +/- buttons.
   const [zoom, setZoom] = useState(1);
@@ -1323,7 +1327,7 @@ export const DrawingPad = ({ onComplete, onCancel }: DrawingPadProps) => {
     octx.fillStyle = "#ffffff";
     octx.fillRect(0, 0, out.width, out.height);
     octx.drawImage(canvas, 0, 0);
-    onComplete(out.toDataURL("image/png"));
+    onComplete(out.toDataURL("image/png"), strokes, extraHeight);
   };
 
   return (

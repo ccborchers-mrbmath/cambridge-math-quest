@@ -6,12 +6,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check, Copy, ClipboardPaste, Plus, Trash2 } from "lucide-react";
+import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check, Copy, ClipboardPaste, Plus, Trash2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { useAuth } from "@/hooks/useAuth";
-import { DrawingPad } from "@/components/DrawingPad";
+import { DrawingPad, type Stroke } from "@/components/DrawingPad";
 import { copyImageUrlToClipboard, readImageFromClipboard } from "@/utils/clipboard";
 import { pdfFileToImages } from "@/utils/pdfToImages";
 
@@ -28,6 +28,13 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isProcessingFiles, setIsProcessingFiles] = useState(false);
   const [showDrawing, setShowDrawing] = useState(false);
+  // When the student used the in-app drawing pad we keep their raw strokes
+  // so they can re-open the pad and continue editing after seeing AI feedback.
+  const [drawingStrokes, setDrawingStrokes] = useState<Stroke[] | null>(null);
+  const [drawingExtraHeight, setDrawingExtraHeight] = useState(0);
+  // Index in `uploadedImages` of the rendered drawing — so reattempt replaces
+  // the right page rather than appending a duplicate.
+  const [drawingPageIndex, setDrawingPageIndex] = useState<number | null>(null);
   const [percentageAttained, setPercentageAttained] = useState<string>("");
   const [natureOfErrors, setNatureOfErrors] = useState<string>("");
   const [aiFeedback, setAiFeedback] = useState<string>("");
@@ -73,6 +80,9 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
     setShowCamera(!showCamera);
     setUploadedImages([]);
     setShowDrawing(false);
+    setDrawingStrokes(null);
+    setDrawingPageIndex(null);
+    setDrawingExtraHeight(0);
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,6 +150,17 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
 
   const removeImageAt = (index: number) => {
     setUploadedImages((prev) => prev.filter((_, i) => i !== index));
+    // Keep the drawing-page bookkeeping in sync so reattempt still targets
+    // the correct image (or is cleared if the drawing itself was removed).
+    if (drawingPageIndex !== null) {
+      if (index === drawingPageIndex) {
+        setDrawingStrokes(null);
+        setDrawingPageIndex(null);
+        setDrawingExtraHeight(0);
+      } else if (index < drawingPageIndex) {
+        setDrawingPageIndex(drawingPageIndex - 1);
+      }
+    }
   };
 
   const handleCopyQuestion = async () => {
@@ -288,6 +309,9 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       setMarkBreakdown([]);
       setMarksAwarded(null);
       setTotalMarks(null);
+      setDrawingStrokes(null);
+      setDrawingPageIndex(null);
+      setDrawingExtraHeight(0);
     } catch (error) {
       logger.error('Error saving attempt:', error);
       toast.error("Failed to save attempt. Please try again.");
@@ -460,10 +484,26 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
 
             {showDrawing ? (
               <DrawingPad
-                onComplete={(dataUrl) => {
-                  setUploadedImages((prev) => [...prev, dataUrl]);
+                initialStrokes={drawingStrokes ?? undefined}
+                initialExtraHeight={drawingExtraHeight}
+                onComplete={(dataUrl, strokes, extra) => {
+                  setUploadedImages((prev) => {
+                    if (drawingPageIndex !== null && drawingPageIndex < prev.length) {
+                      const next = [...prev];
+                      next[drawingPageIndex] = dataUrl;
+                      return next;
+                    }
+                    return [...prev, dataUrl];
+                  });
+                  setDrawingStrokes(strokes);
+                  setDrawingExtraHeight(extra);
+                  setDrawingPageIndex((idx) => {
+                    if (idx !== null) return idx;
+                    // New drawing — its index is the last position we just appended to.
+                    return uploadedImages.length;
+                  });
                   setShowDrawing(false);
-                  toast.success("Drawing added");
+                  toast.success(drawingStrokes ? "Drawing updated" : "Drawing added");
                 }}
                 onCancel={() => setShowDrawing(false)}
               />
@@ -680,6 +720,31 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                               </li>
                             ))}
                           </ul>
+                        </div>
+                      )}
+                      {drawingStrokes && drawingStrokes.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-border/60 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Re-open the drawing pad with the student's prior
+                              // annotations so they can keep editing. Clear AI
+                              // feedback so they can press "AI mark" again on
+                              // the improved attempt.
+                              setShowDrawing(true);
+                              setAiFeedback("");
+                              setMarkBreakdown([]);
+                              setMarksAwarded(null);
+                              setTotalMarks(null);
+                              setPercentageAttained("");
+                            }}
+                            className="gap-2"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Reattempt — edit your drawing
+                          </Button>
                         </div>
                       )}
                     </Card>
