@@ -807,7 +807,12 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                   </Button>
                   <Button
                     onClick={saveAttempt}
-                    disabled={isSavingAttempt || isMarkingWork}
+                    disabled={
+                      isSavingAttempt ||
+                      isMarkingWork ||
+                      savedSnapshotKey ===
+                        `${uploadedImages.length}|${percentageAttained}|${aiFeedback.length}|${markBreakdown.length}`
+                    }
                     className="gap-2 bg-primary hover:bg-primary/90"
                   >
                     {isSavingAttempt ? (
@@ -815,7 +820,12 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                     ) : (
                       <Save className="h-5 w-5" />
                     )}
-                    {isSavingAttempt ? "Saving..." : "Save attempt"}
+                    {isSavingAttempt
+                      ? "Saving..."
+                      : savedSnapshotKey ===
+                          `${uploadedImages.length}|${percentageAttained}|${aiFeedback.length}|${markBreakdown.length}`
+                        ? "Saved ✓"
+                        : "Save attempt"}
                   </Button>
                 </div>
               </div>
