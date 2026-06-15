@@ -1167,7 +1167,8 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     currentStrokeRef.current = {
       mode,
       color,
-      width: mode === "erase" ? Math.max(width * 4, 12) : width,
+      // Eraser uses the slider size directly for precise erasing.
+      width: mode === "erase" ? Math.max(width, 2) : width,
       points: [p],
     };
     scheduleRedraw();
