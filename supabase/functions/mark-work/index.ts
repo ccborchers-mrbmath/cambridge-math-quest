@@ -207,7 +207,18 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching exactly this
       return jsonResponse({ error: 'AI marking response could not be understood' }, 500);
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    // The AI returns LaTeX inside JSON strings (e.g. "\sin", "\frac", "\theta").
+    // Those are invalid JSON escape sequences and cause JSON.parse to throw
+    // "Bad escaped character". Escape any backslash that is not part of a
+    // valid JSON escape (\" \\ \/ \b \f \n \r \t \uXXXX) before parsing.
+    const sanitized = jsonMatch[0].replace(/\\(?!["\\/bfnrtu])/g, '\\\\');
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(sanitized);
+    } catch (parseErr) {
+      console.error('mark-work JSON parse failed after sanitize:', parseErr, '\nRaw:', jsonMatch[0].slice(0, 500));
+      return jsonResponse({ error: 'AI marking response could not be parsed' }, 500);
+    }
     const percentageAttained = Math.max(0, Math.min(100, Math.round(Number(parsed.percentageAttained) || 0)));
     const marksAwarded = Number.isFinite(Number(parsed.marksAwarded)) ? Number(parsed.marksAwarded) : null;
     const totalMarks = Number.isFinite(Number(parsed.totalMarks)) ? Number(parsed.totalMarks) : null;
