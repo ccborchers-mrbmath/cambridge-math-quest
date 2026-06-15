@@ -124,6 +124,13 @@ serve(async (req) => {
       `3.8 Differential equations: 3.8.1 Formulating differential equations from rates of change; 3.8.2 Solving separable differential equations; 3.8.3 Particular solutions using initial conditions; 3.8.4 Interpreting solutions in context\n` +
       `3.9 Complex numbers: 3.9.1 Terminology — real part, imaginary part, modulus, argument, conjugate; 3.9.2 Arithmetic in Cartesian form; 3.9.3 Conjugate pairs and polynomial roots; 3.9.4 Argand diagram; 3.9.5 Polar form and multiplication/division; 3.9.6 Square roots of a complex number; 3.9.7 Geometrical effects of complex number operations; 3.9.8 Loci in the Argand diagram`;
 
+    const M1_SYLLABUS_BLOCK =
+      `4.1 Forces and equilibrium: 4.1.1 Identifying forces in a given situation; 4.1.2 Components and resultants of forces; 4.1.3 Equilibrium of a particle; 4.1.4 Normal contact force and frictional force; 4.1.5 Smooth contact model; 4.1.6 Limiting friction and coefficient of friction; 4.1.7 Newton's third law\n` +
+      `4.2 Kinematics of motion in a straight line: 4.2.1 Distance, speed, displacement, velocity and acceleration; 4.2.2 Displacement-time and velocity-time graphs; 4.2.3 Calculus methods for displacement, velocity and acceleration; 4.2.4 Constant acceleration formulae (suvat)\n` +
+      `4.3 Momentum: 4.3.1 Linear momentum; 4.3.2 Conservation of linear momentum and direct impact\n` +
+      `4.4 Newton's laws of motion: 4.4.1 Applying Newton's second law (F = ma) to a particle; 4.4.2 Mass and weight (W = mg); 4.4.3 Motion on an inclined plane; 4.4.4 Connected particles\n` +
+      `4.5 Energy, work and power: 4.5.1 Work done by a force; 4.5.2 Gravitational potential energy and kinetic energy; 4.5.3 Work-energy principle and conservation of energy; 4.5.4 Power (P = Fv)`;
+
     const syllabusBlock =
       module === "P1"
         ? `Use ONLY the following Pure Mathematics 1 syllabus for classification. ` +
@@ -144,6 +151,12 @@ serve(async (req) => {
           `topic_id must be the corresponding code (e.g. "3.7" for Vectors). ` +
           `subtopic_ids must be an array of subtopic codes chosen verbatim from this list:\n` +
           P3_SYLLABUS_BLOCK
+        : module === "M1"
+        ? `Use ONLY the following Mechanics (Paper 4) syllabus for classification. ` +
+          `Topic must be EXACTLY one of: Forces and equilibrium; Kinematics of motion in a straight line; Momentum; Newton's laws of motion; Energy, work and power. ` +
+          `topic_id must be the corresponding code (e.g. "4.2" for Kinematics of motion in a straight line). ` +
+          `subtopic_ids must be an array of subtopic codes chosen verbatim from this list:\n` +
+          M1_SYLLABUS_BLOCK
         : syllabus
           ? `Use ONLY the following ${syllabus.name} syllabus for classification. ` +
             `Topic must be EXACTLY one of: ${syllabus.topics.map((t) => t.name).join("; ")}. ` +
