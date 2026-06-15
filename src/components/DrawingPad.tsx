@@ -1665,7 +1665,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
                 : mode === "select"
                 ? "default"
                 : mode === "erase"
-                ? "crosshair"
+                ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='%23fde68a' stroke='%23111827' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='M20 20H9L3.5 14.5a2 2 0 0 1 0-2.8L12.7 2.5a2 2 0 0 1 2.8 0l6 6a2 2 0 0 1 0 2.8L13 19'/><path d='M18 13.3 10.7 6'/></svg>") 4 24, crosshair`
                 : `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'><path d='M3.8 18.1 L13.3 7.9 A2.2 2.2 0 0 1 16.1 10.7 L5.9 20.2 Z' fill='white'/><path d='M2 22 L3.8 18.1 L5.9 20.2 Z' fill='black'/></svg>") 2 22, crosshair`,
           }}
         />
