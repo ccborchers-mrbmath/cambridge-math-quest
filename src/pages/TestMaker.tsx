@@ -890,7 +890,24 @@ const TestMaker = () => {
               className="w-full rounded-md border"
             />
           )}
+          {previewQuestion && (() => {
+            const pid = getQuestionId(previewQuestion);
+            const added = isQuestionSelected(pid);
+            return (
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={() => {
+                    toggleQuestion(pid);
+                  }}
+                  variant={added ? "outline" : "default"}
+                >
+                  {added ? "Remove from test" : "Add to test"}
+                </Button>
+              </div>
+            );
+          })()}
         </DialogContent>
+
       </Dialog>
     </div>
   );
