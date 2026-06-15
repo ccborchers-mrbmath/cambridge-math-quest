@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveModule, moduleOf } from "@/lib/modules";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { useQuestionsVersion } from "@/lib/questionStore";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface ProcessedQuestion {
   original: Question;
@@ -68,6 +69,7 @@ const TestMaker = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [includeMarkschemes, setIncludeMarkschemes] = useState(true);
   const [showMarkschemes, setShowMarkschemes] = useState(false);
+  const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null);
 
   // Pool of source questions scoped to the active module.
   const pool = useMemo(
@@ -661,6 +663,39 @@ const TestMaker = () => {
                   Add markschemes to compiled test & PDF
                 </p>
               </div>
+
+              {/* Test summary: total marks + grade boundary estimates */}
+              {selectedQuestionIds.length > 0 && (
+                <div className="pt-4 mt-4 border-t space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium flex items-center gap-2">
+                      <Award className="h-4 w-4" />
+                      Total Marks
+                    </span>
+                    <span className="text-sm font-semibold text-primary">
+                      {testStats.totalMarks}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Estimated Grade Boundaries
+                    </p>
+                    <div className="grid grid-cols-5 gap-1 text-center">
+                      {(["A","B","C","D","E"] as const).map((g) => (
+                        <div key={g} className="rounded-md bg-secondary/60 py-1.5">
+                          <div className="text-[10px] font-semibold text-muted-foreground">{g}</div>
+                          <div className="text-xs font-bold text-foreground">
+                            {testStats.gradeThresholds[g]}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-2 italic leading-snug">
+                      These grade boundaries are AI estimates and are not official Cambridge-approved boundaries.
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -733,6 +768,19 @@ const TestMaker = () => {
                                     {question.marks} marks
                                   </p>
                                 </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-primary hover:text-primary shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewQuestion(question);
+                                  }}
+                                  title="Preview question"
+                                  aria-label="Preview question"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
                               </div>
                             );
                           })}
@@ -800,6 +848,16 @@ const TestMaker = () => {
                             {question.topic} • {question.marks} marks
                           </p>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-primary hover:text-primary shrink-0"
+                          onClick={() => setPreviewQuestion(question)}
+                          title="Preview question"
+                          aria-label="Preview question"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </div>
                     );
                   })}
@@ -809,6 +867,31 @@ const TestMaker = () => {
           )}
         </div>
       </main>
+
+      {/* Question image preview dialog */}
+      <Dialog open={!!previewQuestion} onOpenChange={(open) => !open && setPreviewQuestion(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {previewQuestion
+                ? `${previewQuestion.year} ${previewQuestion.sitting} Paper ${previewQuestion.paperNumber} Q${previewQuestion.questionNumber}`
+                : "Question preview"}
+            </DialogTitle>
+            {previewQuestion && (
+              <DialogDescription>
+                {previewQuestion.topic} • {previewQuestion.marks} marks — {previewQuestion.subtopics}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          {previewQuestion && (
+            <img
+              src={previewQuestion.questionUrl}
+              alt={`Question ${previewQuestion.questionNumber}`}
+              className="w-full rounded-md border"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
