@@ -39,6 +39,13 @@ interface DrawingPadProps {
   initialStrokes?: Stroke[];
   /** Restore the previous extended canvas height (from "Add more space"). */
   initialExtraHeight?: number;
+  /**
+   * Optional image rendered at the top of the canvas (e.g. the question
+   * diagram) so the student can annotate it as part of their working.
+   * The image is stretched horizontally to fill the canvas width and the
+   * ruled lines begin just below it.
+   */
+  backgroundImageUrl?: string;
 }
 
 /**
@@ -52,7 +59,7 @@ interface DrawingPadProps {
  *   4. Pen rendered as a single filled ribbon polygon (not many stroked
  *      segments) so the edges are smoothly anti-aliased.
  */
-export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraHeight }: DrawingPadProps) => {
+export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraHeight, backgroundImageUrl }: DrawingPadProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [strokes, setStrokes] = useState<Stroke[]>(() => initialStrokes ?? []);
@@ -75,6 +82,13 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
   const [width, setWidth] = useState(3);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [extraHeight, setExtraHeight] = useState(initialExtraHeight ?? 0);
+  // Loaded background image (question diagram) and its aspect ratio.
+  // We keep the natural width/height so the displayed height can be
+  // recomputed whenever the logical canvas width changes (zoom / resize).
+  const bgImageRef = useRef<HTMLImageElement | null>(null);
+  const [bgImageRatio, setBgImageRatio] = useState<number | null>(null);
+  // Logical-px height the background image occupies on the canvas.
+  const bgImageHeight = bgImageRatio ? Math.round(size.w * bgImageRatio) : 0;
   // CSS zoom factor applied to the canvas. 1 = native. Tablet users pinch
   // to zoom; everyone can use the +/- buttons.
   const [zoom, setZoom] = useState(1);
