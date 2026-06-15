@@ -503,7 +503,9 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       ctx.fill();
       return;
     }
-    const eraseMul = s.mode === "erase" ? 4 : 1;
+    // Eraser width is taken directly from the user's chosen size for a
+    // precise, predictable rub-out — no extra multiplier.
+    const eraseMul = 1;
     const left: { x: number; y: number }[] = [];
     const right: { x: number; y: number }[] = [];
     for (let i = 0; i < pts.length; i++) {
