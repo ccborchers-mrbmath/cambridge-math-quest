@@ -71,12 +71,20 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
   const currentStrokeRef = useRef<Stroke | null>(null);
   // rAF handle for coalesced redraws.
   const rafRef = useRef<number | null>(null);
-  // Offscreen canvas caching every committed stroke + background + ruled
-  // lines. Live drawing only paints the active stroke on top of this cached
-  // image, so the per-frame cost stays constant no matter how much the user
-  // has already written.
-  const committedCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const committedDirtyRef = useRef(true);
+  // Two-layer cache so the eraser only removes ink and never the ruled
+  // lines or background diagram:
+  //   - bgCanvasRef:  white fill + question diagram + ruled lines
+  //   - inkCanvasRef: all committed strokes on a transparent surface,
+  //                   with erase strokes applied via destination-out
+  //                   (so they only cut into other ink, not the bg)
+  // The main canvas every frame = bg + ink + live in-progress stroke.
+  const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const inkCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Scratch canvas reused when the in-progress stroke is an eraser, so we
+  // can preview destination-out against ink without mutating the cache.
+  const tempInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bgDirtyRef = useRef(true);
+  const inkDirtyRef = useRef(true);
   const [mode, setMode] = useState<Mode>("draw");
   const [color, setColor] = useState(COLORS[0].value);
   const [width, setWidth] = useState(3);
@@ -250,7 +258,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     if (!backgroundImageUrl) {
       bgImageRef.current = null;
       setBgImageRatio(null);
-      committedDirtyRef.current = true;
+      bgDirtyRef.current = true;
       return;
     }
     const img = new Image();
@@ -260,7 +268,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       if (cancelled) return;
       bgImageRef.current = img;
       setBgImageRatio(img.naturalWidth ? img.naturalHeight / img.naturalWidth : null);
-      committedDirtyRef.current = true;
+      bgDirtyRef.current = true;
     };
     img.onerror = () => {
       if (cancelled) return;
@@ -540,40 +548,85 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     const dpr = window.devicePixelRatio || 1;
     const renderScale = Math.min(dpr * zoom, dpr * 3);
 
-    // (Re)build the offscreen committed cache when needed. This is the key
-    // performance win: every committed stroke is rasterised once into this
-    // image, and per-frame live drawing only paints the active stroke on
-    // top of a single drawImage() blit.
-    if (committedDirtyRef.current || !committedCanvasRef.current) {
-      const cache = committedCanvasRef.current ?? document.createElement("canvas");
-      committedCanvasRef.current = cache;
-      if (cache.width !== canvas.width || cache.height !== canvas.height) {
-        cache.width = canvas.width;
-        cache.height = canvas.height;
+    // Helper: (re)size an offscreen canvas to match the main backing store.
+    const ensureSized = (c: HTMLCanvasElement) => {
+      if (c.width !== canvas.width || c.height !== canvas.height) {
+        c.width = canvas.width;
+        c.height = canvas.height;
+        return true;
       }
-      const cctx = cache.getContext("2d");
-      if (cctx) {
-        cctx.setTransform(1, 0, 0, 1, 0, 0);
-        cctx.clearRect(0, 0, cache.width, cache.height);
-        cctx.scale(renderScale, renderScale);
-        paintBackground(cctx);
-        for (const s of strokes) drawSingleStroke(cctx, s, false);
-        cctx.globalCompositeOperation = "source-over";
+      return false;
+    };
+
+    // (Re)build the background cache: white fill + question diagram +
+    // ruled lines. Erases can't touch this layer because the eraser only
+    // runs against the ink cache below.
+    const bg = bgCanvasRef.current ?? document.createElement("canvas");
+    bgCanvasRef.current = bg;
+    const bgResized = ensureSized(bg);
+    if (bgDirtyRef.current || bgResized) {
+      const bctx = bg.getContext("2d");
+      if (bctx) {
+        bctx.setTransform(1, 0, 0, 1, 0, 0);
+        bctx.clearRect(0, 0, bg.width, bg.height);
+        bctx.scale(renderScale, renderScale);
+        paintBackground(bctx);
       }
-      committedDirtyRef.current = false;
+      bgDirtyRef.current = false;
     }
 
-    // Live frame: blit the cache, then paint the in-progress stroke + overlays.
+    // (Re)build the ink cache: every committed stroke on a transparent
+    // surface. Because erase strokes are applied here (destination-out),
+    // they only cut into prior ink, never the background.
+    const ink = inkCanvasRef.current ?? document.createElement("canvas");
+    inkCanvasRef.current = ink;
+    const inkResized = ensureSized(ink);
+    if (inkDirtyRef.current || inkResized) {
+      const ictx = ink.getContext("2d");
+      if (ictx) {
+        ictx.setTransform(1, 0, 0, 1, 0, 0);
+        ictx.clearRect(0, 0, ink.width, ink.height);
+        ictx.scale(renderScale, renderScale);
+        for (const s of strokes) drawSingleStroke(ictx, s, false);
+        ictx.globalCompositeOperation = "source-over";
+      }
+      inkDirtyRef.current = false;
+    }
+
+    // Live frame: blit bg, then ink (with live erase preview if needed),
+    // then any non-erase in-progress stroke + overlays.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const cache = committedCanvasRef.current;
-    if (cache) ctx.drawImage(cache, 0, 0);
+    ctx.drawImage(bg, 0, 0);
+
+    const cur = currentStrokeRef.current;
+    if (cur && cur.mode === "erase") {
+      // Render the in-progress eraser against a scratch copy of the ink
+      // cache so the preview only removes ink, leaving bg untouched.
+      const tmp = tempInkCanvasRef.current ?? document.createElement("canvas");
+      tempInkCanvasRef.current = tmp;
+      if (tmp.width !== ink.width || tmp.height !== ink.height) {
+        tmp.width = ink.width;
+        tmp.height = ink.height;
+      }
+      const tctx = tmp.getContext("2d");
+      if (tctx) {
+        tctx.setTransform(1, 0, 0, 1, 0, 0);
+        tctx.clearRect(0, 0, tmp.width, tmp.height);
+        tctx.drawImage(ink, 0, 0);
+        tctx.scale(renderScale, renderScale);
+        drawSingleStroke(tctx, cur, true);
+      }
+      ctx.drawImage(tmp, 0, 0);
+    } else {
+      ctx.drawImage(ink, 0, 0);
+    }
+
     ctx.scale(renderScale, renderScale);
     ctx.imageSmoothingEnabled = true;
     (ctx as any).imageSmoothingQuality = "high";
 
-    const cur = currentStrokeRef.current;
-    if (cur) drawSingleStroke(ctx, cur, true);
+    if (cur && cur.mode !== "erase") drawSingleStroke(ctx, cur, true);
     ctx.globalCompositeOperation = "source-over";
 
     // Selection highlight: draw a dashed bounding box around the selected stroke.
@@ -663,12 +716,15 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     }
   }, [strokes, size, selectedIndex, lassoPath, lassoSelection, zoom, paintBackground, drawSingleStroke]);
 
-  // Mark the committed cache as stale whenever the committed strokes list,
-  // the canvas size, or the render scale changes. The cache will be rebuilt
-  // on the next redraw.
+  // Invalidate caches. Strokes only affect the ink cache; size / zoom
+  // change the backing-store dimensions so both layers need rebuilding.
   useEffect(() => {
-    committedDirtyRef.current = true;
-  }, [strokes, size, zoom]);
+    inkDirtyRef.current = true;
+  }, [strokes]);
+  useEffect(() => {
+    bgDirtyRef.current = true;
+    inkDirtyRef.current = true;
+  }, [size, zoom]);
 
   // rAF-batched redraw. Multiple pointer-move events between frames coalesce
   // into a single repaint, which is what keeps inking fluid on touch.
@@ -1467,6 +1523,34 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
               className="gap-1"
             >
               <Eraser className="h-4 w-4" /> Eraser
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                // Delete only the currently selected ink — never clear
+                // the whole canvas. Works with both the lasso selection
+                // and a single Select-tool pick.
+                if (lassoSelection && lassoSelection.length) {
+                  const toRemove = new Set(lassoSelection);
+                  setStrokes((prev) => prev.filter((_, i) => !toRemove.has(i)));
+                  setLassoSelection(null);
+                  setLassoPath(null);
+                } else if (selectedIndex !== null) {
+                  const idx = selectedIndex;
+                  setStrokes((prev) => prev.filter((_, i) => i !== idx));
+                  setSelectedIndex(null);
+                }
+              }}
+              disabled={
+                !(lassoSelection && lassoSelection.length) &&
+                selectedIndex === null
+              }
+              className="gap-1"
+              title="Delete the lassoed / selected ink"
+            >
+              <Trash2 className="h-4 w-4" /> Delete
             </Button>
             <Button
               type="button"
