@@ -377,18 +377,28 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     (ctx as any).imageSmoothingQuality = "high";
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, size.w, size.h);
+    // Question diagram, stretched edge-to-edge across the canvas width.
+    const bgImg = bgImageRef.current;
+    if (bgImg && bgImageHeight > 0) {
+      ctx.drawImage(bgImg, 0, 0, size.w, bgImageHeight);
+    }
     const lineSpacing = 36;
+    // Ruled lines start just beneath the diagram (or at the top if there
+    // is no diagram), aligned to the line-spacing grid.
+    const linesStartY = bgImageHeight > 0
+      ? Math.ceil((bgImageHeight + lineSpacing) / lineSpacing) * lineSpacing
+      : lineSpacing;
     ctx.save();
     ctx.strokeStyle = "rgba(37, 99, 235, 0.18)";
     ctx.lineWidth = 1;
-    for (let y = lineSpacing; y < size.h; y += lineSpacing) {
+    for (let y = linesStartY; y < size.h; y += lineSpacing) {
       ctx.beginPath();
       ctx.moveTo(0, y + 0.5);
       ctx.lineTo(size.w, y + 0.5);
       ctx.stroke();
     }
     ctx.restore();
-  }, [size]);
+  }, [size, bgImageHeight]);
 
   // Paints a single stroke onto an already-scaled context. Used both for
   // building the committed cache and for painting the live in-progress
