@@ -231,13 +231,49 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       // native width and just enlarges pixels as usual.
       const effectiveZoom = Math.min(1, zoom);
       const logicalW = Math.round(w / effectiveZoom);
-      const h = Math.max(1400, Math.round(w * 1.6));
-      setSize({ w: logicalW, h: h + extraHeight });
+      const baseH = Math.max(1400, Math.round(w * 1.6));
+      // Reserve extra vertical room for the background diagram so the
+      // writable area beneath it isn't squashed.
+      const bgH = bgImageRatio ? Math.round(logicalW * bgImageRatio) : 0;
+      setSize({ w: logicalW, h: baseH + bgH + extraHeight });
     };
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, [extraHeight, zoom]);
+  }, [extraHeight, zoom, bgImageRatio]);
+
+  // Load the optional background image (question diagram). Uses crossOrigin
+  // so the resulting canvas isn't tainted and can still be exported via
+  // toDataURL. Callers are expected to pass a CORS-friendly URL (see
+  // getProxiedImageUrl).
+  useEffect(() => {
+    if (!backgroundImageUrl) {
+      bgImageRef.current = null;
+      setBgImageRatio(null);
+      committedDirtyRef.current = true;
+      scheduleRedraw();
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    let cancelled = false;
+    img.onload = () => {
+      if (cancelled) return;
+      bgImageRef.current = img;
+      setBgImageRatio(img.naturalWidth ? img.naturalHeight / img.naturalWidth : null);
+      committedDirtyRef.current = true;
+      scheduleRedraw();
+    };
+    img.onerror = () => {
+      if (cancelled) return;
+      bgImageRef.current = null;
+      setBgImageRatio(null);
+    };
+    img.src = backgroundImageUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [backgroundImageUrl, scheduleRedraw]);
 
   /**
    * Centripetal Catmull-Rom interpolation between p1 and p2 (with p0,p3 as
