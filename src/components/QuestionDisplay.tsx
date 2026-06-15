@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { DrawingPad, type Stroke } from "@/components/DrawingPad";
 import { copyImageUrlToClipboard, readImageFromClipboard } from "@/utils/clipboard";
 import { pdfFileToImages } from "@/utils/pdfToImages";
+import { getProxiedImageUrl } from "@/utils/imageProcessing";
 
 interface QuestionDisplayProps {
   question: Question;
@@ -526,6 +527,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
               <DrawingPad
                 initialStrokes={drawingStrokes ?? undefined}
                 initialExtraHeight={drawingExtraHeight}
+                backgroundImageUrl={getProxiedImageUrl(question.questionUrl)}
                 onComplete={(dataUrl, strokes, extra) => {
                   setUploadedImages((prev) => {
                     if (drawingPageIndex !== null && drawingPageIndex < prev.length) {

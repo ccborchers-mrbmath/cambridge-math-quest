@@ -39,6 +39,13 @@ interface DrawingPadProps {
   initialStrokes?: Stroke[];
   /** Restore the previous extended canvas height (from "Add more space"). */
   initialExtraHeight?: number;
+  /**
+   * Optional image rendered at the top of the canvas (e.g. the question
+   * diagram) so the student can annotate it as part of their working.
+   * The image is stretched horizontally to fill the canvas width and the
+   * ruled lines begin just below it.
+   */
+  backgroundImageUrl?: string;
 }
 
 /**
@@ -52,7 +59,7 @@ interface DrawingPadProps {
  *   4. Pen rendered as a single filled ribbon polygon (not many stroked
  *      segments) so the edges are smoothly anti-aliased.
  */
-export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraHeight }: DrawingPadProps) => {
+export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraHeight, backgroundImageUrl }: DrawingPadProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [strokes, setStrokes] = useState<Stroke[]>(() => initialStrokes ?? []);
@@ -75,6 +82,13 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
   const [width, setWidth] = useState(3);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [extraHeight, setExtraHeight] = useState(initialExtraHeight ?? 0);
+  // Loaded background image (question diagram) and its aspect ratio.
+  // We keep the natural width/height so the displayed height can be
+  // recomputed whenever the logical canvas width changes (zoom / resize).
+  const bgImageRef = useRef<HTMLImageElement | null>(null);
+  const [bgImageRatio, setBgImageRatio] = useState<number | null>(null);
+  // Logical-px height the background image occupies on the canvas.
+  const bgImageHeight = bgImageRatio ? Math.round(size.w * bgImageRatio) : 0;
   // CSS zoom factor applied to the canvas. 1 = native. Tablet users pinch
   // to zoom; everyone can use the +/- buttons.
   const [zoom, setZoom] = useState(1);
@@ -217,13 +231,47 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       // native width and just enlarges pixels as usual.
       const effectiveZoom = Math.min(1, zoom);
       const logicalW = Math.round(w / effectiveZoom);
-      const h = Math.max(1400, Math.round(w * 1.6));
-      setSize({ w: logicalW, h: h + extraHeight });
+      const baseH = Math.max(1400, Math.round(w * 1.6));
+      // Reserve extra vertical room for the background diagram so the
+      // writable area beneath it isn't squashed.
+      const bgH = bgImageRatio ? Math.round(logicalW * bgImageRatio) : 0;
+      setSize({ w: logicalW, h: baseH + bgH + extraHeight });
     };
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, [extraHeight, zoom]);
+  }, [extraHeight, zoom, bgImageRatio]);
+
+  // Load the optional background image (question diagram). Uses crossOrigin
+  // so the resulting canvas isn't tainted and can still be exported via
+  // toDataURL. Callers are expected to pass a CORS-friendly URL (see
+  // getProxiedImageUrl).
+  useEffect(() => {
+    if (!backgroundImageUrl) {
+      bgImageRef.current = null;
+      setBgImageRatio(null);
+      committedDirtyRef.current = true;
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    let cancelled = false;
+    img.onload = () => {
+      if (cancelled) return;
+      bgImageRef.current = img;
+      setBgImageRatio(img.naturalWidth ? img.naturalHeight / img.naturalWidth : null);
+      committedDirtyRef.current = true;
+    };
+    img.onerror = () => {
+      if (cancelled) return;
+      bgImageRef.current = null;
+      setBgImageRatio(null);
+    };
+    img.src = backgroundImageUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [backgroundImageUrl]);
 
   /**
    * Centripetal Catmull-Rom interpolation between p1 and p2 (with p0,p3 as
@@ -329,18 +377,28 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     (ctx as any).imageSmoothingQuality = "high";
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, size.w, size.h);
+    // Question diagram, stretched edge-to-edge across the canvas width.
+    const bgImg = bgImageRef.current;
+    if (bgImg && bgImageHeight > 0) {
+      ctx.drawImage(bgImg, 0, 0, size.w, bgImageHeight);
+    }
     const lineSpacing = 36;
+    // Ruled lines start just beneath the diagram (or at the top if there
+    // is no diagram), aligned to the line-spacing grid.
+    const linesStartY = bgImageHeight > 0
+      ? Math.ceil((bgImageHeight + lineSpacing) / lineSpacing) * lineSpacing
+      : lineSpacing;
     ctx.save();
     ctx.strokeStyle = "rgba(37, 99, 235, 0.18)";
     ctx.lineWidth = 1;
-    for (let y = lineSpacing; y < size.h; y += lineSpacing) {
+    for (let y = linesStartY; y < size.h; y += lineSpacing) {
       ctx.beginPath();
       ctx.moveTo(0, y + 0.5);
       ctx.lineTo(size.w, y + 0.5);
       ctx.stroke();
     }
     ctx.restore();
-  }, [size]);
+  }, [size, bgImageHeight]);
 
   // Paints a single stroke onto an already-scaled context. Used both for
   // building the committed cache and for painting the live in-progress
