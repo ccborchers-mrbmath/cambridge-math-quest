@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveModule, moduleOf } from "@/lib/modules";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { useQuestionsVersion } from "@/lib/questionStore";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface ProcessedQuestion {
   original: Question;
@@ -68,6 +69,7 @@ const TestMaker = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [includeMarkschemes, setIncludeMarkschemes] = useState(true);
   const [showMarkschemes, setShowMarkschemes] = useState(false);
+  const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null);
 
   // Pool of source questions scoped to the active module.
   const pool = useMemo(
