@@ -1,30 +1,55 @@
-## What's happening
+# Reattempt continuity + history-aware AI feedback
 
-`suggest-question-metadata` (autofill) works for you, but `extract-question-text` returns a "non-2xx" error in the browser. Both functions have the same auth + AI Gateway pattern, so the failure is almost certainly happening **inside the AI call** in `extract-question-text` — and right now that function swallows the upstream detail behind a generic 502, so we can't see why.
+Two related refinements to the marking flow in `src/components/QuestionDisplay.tsx` and `supabase/functions/mark-work/index.ts`.
 
-Two likely culprits:
+## 1. Keep the attempt page open after "Save attempt"
 
-1. **Model is stale.** Both functions call `google/gemini-2.5-flash`. The current recommended Lovable AI Gateway chat model is `google/gemini-3-flash-preview`. `suggest` happens to work because it asks for a tiny JSON object; `extract` asks for a full transcription with diagram descriptions, so it stresses the model harder (longer output, higher chance of timeout/quota response on the old model).
-2. **No upstream visibility.** When the gateway fails, the function returns `502 AI error <status>: <text>` but doesn't `console.error` it, so the Edge Function logs we just pulled show nothing useful — only boot/shutdown lines.
+Currently `saveAttempt()` clears `uploadedImages`, drawing strokes, feedback, marks, etc. after a successful insert. That destroys the drawing state, so "Reattempt" no longer has anything to resume.
 
-## Plan
+Change: after a successful save, keep everything on screen exactly as it is — uploaded images, AI feedback, mark breakdown, percentage, and the saved drawing strokes/page index/extra height. Only show the success toast and disable the Save button until something changes (to prevent accidental duplicate inserts of the same state). The "Reattempt — edit your drawing" button remains visible and continues to reopen the drawing pad with `initialStrokes` so the student can keep editing and then click "AI mark" again.
 
-### 1. Update `supabase/functions/extract-question-text/index.ts`
-- Switch the model from `google/gemini-2.5-flash` to `google/gemini-3-flash-preview` (the current default for chat/vision).
-- Add `console.error("extract-question-text AI failure", aiRes.status, text)` before returning the 502 so we can read the real provider error in the function logs if it still fails.
-- Add a `console.error` in the outer `catch` so unexpected exceptions also surface.
-- Leave the auth check and system prompts unchanged.
+Optional but recommended: track the id of the last saved attempt so that if the user re-marks and re-saves, we can decide between insert vs update. Default behaviour: each Save inserts a new row (so history is preserved per attempt), and the button label becomes "Save attempt" → after save it shows "Saved ✓ — save again" once feedback changes.
 
-### 2. Update `supabase/functions/suggest-question-metadata/index.ts`
-- Same model bump to `google/gemini-3-flash-preview` so both AI vision calls stay on the same supported model.
-- Add the same `console.error` on AI failure.
-- No behavior change for the happy path.
+## 2. History-aware AI feedback
 
-### 3. Test and verify
-- After deploy, you click **Extract text from question image** once on a real upload.
-- I pull `extract-question-text` logs. If it now succeeds, we're done. If it still fails, the logged upstream status + body will tell us exactly which fix is next (e.g. 402 credits, 413 image too big, 400 unsupported content) and we'll address that in a follow-up.
+Make the AI explicitly reference previous attempts of the same question by the same user.
 
-### Out of scope
-- No changes to `mark-work` (already on `gemini-3-flash-preview`) or `generate-hint`.
-- No RLS / role / frontend changes — the open-access setup stays as-is.
-- No async/queue refactor unless step 3 shows the call is actually timing out.
+### Client side (`handleAIMarking`)
+Before calling `mark-work`, fetch this user's prior attempts of the same question (matching `user_id`, `year`, `sitting`, `paper_number`, `question_number`), ordered by `created_at`. Take the last 3, keeping only compact fields:
+
+```ts
+{ createdAt, percentageAttained, marksAwarded?, totalMarks?, natureOfErrors, markBreakdown }
+```
+
+Pass this as a new `previousAttempts` array in the `mark-work` request body. Do not send prior images (cost + token bloat) — text summaries are enough.
+
+### Edge function (`supabase/functions/mark-work/index.ts`)
+- Accept `previousAttempts` (validate: array, max 3, each field length-capped).
+- When non-empty, append a section to the user prompt:
+  ```
+  === PREVIOUS ATTEMPTS BY THIS STUDENT (oldest → newest) ===
+  Attempt 1 (2026-06-10, 4/8): natureOfErrors=..., per-mark: M1✓ A1✗ ...
+  Attempt 2 (2026-06-12, 6/8): ...
+  ```
+- Extend the system prompt with a new section "Referencing prior attempts":
+  - If `previousAttempts` is empty, do not mention history.
+  - If non-empty, compare the current per-mark breakdown against the most recent prior breakdown and call out concrete improvements ("In your earlier attempt you used the wrong ratio for $\\sin 60°$; this time you used $\\frac{\\sqrt{3}}{2}$ correctly and earned the A1.") and any regressions, in the `feedback` field. Keep maths in LaTeX as already required.
+  - Do not invent history that isn't in the supplied list.
+
+No DB schema changes — `student_attempts` already stores `nature_of_errors`, `percentage_attained`, and `mark_breakdown` (jsonb). RLS already restricts users to their own rows, so the select runs as the signed-in user.
+
+## Files to edit
+
+- `src/components/QuestionDisplay.tsx`
+  - `saveAttempt()`: stop clearing `uploadedImages`, `aiFeedback`, `markBreakdown`, `percentageAttained`, `marksAwarded`, `totalMarks`, `natureOfErrors`, and drawing state. Track a `savedSnapshotKey` to gate the Save button.
+  - `handleAIMarking()`: fetch last 3 prior attempts for this question/user and include them in the `mark-work` invoke body as `previousAttempts`.
+- `supabase/functions/mark-work/index.ts`
+  - Accept + validate `previousAttempts`.
+  - Inject a formatted history block into the user message.
+  - Add a "Referencing prior attempts" section to the system prompt.
+
+## Out of scope
+
+- No changes to `student_attempts` schema.
+- No UI for browsing prior attempts (that already lives in Student Progress).
+- No change to the "Reattempt" button itself — it already restores strokes; this plan just ensures Save no longer wipes them.
