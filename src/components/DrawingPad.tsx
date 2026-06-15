@@ -251,7 +251,6 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       bgImageRef.current = null;
       setBgImageRatio(null);
       committedDirtyRef.current = true;
-      scheduleRedraw();
       return;
     }
     const img = new Image();
@@ -262,7 +261,6 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       bgImageRef.current = img;
       setBgImageRatio(img.naturalWidth ? img.naturalHeight / img.naturalWidth : null);
       committedDirtyRef.current = true;
-      scheduleRedraw();
     };
     img.onerror = () => {
       if (cancelled) return;
@@ -273,7 +271,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     return () => {
       cancelled = true;
     };
-  }, [backgroundImageUrl, scheduleRedraw]);
+  }, [backgroundImageUrl]);
 
   /**
    * Centripetal Catmull-Rom interpolation between p1 and p2 (with p0,p3 as
