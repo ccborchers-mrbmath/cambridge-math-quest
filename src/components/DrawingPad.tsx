@@ -71,12 +71,20 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
   const currentStrokeRef = useRef<Stroke | null>(null);
   // rAF handle for coalesced redraws.
   const rafRef = useRef<number | null>(null);
-  // Offscreen canvas caching every committed stroke + background + ruled
-  // lines. Live drawing only paints the active stroke on top of this cached
-  // image, so the per-frame cost stays constant no matter how much the user
-  // has already written.
-  const committedCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const committedDirtyRef = useRef(true);
+  // Two-layer cache so the eraser only removes ink and never the ruled
+  // lines or background diagram:
+  //   - bgCanvasRef:  white fill + question diagram + ruled lines
+  //   - inkCanvasRef: all committed strokes on a transparent surface,
+  //                   with erase strokes applied via destination-out
+  //                   (so they only cut into other ink, not the bg)
+  // The main canvas every frame = bg + ink + live in-progress stroke.
+  const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const inkCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Scratch canvas reused when the in-progress stroke is an eraser, so we
+  // can preview destination-out against ink without mutating the cache.
+  const tempInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bgDirtyRef = useRef(true);
+  const inkDirtyRef = useRef(true);
   const [mode, setMode] = useState<Mode>("draw");
   const [color, setColor] = useState(COLORS[0].value);
   const [width, setWidth] = useState(3);
