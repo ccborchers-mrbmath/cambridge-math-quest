@@ -43,6 +43,10 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [totalMarks, setTotalMarks] = useState<number | null>(null);
   const [isMarkingWork, setIsMarkingWork] = useState(false);
   const [isSavingAttempt, setIsSavingAttempt] = useState(false);
+  // Snapshot signature of the last successfully saved attempt. Used to gate
+  // the Save button so the user can't accidentally insert a duplicate row
+  // while the page stays open after saving.
+  const [savedSnapshotKey, setSavedSnapshotKey] = useState<string | null>(null);
   const [isEditingErrors, setIsEditingErrors] = useState(false);
   const [isCopyingQuestion, setIsCopyingQuestion] = useState(false);
   const [isPastingAnswer, setIsPastingAnswer] = useState(false);
@@ -83,6 +87,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
     setDrawingStrokes(null);
     setDrawingPageIndex(null);
     setDrawingExtraHeight(0);
+    setSavedSnapshotKey(null);
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -231,6 +236,43 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
         // ignore — fall back to images
       }
 
+      // Pull the student's recent prior attempts of this exact question so the
+      // AI can reference concrete improvements (or regressions) in its
+      // feedback. We only send compact text — never prior images.
+      let previousAttempts: Array<{
+        createdAt: string;
+        percentageAttained: number | null;
+        natureOfErrors: string | null;
+        markBreakdown: unknown;
+      }> = [];
+      if (user) {
+        try {
+          const { data: priorRows } = await supabase
+            .from('student_attempts')
+            .select('created_at, percentage_attained, nature_of_errors, mark_breakdown')
+            .eq('user_id', user.id)
+            .eq('year', question.year)
+            .eq('sitting', question.sitting)
+            .eq('paper_number', question.paperNumber)
+            .eq('question_number', question.questionNumber)
+            .order('created_at', { ascending: false })
+            .limit(3);
+          if (Array.isArray(priorRows)) {
+            previousAttempts = priorRows
+              .slice()
+              .reverse()
+              .map((r) => ({
+                createdAt: r.created_at,
+                percentageAttained: r.percentage_attained != null ? Number(r.percentage_attained) : null,
+                natureOfErrors: r.nature_of_errors ?? null,
+                markBreakdown: r.mark_breakdown ?? null,
+              }));
+          }
+        } catch {
+          // history is best-effort; never block marking
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('mark-work', {
         body: {
           questionUrl: question.questionUrl,
@@ -238,6 +280,7 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           questionText,
           markschemeText,
           workImages: uploadedImages,
+          previousAttempts,
           questionMeta: {
             year: question.year,
             sitting: question.sitting,
@@ -258,6 +301,8 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       setMarkBreakdown(Array.isArray(data.markBreakdown) ? data.markBreakdown : []);
       setMarksAwarded(typeof data.marksAwarded === 'number' ? data.marksAwarded : null);
       setTotalMarks(typeof data.totalMarks === 'number' ? data.totalMarks : null);
+      // New feedback → allow saving again.
+      setSavedSnapshotKey(null);
       toast.success("AI marking complete");
     } catch (error) {
       logger.error('Error marking work:', error);
@@ -301,17 +346,12 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       if (error) throw error;
 
       toast.success("Attempt saved successfully!");
-      setShowCamera(false);
-      setUploadedImages([]);
-      setPercentageAttained("");
-      setNatureOfErrors("");
-      setAiFeedback("");
-      setMarkBreakdown([]);
-      setMarksAwarded(null);
-      setTotalMarks(null);
-      setDrawingStrokes(null);
-      setDrawingPageIndex(null);
-      setDrawingExtraHeight(0);
+      // Keep the page open so the student can Reattempt — edit their drawing
+      // and re-mark. Just record a snapshot of what was saved so the Save
+      // button disables until something changes (e.g. a new AI mark).
+      setSavedSnapshotKey(
+        `${uploadedImages.length}|${percentageAttained}|${aiFeedback.length}|${markBreakdown.length}`
+      );
     } catch (error) {
       logger.error('Error saving attempt:', error);
       toast.error("Failed to save attempt. Please try again.");
