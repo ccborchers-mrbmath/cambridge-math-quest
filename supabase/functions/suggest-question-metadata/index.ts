@@ -113,19 +113,33 @@ serve(async (req) => {
     }
 
     const syllabus = SYLLABI[module];
-    const syllabusBlock = syllabus
-      ? `Use ONLY the following ${syllabus.name} syllabus for classification. ` +
-        `Topic must be EXACTLY one of: ${syllabus.topics.map((t) => t.name).join("; ")}. ` +
-        `Subtopics must be a comma-separated list of entries chosen verbatim from this list (use the exact code and label):\n` +
-        syllabus.topics
-          .map(
-            (t) =>
-              `${t.number} ${t.name}: ` +
-              t.subtopics.map((s) => `${s.code} ${s.label}`).join("; "),
-          )
-          .join("\n")
-      : "Use the standard Cambridge 9709 syllabus topics and subtopics for this paper. " +
-        "Subtopics is a comma-separated list of syllabus codes + labels (e.g. '7.2 Partial fractions, 8.4 Integration by substitution').";
+    const syllabusBlock =
+      module === "P1"
+        ? `Use ONLY the following Pure Mathematics 1 syllabus for classification. ` +
+          `Topic must be EXACTLY one of: Quadratics; Functions; Coordinate geometry; Circular measure; Trigonometry; Series; Differentiation; Integration. ` +
+          `topic_id must be the corresponding code (e.g. "1.1" for Quadratics). ` +
+          `subtopic_ids must be an array of subtopic codes chosen verbatim from this list:\n` +
+          `1.1 Quadratics: 1.1.1 Completing the square; 1.1.2 Discriminant; 1.1.3 Solving quadratic equations and inequalities; 1.1.4 Simultaneous equations (one linear, one quadratic); 1.1.5 Equations quadratic in a function of x\n` +
+          `1.2 Functions: 1.2.1 Function terminology (domain, range, one-one, inverse, composition); 1.2.2 Range of a function and composite functions; 1.2.3 Inverse functions; 1.2.4 Graphical relationship between function and inverse; 1.2.5 Graph transformations (translations, reflections, stretches)\n` +
+          `1.3 Coordinate geometry: 1.3.1 Equation of a straight line; 1.3.2 Distance, gradient, midpoint, parallel and perpendicular lines; 1.3.3 Equation of a circle; 1.3.4 Problems involving lines and circles; 1.3.5 Intersection of graphs and solutions of equations\n` +
+          `1.4 Circular measure: 1.4.1 Radians and degrees; 1.4.2 Arc length and sector area\n` +
+          `1.5 Trigonometry: 1.5.1 Graphs of sin, cos and tan; 1.5.2 Exact values for standard angles (30, 45, 60 degrees); 1.5.3 Inverse trigonometric notation; 1.5.4 Trigonometric identities (sin^2+cos^2=1, tan=sin/cos); 1.5.5 Solving trigonometric equations in a given interval\n` +
+          `1.6 Series: 1.6.1 Binomial expansion (positive integer n); 1.6.2 Recognising APs and GPs; 1.6.3 nth term and sum formulas for APs and GPs; 1.6.4 Convergence and sum to infinity of a GP\n` +
+          `1.7 Differentiation: 1.7.1 Gradient of a curve and derivative notation; 1.7.2 Differentiation of x^n and chain rule; 1.7.3 Tangents, normals, increasing/decreasing functions and rates of change; 1.7.4 Stationary points (locate, classify, use in sketching)\n` +
+          `1.8 Integration: 1.8.1 Integration as reverse of differentiation; integrate power functions; 1.8.2 Constant of integration; 1.8.3 Definite integrals; 1.8.4 Area bounded by curves and lines; 1.8.5 Volume of revolution`
+        : syllabus
+          ? `Use ONLY the following ${syllabus.name} syllabus for classification. ` +
+            `Topic must be EXACTLY one of: ${syllabus.topics.map((t) => t.name).join("; ")}. ` +
+            `Subtopics must be a comma-separated list of entries chosen verbatim from this list (use the exact code and label):\n` +
+            syllabus.topics
+              .map(
+                (t) =>
+                  `${t.number} ${t.name}: ` +
+                  t.subtopics.map((s) => `${s.code} ${s.label}`).join("; "),
+              )
+              .join("\n")
+          : "Use the standard Cambridge 9709 syllabus topics and subtopics for this paper. " +
+            "Subtopics is a comma-separated list of syllabus codes + labels (e.g. '7.2 Partial fractions, 8.4 Integration by substitution').";
 
     const content: unknown[] = [
       {
@@ -133,7 +147,7 @@ serve(async (req) => {
         text:
           `You are given image(s) of a Cambridge A-Level Math 9709 ${syllabus?.name ?? "Paper 3"} exam question and (optionally) its mark scheme. ` +
           "Extract metadata as STRICT JSON with this shape: " +
-          '{"year": number|null, "sitting": "Feb/Mar"|"May/Jun"|"Oct/Nov"|null, "paper_number": number|null, "question_number": number|null, "topic": string|null, "subtopics": string|null, "marks": number|null}. ' +
+          '{"year": number|null, "sitting": "Feb/Mar"|"May/Jun"|"Oct/Nov"|null, "paper_number": number|null, "question_number": number|null, "topic": string|null, "topic_id": string|null, "subtopic_ids": string[]|null, "marks": number|null}. ' +
           "Sitting must be exactly one of Feb/Mar, May/Jun, Oct/Nov. " +
           "paper_number is the TWO-DIGIT Cambridge 9709 paper code shown on the exam paper. " +
           "The first digit identifies the module (1=Pure 1, 2=Pure 2, 3=Pure 3, 4=Mechanics, 5=Stats 1, 6=Stats 2). " +
