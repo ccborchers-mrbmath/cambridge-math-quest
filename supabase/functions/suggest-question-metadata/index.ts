@@ -131,6 +131,13 @@ serve(async (req) => {
       `4.4 Newton's laws of motion: 4.4.1 Applying Newton's second law (F = ma) to a particle; 4.4.2 Mass and weight (W = mg); 4.4.3 Motion on an inclined plane; 4.4.4 Connected particles\n` +
       `4.5 Energy, work and power: 4.5.1 Work done by a force; 4.5.2 Gravitational potential energy and kinetic energy; 4.5.3 Work-energy principle and conservation of energy; 4.5.4 Power (P = Fv)`;
 
+    const S1_SYLLABUS_BLOCK =
+      `5.1 Representation of data: 5.1.1 Selecting and critiquing statistical representations; 5.1.2 Stem-and-leaf diagrams, box-and-whisker plots, histograms and cumulative frequency graphs; 5.1.3 Measures of central tendency (mean, median, mode) and variation (range, IQR, standard deviation); 5.1.4 Using cumulative frequency graphs to estimate statistics; 5.1.5 Calculating mean and standard deviation from data or coded totals\n` +
+      `5.2 Permutations and combinations: 5.2.1 Permutations and combinations — selections; 5.2.2 Arrangements in a line including repetition and restriction\n` +
+      `5.3 Probability: 5.3.1 Calculating basic probabilities by enumeration or counting; 5.3.2 Addition and multiplication of probabilities; 5.3.3 Mutually exclusive and independent events; 5.3.4 Conditional probability\n` +
+      `5.4 Discrete random variables: 5.4.1 Probability distribution tables, E(X) and Var(X); 5.4.2 Binomial and geometric distributions — B(n,p) and Geo(p); 5.4.3 Expectation and variance of binomial and geometric distributions\n` +
+      `5.5 The normal distribution: 5.5.1 Normal distribution model and tables — finding probabilities; 5.5.2 Finding unknown mean or standard deviation using normal distribution; 5.5.3 Normal approximation to the binomial distribution with continuity correction`;
+
     const syllabusBlock =
       module === "P1"
         ? `Use ONLY the following Pure Mathematics 1 syllabus for classification. ` +
@@ -157,6 +164,12 @@ serve(async (req) => {
           `topic_id must be the corresponding code (e.g. "4.2" for Kinematics of motion in a straight line). ` +
           `subtopic_ids must be an array of subtopic codes chosen verbatim from this list:\n` +
           M1_SYLLABUS_BLOCK
+        : module === "S1"
+        ? `Use ONLY the following Probability & Statistics 1 (Paper 5) syllabus for classification. ` +
+          `Topic must be EXACTLY one of: Representation of data; Permutations and combinations; Probability; Discrete random variables; The normal distribution. ` +
+          `topic_id must be the corresponding code (e.g. "5.4" for Discrete random variables). ` +
+          `subtopic_ids must be an array of subtopic codes chosen verbatim from this list:\n` +
+          S1_SYLLABUS_BLOCK
         : syllabus
           ? `Use ONLY the following ${syllabus.name} syllabus for classification. ` +
             `Topic must be EXACTLY one of: ${syllabus.topics.map((t) => t.name).join("; ")}. ` +
