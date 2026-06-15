@@ -848,6 +848,16 @@ const TestMaker = () => {
                             {question.topic} • {question.marks} marks
                           </p>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-primary hover:text-primary shrink-0"
+                          onClick={() => setPreviewQuestion(question)}
+                          title="Preview question"
+                          aria-label="Preview question"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </div>
                     );
                   })}
@@ -857,6 +867,31 @@ const TestMaker = () => {
           )}
         </div>
       </main>
+
+      {/* Question image preview dialog */}
+      <Dialog open={!!previewQuestion} onOpenChange={(open) => !open && setPreviewQuestion(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {previewQuestion
+                ? `${previewQuestion.year} ${previewQuestion.sitting} Paper ${previewQuestion.paperNumber} Q${previewQuestion.questionNumber}`
+                : "Question preview"}
+            </DialogTitle>
+            {previewQuestion && (
+              <DialogDescription>
+                {previewQuestion.topic} • {previewQuestion.marks} marks — {previewQuestion.subtopics}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          {previewQuestion && (
+            <img
+              src={previewQuestion.questionUrl}
+              alt={`Question ${previewQuestion.questionNumber}`}
+              className="w-full rounded-md border"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
