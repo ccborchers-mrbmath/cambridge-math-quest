@@ -1527,6 +1527,34 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
             <Button
               type="button"
               size="sm"
+              variant="outline"
+              onClick={() => {
+                // Delete only the currently selected ink — never clear
+                // the whole canvas. Works with both the lasso selection
+                // and a single Select-tool pick.
+                if (lassoSelection && lassoSelection.length) {
+                  const toRemove = new Set(lassoSelection);
+                  setStrokes((prev) => prev.filter((_, i) => !toRemove.has(i)));
+                  setLassoSelection(null);
+                  setLassoPath(null);
+                } else if (selectedIndex !== null) {
+                  const idx = selectedIndex;
+                  setStrokes((prev) => prev.filter((_, i) => i !== idx));
+                  setSelectedIndex(null);
+                }
+              }}
+              disabled={
+                !(lassoSelection && lassoSelection.length) &&
+                selectedIndex === null
+              }
+              className="gap-1"
+              title="Delete the lassoed / selected ink"
+            >
+              <Trash2 className="h-4 w-4" /> Delete
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               variant={palmRejectionActive ? "default" : "outline"}
               onClick={() => {
                 setPalmRejectionActive((v) => {
