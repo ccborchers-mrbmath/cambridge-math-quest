@@ -113,6 +113,17 @@ serve(async (req) => {
     }
 
     const syllabus = SYLLABI[module];
+    const P3_SYLLABUS_BLOCK =
+      `3.1 Algebra: 3.1.1 Modulus — graph of y=|ax+b|, equations and inequalities; 3.1.2 Polynomial division (quotient and remainder); 3.1.3 Factor theorem and remainder theorem; 3.1.4 Partial fractions; 3.1.5 Binomial expansion for rational n (including validity)\n` +
+      `3.2 Logarithmic and exponential functions: 3.2.1 Laws of logarithms; 3.2.2 Properties and graphs of e^x and ln x; 3.2.3 Solving equations and inequalities with unknown in index; 3.2.4 Logarithmic transformation to linear form\n` +
+      `3.3 Trigonometry: 3.3.1 Secant, cosecant and cotangent — properties and graphs; 3.3.2 Trigonometric identities — Pythagorean (sec/cosec), compound angle, double angle, R sin/cos form\n` +
+      `3.4 Differentiation: 3.4.1 Derivatives of e^x, ln x, sin x, cos x, tan x, tan^(-1) x and composites; 3.4.2 Product rule and quotient rule; 3.4.3 Parametric and implicit differentiation\n` +
+      `3.5 Integration: 3.5.1 Standard integrals — e^(ax+b), 1/(ax+b), sin(ax+b), cos(ax+b), sec^2(ax+b), 1/(x^2+a^2); 3.5.2 Integration using trigonometric identities; 3.5.3 Integration by partial fractions; 3.5.4 Integration of f'(x)/f(x) type; 3.5.5 Integration by parts; 3.5.6 Integration by substitution\n` +
+      `3.6 Numerical solution of equations: 3.6.1 Locating roots by sign change and graphical methods; 3.6.2 Iterative sequences converging to a root\n` +
+      `3.7 Vectors: 3.7.1 Vector notation and basic operations; 3.7.2 Magnitude, unit vectors, displacement and position vectors; 3.7.3 Equation of a straight line in vector form r = a + tb; 3.7.4 Parallel, intersecting and skew lines; 3.7.5 Scalar product and applications (angle between lines, foot of perpendicular)\n` +
+      `3.8 Differential equations: 3.8.1 Formulating differential equations from rates of change; 3.8.2 Solving separable differential equations; 3.8.3 Particular solutions using initial conditions; 3.8.4 Interpreting solutions in context\n` +
+      `3.9 Complex numbers: 3.9.1 Terminology — real part, imaginary part, modulus, argument, conjugate; 3.9.2 Arithmetic in Cartesian form; 3.9.3 Conjugate pairs and polynomial roots; 3.9.4 Argand diagram; 3.9.5 Polar form and multiplication/division; 3.9.6 Square roots of a complex number; 3.9.7 Geometrical effects of complex number operations; 3.9.8 Loci in the Argand diagram`;
+
     const syllabusBlock =
       module === "P1"
         ? `Use ONLY the following Pure Mathematics 1 syllabus for classification. ` +
@@ -127,6 +138,12 @@ serve(async (req) => {
           `1.6 Series: 1.6.1 Binomial expansion (positive integer n); 1.6.2 Recognising APs and GPs; 1.6.3 nth term and sum formulas for APs and GPs; 1.6.4 Convergence and sum to infinity of a GP\n` +
           `1.7 Differentiation: 1.7.1 Gradient of a curve and derivative notation; 1.7.2 Differentiation of x^n and chain rule; 1.7.3 Tangents, normals, increasing/decreasing functions and rates of change; 1.7.4 Stationary points (locate, classify, use in sketching)\n` +
           `1.8 Integration: 1.8.1 Integration as reverse of differentiation; integrate power functions; 1.8.2 Constant of integration; 1.8.3 Definite integrals; 1.8.4 Area bounded by curves and lines; 1.8.5 Volume of revolution`
+        : module === "P3"
+        ? `Use ONLY the following Pure Mathematics 3 syllabus for classification. ` +
+          `Topic must be EXACTLY one of: Algebra; Logarithmic and exponential functions; Trigonometry; Differentiation; Integration; Numerical solution of equations; Vectors; Differential equations; Complex numbers. ` +
+          `topic_id must be the corresponding code (e.g. "3.7" for Vectors). ` +
+          `subtopic_ids must be an array of subtopic codes chosen verbatim from this list:\n` +
+          P3_SYLLABUS_BLOCK
         : syllabus
           ? `Use ONLY the following ${syllabus.name} syllabus for classification. ` +
             `Topic must be EXACTLY one of: ${syllabus.topics.map((t) => t.name).join("; ")}. ` +

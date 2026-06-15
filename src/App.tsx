@@ -8,6 +8,7 @@ import ModulePicker from "./pages/ModulePicker";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminQuestions from "./pages/AdminQuestions";
+import AdminRetag from "./pages/AdminRetag";
 import StudentProgress from "./pages/StudentProgress";
 import TestMaker from "./pages/TestMaker";
 import NotFound from "./pages/NotFound";
@@ -38,6 +39,7 @@ const AppShell = () => {
         <Route path="/auth" element={<Auth />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/questions" element={<AdminQuestions />} />
+        <Route path="/admin/retag" element={<AdminRetag />} />
         <Route path="/progress" element={<StudentProgress />} />
         <Route path="/test-maker" element={<TestMaker />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
