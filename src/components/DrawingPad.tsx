@@ -1585,6 +1585,18 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
             >
               ✋ Palm reject
             </Button>
+            {backgroundImageUrl && (
+              <label
+                className="flex items-center gap-2 text-xs text-muted-foreground pl-1"
+                title="Show the question diagram as the canvas background"
+              >
+                <Switch
+                  checked={showBackgroundImage}
+                  onCheckedChange={setShowBackgroundImage}
+                />
+                <span>Show question</span>
+              </label>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
