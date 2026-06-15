@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Pencil, Eraser, Undo2, Trash2, Check, X, Plus, Minus, MousePointer2, Lasso, BoxSelect, Circle, ZoomIn, ZoomOut } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { getStroke } from "perfect-freehand";
 
@@ -128,6 +129,9 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
   const lastPenAtRef = useRef(0);
   const PALM_REJECT_COOLDOWN_MS = 1500;
   const [palmRejectionActive, setPalmRejectionActive] = useState(false);
+  // Whether to render the question diagram as the canvas background.
+  // Users can toggle this off if they'd rather have a blank ruled page.
+  const [showBackgroundImage, setShowBackgroundImage] = useState(true);
   // Select / move state.
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const dragRef = useRef<
@@ -243,12 +247,13 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       // Reserve extra vertical room for the background diagram so the
       // writable area beneath it isn't squashed.
       const bgH = bgImageRatio ? Math.round(logicalW * bgImageRatio) : 0;
-      setSize({ w: logicalW, h: baseH + bgH + extraHeight });
+      const effectiveBgH = showBackgroundImage ? bgH : 0;
+      setSize({ w: logicalW, h: baseH + effectiveBgH + extraHeight });
     };
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, [extraHeight, zoom, bgImageRatio]);
+  }, [extraHeight, zoom, bgImageRatio, showBackgroundImage]);
 
   // Load the optional background image (question diagram). Uses crossOrigin
   // so the resulting canvas isn't tainted and can still be exported via
@@ -387,13 +392,13 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     ctx.fillRect(0, 0, size.w, size.h);
     // Question diagram, stretched edge-to-edge across the canvas width.
     const bgImg = bgImageRef.current;
-    if (bgImg && bgImageHeight > 0) {
+    if (showBackgroundImage && bgImg && bgImageHeight > 0) {
       ctx.drawImage(bgImg, 0, 0, size.w, bgImageHeight);
     }
     const lineSpacing = 36;
     // Ruled lines start just beneath the diagram (or at the top if there
     // is no diagram), aligned to the line-spacing grid.
-    const linesStartY = bgImageHeight > 0
+    const linesStartY = (showBackgroundImage && bgImageHeight > 0)
       ? Math.ceil((bgImageHeight + lineSpacing) / lineSpacing) * lineSpacing
       : lineSpacing;
     ctx.save();
@@ -406,7 +411,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       ctx.stroke();
     }
     ctx.restore();
-  }, [size, bgImageHeight]);
+  }, [size, bgImageHeight, showBackgroundImage]);
 
   // Paints a single stroke onto an already-scaled context. Used both for
   // building the committed cache and for painting the live in-progress
@@ -498,7 +503,9 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
       ctx.fill();
       return;
     }
-    const eraseMul = s.mode === "erase" ? 4 : 1;
+    // Eraser width is taken directly from the user's chosen size for a
+    // precise, predictable rub-out — no extra multiplier.
+    const eraseMul = 1;
     const left: { x: number; y: number }[] = [];
     const right: { x: number; y: number }[] = [];
     for (let i = 0; i < pts.length; i++) {
@@ -724,7 +731,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
   useEffect(() => {
     bgDirtyRef.current = true;
     inkDirtyRef.current = true;
-  }, [size, zoom]);
+  }, [size, zoom, showBackgroundImage]);
 
   // rAF-batched redraw. Multiple pointer-move events between frames coalesce
   // into a single repaint, which is what keeps inking fluid on touch.
@@ -1160,7 +1167,8 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
     currentStrokeRef.current = {
       mode,
       color,
-      width: mode === "erase" ? Math.max(width * 4, 12) : width,
+      // Eraser uses the slider size directly for precise erasing.
+      width: mode === "erase" ? Math.max(width, 2) : width,
       points: [p],
     };
     scheduleRedraw();
@@ -1577,6 +1585,18 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
             >
               ✋ Palm reject
             </Button>
+            {backgroundImageUrl && (
+              <label
+                className="flex items-center gap-2 text-xs text-muted-foreground pl-1"
+                title="Show the question diagram as the canvas background"
+              >
+                <Switch
+                  checked={showBackgroundImage}
+                  onCheckedChange={setShowBackgroundImage}
+                />
+                <span>Show question</span>
+              </label>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -1657,7 +1677,7 @@ export const DrawingPad = ({ onComplete, onCancel, initialStrokes, initialExtraH
                 : mode === "select"
                 ? "default"
                 : mode === "erase"
-                ? "crosshair"
+                ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='%23fde68a' stroke='%23111827' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='M20 20H9L3.5 14.5a2 2 0 0 1 0-2.8L12.7 2.5a2 2 0 0 1 2.8 0l6 6a2 2 0 0 1 0 2.8L13 19'/><path d='M18 13.3 10.7 6'/></svg>") 4 24, crosshair`
                 : `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'><path d='M3.8 18.1 L13.3 7.9 A2.2 2.2 0 0 1 16.1 10.7 L5.9 20.2 Z' fill='white'/><path d='M2 22 L3.8 18.1 L5.9 20.2 Z' fill='black'/></svg>") 2 22, crosshair`,
           }}
         />
