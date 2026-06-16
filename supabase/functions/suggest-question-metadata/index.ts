@@ -232,33 +232,55 @@ serve(async (req) => {
       content.push({ type: "image_url", image_url: { url: markschemeImage } });
     }
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [{ role: "user", content }],
-        response_format: { type: "json_object" },
-      }),
-    });
+    const callModel = async (model: string) => {
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content }],
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("suggest-question-metadata AI failure", model, res.status, text);
+        return { ok: false as const, status: res.status, text };
+      }
+      const data = await res.json();
+      const raw = data?.choices?.[0]?.message?.content ?? "{}";
+      let parsed: Record<string, unknown> = {};
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        const match = String(raw).match(/\{[\s\S]*\}/);
+        if (match) {
+          try { parsed = JSON.parse(match[0]); } catch { /* ignore */ }
+        }
+      }
+      return { ok: true as const, parsed };
+    };
 
-    if (!aiRes.ok) {
-      const text = await aiRes.text();
-      console.error("suggest-question-metadata AI failure", aiRes.status, text);
-      return jsonResponse({ error: `AI error ${aiRes.status}: ${text}` }, 502);
+    // Primary: stable Gemini 2.5 Flash (better JSON reliability than the preview model).
+    let result = await callModel("google/gemini-2.5-flash");
+    if (!result.ok) {
+      return jsonResponse({ error: `AI error ${result.status}: ${result.text}` }, 502);
     }
+    let parsed = result.parsed;
 
-    const data = await aiRes.json();
-    const raw = data?.choices?.[0]?.message?.content ?? "{}";
-    let parsed: Record<string, unknown> = {};
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      const match = String(raw).match(/\{[\s\S]*\}/);
-      if (match) parsed = JSON.parse(match[0]);
+    // Fallback: if classification fields are empty, retry once with the stronger Pro model.
+    const hasClassification =
+      (typeof parsed.topic_id === "string" && parsed.topic_id) ||
+      (Array.isArray(parsed.subtopic_ids) && parsed.subtopic_ids.length > 0);
+    if (!hasClassification) {
+      const retry = await callModel("google/gemini-2.5-pro");
+      if (retry.ok) {
+        const merged = { ...parsed, ...retry.parsed };
+        parsed = merged;
+      }
     }
 
     return jsonResponse({ suggestion: parsed });
