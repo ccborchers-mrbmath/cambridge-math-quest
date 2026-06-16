@@ -113,23 +113,19 @@ const AdminDashboard = () => {
       const { data, error } = await supabase
         .from('student_attempts')
         .select('nature_of_errors')
-        .not('nature_of_errors', 'is', null);
-
+        .not('nature_of_errors', 'is', null)
+        .limit(500);
       if (error) throw error;
-
-      // Count error patterns
       const patterns: Record<string, number> = {};
       data?.forEach(item => {
         if (item.nature_of_errors) {
           patterns[item.nature_of_errors] = (patterns[item.nature_of_errors] || 0) + 1;
         }
       });
-
       const sortedPatterns = Object.entries(patterns)
         .map(([nature_of_errors, count]) => ({ nature_of_errors, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 10);
-
       setErrorPatterns(sortedPatterns);
     } catch (error) {
       logger.error('Error fetching error patterns:', error);
