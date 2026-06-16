@@ -10,6 +10,7 @@ import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { useActiveModule, moduleOf, getModuleInfo } from "@/lib/modules";
 import { useQuestionsVersion } from "@/lib/questionStore";
+import { sortTopicsBySyllabus } from "@/lib/curriculum";
 import {
   Select,
   SelectContent,
