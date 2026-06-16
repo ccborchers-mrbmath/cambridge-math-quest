@@ -131,6 +131,21 @@ serve(async (req) => {
       `4.4 Newton's laws of motion: 4.4.1 Applying Newton's second law (F = ma) to a particle; 4.4.2 Mass and weight (W = mg); 4.4.3 Motion on an inclined plane; 4.4.4 Connected particles\n` +
       `4.5 Energy, work and power: 4.5.1 Work done by a force; 4.5.2 Gravitational potential energy and kinetic energy; 4.5.3 Work-energy principle and conservation of energy; 4.5.4 Power (P = Fv)`;
 
+    const P2_SYLLABUS_BLOCK =
+      `2.1 Algebra: 2.1.1 Modulus — graph of y=|ax+b|, equations and inequalities; 2.1.2 Polynomial division (quotient and remainder); 2.1.3 Factor theorem and remainder theorem\n` +
+      `2.2 Logarithmic and exponential functions: 2.2.1 Laws of logarithms; 2.2.2 Properties and graphs of e^x and ln x; 2.2.3 Solving equations and inequalities with unknown in index; 2.2.4 Logarithmic transformation to linear form\n` +
+      `2.3 Trigonometry: 2.3.1 Secant, cosecant and cotangent — properties and graphs; 2.3.2 Trigonometric identities — Pythagorean (sec/cosec), compound angle, double angle, R sin/cos form\n` +
+      `2.4 Differentiation: 2.4.1 Derivatives of e^x, ln x, sin x, cos x, tan x and composites; 2.4.2 Product rule and quotient rule; 2.4.3 Parametric and implicit differentiation\n` +
+      `2.5 Integration: 2.5.1 Standard integrals — e^(ax+b), 1/(ax+b), sin(ax+b), cos(ax+b), sec^2(ax+b); 2.5.2 Integration using trigonometric identities; 2.5.3 Trapezium rule (estimate definite integral, over/under-estimate)\n` +
+      `2.6 Numerical solution of equations: 2.6.1 Locating roots by sign change and graphical methods; 2.6.2 Iterative sequences converging to a root`;
+
+    const S2_SYLLABUS_BLOCK =
+      `6.1 The Poisson distribution: 6.1.1 Calculating Poisson probabilities; 6.1.2 Mean and variance of Poisson (E(X) = Var(X) = lambda); 6.1.3 Poisson distribution as a model for random events; 6.1.4 Poisson approximation to the binomial (n > 50, np < 5); 6.1.5 Normal approximation to the Poisson with continuity correction (lambda > 15)\n` +
+      `6.2 Linear combinations of random variables: 6.2.1 E(aX + b) and Var(aX + b); 6.2.2 E(aX + bY) and Var(aX + bY) for independent variables; 6.2.3 Linear combinations of normal and Poisson distributions\n` +
+      `6.3 Continuous random variables: 6.3.1 Probability density functions — properties and probabilities; 6.3.2 Mean, variance and percentiles from a pdf\n` +
+      `6.4 Sampling and estimation: 6.4.1 Samples, populations and random sampling; 6.4.2 Sample mean as a random variable — E(X-bar) and Var(X-bar); 6.4.3 Central Limit Theorem; 6.4.4 Unbiased estimates of population mean and variance; 6.4.5 Confidence intervals for a population mean; 6.4.6 Confidence interval for a population proportion\n` +
+      `6.5 Hypothesis tests: 6.5.1 Hypothesis test terminology (H0, H1, significance level, critical region, one/two-tailed); 6.5.2 Hypothesis tests for binomial and Poisson distributions; 6.5.3 Hypothesis tests for a population mean (z-test); 6.5.4 Type I and Type II errors`;
+
     const S1_SYLLABUS_BLOCK =
       `5.1 Representation of data: 5.1.1 Selecting and critiquing statistical representations; 5.1.2 Stem-and-leaf diagrams, box-and-whisker plots, histograms and cumulative frequency graphs; 5.1.3 Measures of central tendency (mean, median, mode) and variation (range, IQR, standard deviation); 5.1.4 Using cumulative frequency graphs to estimate statistics; 5.1.5 Calculating mean and standard deviation from data or coded totals\n` +
       `5.2 Permutations and combinations: 5.2.1 Permutations and combinations — selections; 5.2.2 Arrangements in a line including repetition and restriction\n` +
@@ -164,6 +179,18 @@ serve(async (req) => {
           `topic_id must be the corresponding code (e.g. "4.2" for Kinematics of motion in a straight line). ` +
           `subtopic_ids must be an array of subtopic codes chosen verbatim from this list:\n` +
           M1_SYLLABUS_BLOCK
+        : module === "P2"
+        ? `Use ONLY the following Pure Mathematics 2 (Paper 2) syllabus for classification. ` +
+          `Topic must be EXACTLY one of: Algebra; Logarithmic and exponential functions; Trigonometry; Differentiation; Integration; Numerical solution of equations. ` +
+          `topic_id must be the corresponding code (e.g. "2.4" for Differentiation). ` +
+          `subtopic_ids must be an array of subtopic codes chosen verbatim from this list:\n` +
+          P2_SYLLABUS_BLOCK
+        : module === "S2"
+        ? `Use ONLY the following Probability & Statistics 2 (Paper 6) syllabus for classification. ` +
+          `Topic must be EXACTLY one of: The Poisson distribution; Linear combinations of random variables; Continuous random variables; Sampling and estimation; Hypothesis tests. ` +
+          `topic_id must be the corresponding code (e.g. "6.4" for Sampling and estimation). ` +
+          `subtopic_ids must be an array of subtopic codes chosen verbatim from this list:\n` +
+          S2_SYLLABUS_BLOCK
         : module === "S1"
         ? `Use ONLY the following Probability & Statistics 1 (Paper 5) syllabus for classification. ` +
           `Topic must be EXACTLY one of: Representation of data; Permutations and combinations; Probability; Discrete random variables; The normal distribution. ` +
