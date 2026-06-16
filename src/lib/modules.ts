@@ -123,3 +123,44 @@ export function useActiveModule(opts: { redirectIfMissing?: boolean } = {}) {
 
   return { module, setModule };
 }
+
+/**
+ * Returns unique topic labels for a pool of questions ordered by Cambridge
+ * 9709 curriculum sequence. Order is derived from the numeric prefix of the
+ * `subtopics` field (e.g. "1.4 Division of polynomials" → section 1.4).
+ * Topics with no recognisable numeric prefix fall to the end alphabetically.
+ */
+export function getTopicsInCurriculumOrder(
+  pool: Array<{ topic: string; subtopics: string }>
+): string[] {
+  // Build a map: topic label → lowest numeric section found in subtopics
+  const sectionMap = new Map<string, number[]>();
+  const codeRe = /^(\d+)\.(\d+)/;
+
+  for (const q of pool) {
+    const label = q.topic?.trim();
+    if (!label) continue;
+    if (sectionMap.has(label)) continue; // only need first match per topic
+    const firstSubtopic = q.subtopics?.split(",")[0]?.trim() ?? "";
+    const m = firstSubtopic.match(codeRe);
+    if (m) {
+      sectionMap.set(label, [parseInt(m[1], 10), parseInt(m[2], 10)]);
+    }
+  }
+
+  const uniqueLabels = Array.from(
+    new Set(pool.map((q) => q.topic?.trim()).filter(Boolean))
+  ) as string[];
+
+  return uniqueLabels.sort((a, b) => {
+    const pa = sectionMap.get(a);
+    const pb = sectionMap.get(b);
+    if (pa && pb) {
+      if (pa[0] !== pb[0]) return pa[0] - pb[0];
+      return pa[1] - pb[1];
+    }
+    if (pa) return -1;
+    if (pb) return 1;
+    return a.localeCompare(b);
+  });
+}

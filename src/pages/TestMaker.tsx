@@ -13,8 +13,7 @@ import { LatexRenderer } from "@/components/LatexRenderer";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useActiveModule, moduleOf } from "@/lib/modules";
-import { sortTopicsBySyllabus } from "@/lib/curriculum";
+import { useActiveModule, moduleOf, getTopicsInCurriculumOrder } from "@/lib/modules";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { useQuestionsVersion } from "@/lib/questionStore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -86,9 +85,9 @@ const TestMaker = () => {
     setProcessedQuestions([]);
   }, [module]);
 
-  // Get unique topics in the current module.
+  // Get unique topics in the current module, in curriculum order.
   const allTopics = useMemo(
-    () => sortTopicsBySyllabus(Array.from(new Set(pool.map(q => q.topic))), pool),
+    () => getTopicsInCurriculumOrder(pool),
     [pool]
   );
 
