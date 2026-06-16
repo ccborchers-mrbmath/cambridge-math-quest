@@ -207,11 +207,44 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching exactly this
       return jsonResponse({ error: 'AI marking response could not be understood' }, 500);
     }
 
-    // The AI returns LaTeX inside JSON strings (e.g. "\sin", "\frac", "\theta").
-    // Those are invalid JSON escape sequences and cause JSON.parse to throw
-    // "Bad escaped character". Escape any backslash that is not part of a
-    // valid JSON escape (\" \\ \/ \b \f \n \r \t \uXXXX) before parsing.
-    const sanitized = jsonMatch[0].replace(/\\(?!["\\/bfnrtu])/g, '\\\\');
+    // The AI returns LaTeX inside JSON strings (e.g. "\sin", "\frac",
+    // "\theta") AND sometimes writes literal newlines/tabs inside string
+    // values. Both make JSON.parse throw. Walk the blob and repair only the
+    // content INSIDE string literals: escape invalid backslash sequences,
+    // and escape raw \n \r \t.
+    const repairJsonStrings = (s: string): string => {
+      let out = '';
+      let inString = false;
+      let i = 0;
+      while (i < s.length) {
+        const c = s[i];
+        if (!inString) {
+          if (c === '"') inString = true;
+          out += c;
+          i++;
+          continue;
+        }
+        if (c === '"') { inString = false; out += c; i++; continue; }
+        if (c === '\\') {
+          const next = s[i + 1] ?? '';
+          if ('"\\/bfnrtu'.includes(next)) {
+            out += c + next;
+            i += 2;
+          } else {
+            out += '\\\\';
+            i++;
+          }
+          continue;
+        }
+        if (c === '\n') { out += '\\n'; i++; continue; }
+        if (c === '\r') { out += '\\r'; i++; continue; }
+        if (c === '\t') { out += '\\t'; i++; continue; }
+        out += c;
+        i++;
+      }
+      return out;
+    };
+    const sanitized = repairJsonStrings(jsonMatch[0]);
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(sanitized);
