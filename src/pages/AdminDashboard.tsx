@@ -229,7 +229,7 @@ const AdminDashboard = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Recent Student Attempts</CardTitle>
-                <CardDescription>Latest 50 question attempts across all students</CardDescription>
+                <CardDescription>Latest 20 question attempts across all students</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
