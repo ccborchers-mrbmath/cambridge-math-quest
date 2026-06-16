@@ -18,6 +18,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const POPULAR_TOPICS_BY_MODULE: Record<string, string[]> = {
+  P1: ["Quadratics", "Functions", "Coordinate geometry", "Trigonometry", "Differentiation"],
+  P2: ["Algebra", "Logarithmic and exponential functions", "Trigonometry", "Differentiation", "Integration"],
+  P3: ["Complex numbers", "Differentiation", "Integration", "Vectors", "Differential equations"],
+  M1: ["Forces and equilibrium", "Kinematics of motion in a straight line", "Newton's laws of motion", "Momentum", "Energy, work and power"],
+  S1: ["Representation of data", "Probability", "Permutations and combinations", "Discrete random variables", "The normal distribution"],
+  S2: ["The Poisson distribution", "Hypothesis tests", "Sampling and estimation", "Continuous random variables", "Linear combinations of random variables"],
+};
+
 const Index = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
