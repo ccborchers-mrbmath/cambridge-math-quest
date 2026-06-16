@@ -22,11 +22,8 @@ interface StudentAttempt {
   paper_number: number;
   question_number: number;
   topic: string | null;
-  subtopic: string | null;
-  attempted: boolean;
   percentage_attained: number | null;
   nature_of_errors: string | null;
-  image_url: string | null;
   created_at: string;
   profiles: Profile | Profile[] | null;
 }
