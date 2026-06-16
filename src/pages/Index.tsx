@@ -269,6 +269,24 @@ const Index = () => {
     setCurrentTopic(newQuestion.topic.toLowerCase());
   };
 
+  // Handle clicking a topic pill — exact match on q.topic, no fuzzy search
+  const handleTopicPillClick = (topic: string) => {
+    const exactMatches = pool.filter(
+      (q) => q.topic.trim().toLowerCase() === topic.trim().toLowerCase()
+    );
+    if (exactMatches.length === 0) return;
+
+    const unviewed = exactMatches.filter((q) => !viewedQuestionIds.has(getQuestionId(q)));
+    const candidates = unviewed.length > 0 ? unviewed : exactMatches;
+    const question = candidates[Math.floor(Math.random() * candidates.length)];
+
+    const questionId = getQuestionId(question);
+    setViewedQuestionIds((prev) => new Set(prev).add(questionId));
+    setCurrentTopic(question.topic.toLowerCase());
+    setSelectedQuestion(question);
+    setSearchQuery(topic);
+  };
+
   const handleSearch = (topicOverride?: string) => {
     const queryToUse = topicOverride || searchQuery;
     if (!queryToUse.trim()) return;
@@ -506,10 +524,7 @@ const Index = () => {
                   {mainTopics.map((topic) => (
                     <button
                       key={topic}
-                      onClick={() => {
-                        setSearchQuery(topic);
-                        handleSearch(topic);
-                      }}
+                      onClick={() => handleTopicPillClick(topic)}
                       className="px-4 py-2 rounded-full bg-secondary hover:bg-primary/10 border border-border hover:border-primary/30 text-sm font-medium transition-all"
                     >
                       {topic}
