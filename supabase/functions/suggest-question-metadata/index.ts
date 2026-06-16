@@ -211,11 +211,21 @@ serve(async (req) => {
           : "Use the standard Cambridge 9709 syllabus topics and subtopics for this paper. " +
             "Subtopics is a comma-separated list of syllabus codes + labels (e.g. '7.2 Partial fractions, 8.4 Integration by substitution').";
 
+    const MODULE_NAMES: Record<string, string> = {
+      P1: "Pure Mathematics 1 (Paper 1)",
+      P2: "Pure Mathematics 2 (Paper 2)",
+      P3: "Pure Mathematics 3 (Paper 3)",
+      M1: "Mechanics (Paper 4)",
+      S1: "Probability & Statistics 1 (Paper 5)",
+      S2: "Probability & Statistics 2 (Paper 6)",
+    };
+    const paperName = MODULE_NAMES[module] ?? syllabus?.name ?? "Paper 3";
+
     const content: unknown[] = [
       {
         type: "text",
         text:
-          `You are given image(s) of a Cambridge A-Level Math 9709 ${syllabus?.name ?? "Paper 3"} exam question and (optionally) its mark scheme. ` +
+          `You are given image(s) of a Cambridge A-Level Math 9709 ${paperName} exam question and (optionally) its mark scheme. ` +
           "Extract metadata as STRICT JSON with this shape: " +
           '{"year": number|null, "sitting": "Feb/Mar"|"May/Jun"|"Oct/Nov"|null, "paper_number": number|null, "question_number": number|null, "topic": string|null, "topic_id": string|null, "subtopic_ids": string[]|null, "marks": number|null}. ' +
           "Sitting must be exactly one of Feb/Mar, May/Jun, Oct/Nov. " +
@@ -270,15 +280,10 @@ serve(async (req) => {
       return { ok: true as const, parsed };
     };
 
-    // Primary: Gemini 2.5 Flash (stable, reliable JSON output for vision tagging).
-    let result = await callModel("google/gemini-2.5-flash");
+    // Primary: Gemini 3 Flash Preview (historically most reliable for this tagging task).
+    let result = await callModel("google/gemini-3-flash-preview");
     if (!result.ok) {
-      // Try preview model as a fallback if primary fails
-      const alt = await callModel("google/gemini-3-flash-preview");
-      if (!alt.ok) {
-        return jsonResponse({ error: `AI error ${result.status}: ${result.text}` }, 502);
-      }
-      result = alt;
+      return jsonResponse({ error: `AI error ${result.status}: ${result.text}` }, 502);
     }
     let parsed = result.parsed;
 
