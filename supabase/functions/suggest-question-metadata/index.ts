@@ -243,6 +243,7 @@ serve(async (req) => {
           model,
           messages: [{ role: "user", content }],
           response_format: { type: "json_object" },
+          max_tokens: 4096,
         }),
       });
       if (!res.ok) {
@@ -252,6 +253,11 @@ serve(async (req) => {
       }
       const data = await res.json();
       const raw = data?.choices?.[0]?.message?.content ?? "{}";
+      const finishReason = data?.choices?.[0]?.finish_reason;
+      console.log("suggest-question-metadata AI ok", model, "finish:", finishReason, "len:", String(raw).length);
+      if (!raw || String(raw).trim() === "" || String(raw).trim() === "{}") {
+        console.warn("suggest-question-metadata empty content", model, JSON.stringify(data).slice(0, 500));
+      }
       let parsed: Record<string, unknown> = {};
       try {
         parsed = JSON.parse(raw);
@@ -264,10 +270,15 @@ serve(async (req) => {
       return { ok: true as const, parsed };
     };
 
-    // Primary: Gemini 3 Flash Preview (historically most reliable for this tagging task).
-    let result = await callModel("google/gemini-3-flash-preview");
+    // Primary: Gemini 2.5 Flash (stable, reliable JSON output for vision tagging).
+    let result = await callModel("google/gemini-2.5-flash");
     if (!result.ok) {
-      return jsonResponse({ error: `AI error ${result.status}: ${result.text}` }, 502);
+      // Try preview model as a fallback if primary fails
+      const alt = await callModel("google/gemini-3-flash-preview");
+      if (!alt.ok) {
+        return jsonResponse({ error: `AI error ${result.status}: ${result.text}` }, 502);
+      }
+      result = alt;
     }
     let parsed = result.parsed;
 
@@ -283,6 +294,7 @@ serve(async (req) => {
       }
     }
 
+    console.log("suggest-question-metadata final", JSON.stringify(parsed).slice(0, 400));
     return jsonResponse({ suggestion: parsed });
   } catch (err) {
     return jsonResponse(
