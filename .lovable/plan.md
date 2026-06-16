@@ -1,55 +1,36 @@
-# Reattempt continuity + history-aware AI feedback
+## Goal
+Use the updated syllabus blocks (P1, P2, P3, M1, S1, S2) in `suggest-question-metadata` to (a) re-tag every existing question in the database and (b) ensure every newly uploaded question is tagged with the new `topic_id` + `subtopic_ids` fields.
 
-Two related refinements to the marking flow in `src/components/QuestionDisplay.tsx` and `supabase/functions/mark-work/index.ts`.
+## Current state
+- DB has 301 questions (171 P1, 130 P3). **None** currently have `topic_id` or `subtopic_ids` populated — only the legacy `topic` text and `subtopics` text are set on some.
+- Edge function `suggest-question-metadata` already returns the new fields (`topic`, `topic_id`, `subtopic_ids`) using the per-module syllabus blocks.
+- `AdminRetag.tsx` already calls the edge function and writes `topic`, `topic_id`, `subtopic_ids` back — this is the right tool for bulk re-tagging. It supports a "Batch" run and a filter for "only untagged".
+- `AdminQuestions.tsx` upload form ("Suggest fields with AI") currently only applies the legacy `topic` + `subtopics` text; it ignores `topic_id` and `subtopic_ids` returned by the edge function, and the Save payload doesn't write them.
 
-## 1. Keep the attempt page open after "Save attempt"
+## Plan
 
-Currently `saveAttempt()` clears `uploadedImages`, drawing strokes, feedback, marks, etc. after a successful insert. That destroys the drawing state, so "Reattempt" no longer has anything to resume.
+### 1. Make the AI-suggest button on the upload form write the new fields
+In `src/pages/AdminQuestions.tsx`:
+- Extend `suggestFromImages` to also set `topic_id` (string) and `subtopic_ids` (string[]) on the draft.
+- Add `topic_id` and `subtopic_ids` to the draft state shape and to the Save payload (`handleSave`) so new uploads persist them.
+- Add small read-only display (or simple editable inputs) for these two fields in the form so the admin can verify before saving.
 
-Change: after a successful save, keep everything on screen exactly as it is — uploaded images, AI feedback, mark breakdown, percentage, and the saved drawing strokes/page index/extra height. Only show the success toast and disable the Save button until something changes (to prevent accidental duplicate inserts of the same state). The "Reattempt — edit your drawing" button remains visible and continues to reopen the drawing pad with `initialStrokes` so the student can keep editing and then click "AI mark" again.
+### 2. Re-tag all existing questions, all modules
+Use the existing `/admin/retag` page:
+- Add a module selector option that covers all six modules (P1, P2, P3, M1, S1, S2) — currently it may default to one. Confirm and expose all.
+- Toggle off "only untagged" so legacy rows that have a stale `topic` text but no `topic_id` are reprocessed too. Or change the filter to "only rows missing topic_id" (which is what we want) — that already matches the existing `.is("topic_id", null)` filter, so leaving it on is correct for the first pass.
+- Set batch size (e.g. 10) and press "Run batch" repeatedly until the queue is empty. The edge function is rate-limited by Lovable AI, so we let the existing batch loop pace itself.
 
-Optional but recommended: track the id of the last saved attempt so that if the user re-marks and re-saves, we can decide between insert vs update. Default behaviour: each Save inserts a new row (so history is preserved per attempt), and the button label becomes "Save attempt" → after save it shows "Saved ✓ — save again" once feedback changes.
+This re-uses the production code path — no one-off scripts, no DB-side AI calls. Every row's image is re-sent to the same edge function using its module, which now returns the granular new-syllabus codes.
 
-## 2. History-aware AI feedback
+### 3. Optional safety net for future uploads
+After step 1, if `topic_id` is null on save, show a non-blocking warning ("AI tagging not run — question will need manual retagging later") so admins notice. Not a blocker.
 
-Make the AI explicitly reference previous attempts of the same question by the same user.
-
-### Client side (`handleAIMarking`)
-Before calling `mark-work`, fetch this user's prior attempts of the same question (matching `user_id`, `year`, `sitting`, `paper_number`, `question_number`), ordered by `created_at`. Take the last 3, keeping only compact fields:
-
-```ts
-{ createdAt, percentageAttained, marksAwarded?, totalMarks?, natureOfErrors, markBreakdown }
-```
-
-Pass this as a new `previousAttempts` array in the `mark-work` request body. Do not send prior images (cost + token bloat) — text summaries are enough.
-
-### Edge function (`supabase/functions/mark-work/index.ts`)
-- Accept `previousAttempts` (validate: array, max 3, each field length-capped).
-- When non-empty, append a section to the user prompt:
-  ```
-  === PREVIOUS ATTEMPTS BY THIS STUDENT (oldest → newest) ===
-  Attempt 1 (2026-06-10, 4/8): natureOfErrors=..., per-mark: M1✓ A1✗ ...
-  Attempt 2 (2026-06-12, 6/8): ...
-  ```
-- Extend the system prompt with a new section "Referencing prior attempts":
-  - If `previousAttempts` is empty, do not mention history.
-  - If non-empty, compare the current per-mark breakdown against the most recent prior breakdown and call out concrete improvements ("In your earlier attempt you used the wrong ratio for $\\sin 60°$; this time you used $\\frac{\\sqrt{3}}{2}$ correctly and earned the A1.") and any regressions, in the `feedback` field. Keep maths in LaTeX as already required.
-  - Do not invent history that isn't in the supplied list.
-
-No DB schema changes — `student_attempts` already stores `nature_of_errors`, `percentage_attained`, and `mark_breakdown` (jsonb). RLS already restricts users to their own rows, so the select runs as the signed-in user.
-
-## Files to edit
-
-- `src/components/QuestionDisplay.tsx`
-  - `saveAttempt()`: stop clearing `uploadedImages`, `aiFeedback`, `markBreakdown`, `percentageAttained`, `marksAwarded`, `totalMarks`, `natureOfErrors`, and drawing state. Track a `savedSnapshotKey` to gate the Save button.
-  - `handleAIMarking()`: fetch last 3 prior attempts for this question/user and include them in the `mark-work` invoke body as `previousAttempts`.
-- `supabase/functions/mark-work/index.ts`
-  - Accept + validate `previousAttempts`.
-  - Inject a formatted history block into the user message.
-  - Add a "Referencing prior attempts" section to the system prompt.
+## Technical notes
+- DB schema already supports the new fields (`topic_id text`, `subtopic_ids text[]`) — no migration needed.
+- No new edge function code needed; the syllabus blocks added previously already cover all six modules.
+- Re-tagging cost: ~301 questions × 1 Gemini vision call each. Done through the existing batch UI so it's resumable.
 
 ## Out of scope
-
-- No changes to `student_attempts` schema.
-- No UI for browsing prior attempts (that already lives in Student Progress).
-- No change to the "Reattempt" button itself — it already restores strokes; this plan just ensures Save no longer wipes them.
+- No automatic backfill trigger / cron — re-tagging is admin-initiated via the existing page.
+- No change to `subtopics` legacy text column (kept as-is for backward compatibility with search/filters).
