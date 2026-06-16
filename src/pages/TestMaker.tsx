@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveModule, moduleOf } from "@/lib/modules";
+import { sortTopicsBySyllabus } from "@/lib/curriculum";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { useQuestionsVersion } from "@/lib/questionStore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -87,7 +88,7 @@ const TestMaker = () => {
 
   // Get unique topics in the current module.
   const allTopics = useMemo(
-    () => Array.from(new Set(pool.map(q => q.topic))).sort(),
+    () => sortTopicsBySyllabus(Array.from(new Set(pool.map(q => q.topic))), pool),
     [pool]
   );
 
