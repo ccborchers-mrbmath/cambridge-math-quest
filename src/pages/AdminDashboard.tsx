@@ -40,6 +40,9 @@ const AdminDashboard = () => {
   const [errorPatterns, setErrorPatterns] = useState<ErrorPattern[]>([]);
   const [loadingAttempts, setLoadingAttempts] = useState(false);
   const [loadingErrors, setLoadingErrors] = useState(false);
+  const [totalAttempts, setTotalAttempts] = useState<number>(0);
+  const [uniqueStudents, setUniqueStudents] = useState<number>(0);
+  const [avgScore, setAvgScore] = useState<number>(0);
 
   useEffect(() => {
     if (loading) return;
