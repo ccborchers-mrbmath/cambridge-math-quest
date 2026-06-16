@@ -133,13 +133,6 @@ const AdminDashboard = () => {
     return null;
   }
 
-  const totalAttempts = attempts.length;
-  const uniqueStudents = new Set(attempts.map(a => a.user_id)).size;
-  const avgScore = attempts
-    .filter(a => a.percentage_attained !== null)
-    .reduce((sum, a) => sum + (a.percentage_attained || 0), 0) / 
-    (attempts.filter(a => a.percentage_attained !== null).length || 1);
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
       <header className="border-b border-border bg-card/80 backdrop-blur-sm">
