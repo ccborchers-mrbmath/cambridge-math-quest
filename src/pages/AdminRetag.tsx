@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Loader2, Sparkles, Check, X, ArrowLeft } from "lucide-react";
 import { logger } from "@/lib/logger";
+import { formatSubtopicCodes } from "@/lib/syllabusLabels";
 
 const BUCKET = "exam-images";
 const MODULES = ["P1", "P2", "P3", "M1", "S1", "S2"] as const;
@@ -326,7 +327,7 @@ const AdminRetag = () => {
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             {r.subtopic_ids?.length
-                              ? r.subtopic_ids.join(", ")
+                              ? formatSubtopicCodes(r.subtopic_ids)
                               : r.subtopics ?? "—"}
                           </div>
                         </TableCell>
@@ -340,7 +341,7 @@ const AdminRetag = () => {
                                 )}
                               </div>
                               <div className="text-xs text-muted-foreground mt-1">
-                                {sug.subtopic_ids?.length ? sug.subtopic_ids.join(", ") : "—"}
+                                {formatSubtopicCodes(sug.subtopic_ids)}
                               </div>
                             </>
                           ) : (
