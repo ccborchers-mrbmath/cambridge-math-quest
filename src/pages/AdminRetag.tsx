@@ -130,6 +130,16 @@ const AdminRetag = () => {
           : null,
         raw: s,
       };
+      if (!suggestion.topic_id && !suggestion.subtopic_ids?.length) {
+        logger.error("suggestOne blank classification", { row: labelFor(row), suggestion: s });
+        toast.error(`AI could not classify ${labelFor(row)}`);
+        setSuggestions((prev) => {
+          const next = { ...prev };
+          delete next[row.id];
+          return next;
+        });
+        return null;
+      }
       setSuggestions((prev) => ({ ...prev, [row.id]: suggestion }));
       return suggestion;
     } catch (e) {

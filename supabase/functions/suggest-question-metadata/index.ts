@@ -70,6 +70,15 @@ const SYLLABI: Record<string, Syllabus> = {
   },
 };
 
+const MODULE_NAMES: Record<string, string> = {
+  P1: "Pure Mathematics 1 (Paper 1)",
+  P2: "Pure Mathematics 2 (Paper 2)",
+  P3: "Pure Mathematics 3 (Paper 3)",
+  M1: "Mechanics (Paper 4)",
+  S1: "Probability & Statistics 1 (Paper 5)",
+  S2: "Probability & Statistics 2 (Paper 6)",
+};
+
 const jsonResponse = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -105,7 +114,7 @@ serve(async (req) => {
       return jsonResponse({ error: "questionImage is required" }, 400);
     }
     const module: string =
-      typeof moduleRaw === "string" && SYLLABI[moduleRaw] ? moduleRaw : "P3";
+      typeof moduleRaw === "string" && moduleRaw in MODULE_NAMES ? moduleRaw : "P3";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -211,14 +220,6 @@ serve(async (req) => {
           : "Use the standard Cambridge 9709 syllabus topics and subtopics for this paper. " +
             "Subtopics is a comma-separated list of syllabus codes + labels (e.g. '7.2 Partial fractions, 8.4 Integration by substitution').";
 
-    const MODULE_NAMES: Record<string, string> = {
-      P1: "Pure Mathematics 1 (Paper 1)",
-      P2: "Pure Mathematics 2 (Paper 2)",
-      P3: "Pure Mathematics 3 (Paper 3)",
-      M1: "Mechanics (Paper 4)",
-      S1: "Probability & Statistics 1 (Paper 5)",
-      S2: "Probability & Statistics 2 (Paper 6)",
-    };
     const paperName = MODULE_NAMES[module] ?? syllabus?.name ?? "Paper 3";
 
     const content: unknown[] = [
