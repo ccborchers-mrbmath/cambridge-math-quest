@@ -75,6 +75,8 @@ type QuestionRow = {
   module: ModuleCode;
   topic: string | null;
   subtopics: string | null;
+  topic_id: string | null;
+  subtopic_ids: string[] | null;
   marks: number | null;
   question_url: string | null;
   markscheme_url: string | null;
@@ -96,6 +98,8 @@ const emptyDraft = (): Partial<QuestionRow> => ({
   module: "P3",
   topic: "",
   subtopics: "",
+  topic_id: null,
+  subtopic_ids: null,
   marks: null,
   question_url: "",
   markscheme_url: "",
@@ -450,6 +454,10 @@ const AdminQuestions = () => {
         question_number: typeof s.question_number === "number" ? s.question_number : d.question_number,
         topic: typeof s.topic === "string" ? s.topic : d.topic,
         subtopics: typeof s.subtopics === "string" ? s.subtopics : d.subtopics,
+        topic_id: typeof s.topic_id === "string" ? s.topic_id : d.topic_id,
+        subtopic_ids: Array.isArray(s.subtopic_ids)
+          ? (s.subtopic_ids as unknown[]).filter((x): x is string => typeof x === "string")
+          : d.subtopic_ids,
         marks: typeof s.marks === "number" ? s.marks : d.marks,
       }));
       toast.success("AI suggestions applied — review and save");
@@ -471,6 +479,11 @@ const AdminQuestions = () => {
         module: (draft.module as ModuleCode) || "P3",
         topic: draft.topic || null,
         subtopics: draft.subtopics || null,
+        topic_id: draft.topic_id || null,
+        subtopic_ids:
+          Array.isArray(draft.subtopic_ids) && draft.subtopic_ids.length
+            ? draft.subtopic_ids
+            : null,
         marks: draft.marks == null || draft.marks === ("" as unknown) ? null : Number(draft.marks),
         question_url: draft.question_url || null,
         markscheme_url: draft.markscheme_url || null,
@@ -652,6 +665,13 @@ const AdminQuestions = () => {
                 const update: Record<string, unknown> = {};
                 if (typeof s.topic === "string" && s.topic) update.topic = s.topic;
                 if (typeof s.subtopics === "string" && s.subtopics) update.subtopics = s.subtopics;
+                if (typeof s.topic_id === "string" && s.topic_id) update.topic_id = s.topic_id;
+                if (Array.isArray(s.subtopic_ids)) {
+                  const ids = (s.subtopic_ids as unknown[]).filter(
+                    (x): x is string => typeof x === "string",
+                  );
+                  if (ids.length) update.subtopic_ids = ids;
+                }
                 if (typeof s.marks === "number") update.marks = s.marks;
                 if (Object.keys(update).length) {
                   await supabase.from("questions").update(update as never).eq("id", rowId!);
@@ -1058,6 +1078,32 @@ const AdminQuestions = () => {
                 value={draft.subtopics ?? ""}
                 onChange={(e) => setDraft({ ...draft, subtopics: e.target.value })}
                 placeholder="e.g. 7.2 Partial fractions, 8.4 Integration by substitution"
+              />
+            </div>
+            <div className="col-span-2 md:col-span-2">
+              <Label>Topic ID (syllabus code)</Label>
+              <Input
+                value={draft.topic_id ?? ""}
+                onChange={(e) =>
+                  setDraft({ ...draft, topic_id: e.target.value || null })
+                }
+                placeholder="e.g. 3.5"
+              />
+            </div>
+            <div className="col-span-2 md:col-span-2">
+              <Label>Subtopic IDs (comma-separated codes)</Label>
+              <Input
+                value={(draft.subtopic_ids ?? []).join(", ")}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    subtopic_ids: e.target.value
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  })
+                }
+                placeholder="e.g. 3.5.3, 3.5.5"
               />
             </div>
             <div className="col-span-2 md:col-span-4">
