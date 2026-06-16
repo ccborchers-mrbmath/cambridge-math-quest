@@ -264,8 +264,8 @@ serve(async (req) => {
       return { ok: true as const, parsed };
     };
 
-    // Primary: stable Gemini 2.5 Flash (better JSON reliability than the preview model).
-    let result = await callModel("google/gemini-2.5-flash");
+    // Primary: Gemini 3 Flash Preview (historically most reliable for this tagging task).
+    let result = await callModel("google/gemini-3-flash-preview");
     if (!result.ok) {
       return jsonResponse({ error: `AI error ${result.status}: ${result.text}` }, 502);
     }
