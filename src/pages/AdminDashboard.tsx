@@ -53,32 +53,57 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (user) {
-      fetchAllAttempts();
+      fetchRecentAttempts();
+      fetchSummaryStats();
       fetchErrorPatterns();
     }
   }, [user]);
 
-  const fetchAllAttempts = async () => {
+  const fetchRecentAttempts = async () => {
     setLoadingAttempts(true);
     try {
       const { data, error } = await supabase
         .from('student_attempts')
         .select(`
-          *,
-          profiles (
-            full_name,
-            email
-          )
+          id, user_id, year, sitting, paper_number, question_number,
+          topic, percentage_attained, nature_of_errors, created_at,
+          profiles ( full_name, email )
         `)
         .order('created_at', { ascending: false })
-        .limit(50);
-
+        .limit(20);
       if (error) throw error;
       setAttempts(data || []);
     } catch (error) {
-      logger.error('Error fetching attempts:', error);
+      logger.error('Error fetching recent attempts:', error);
     } finally {
       setLoadingAttempts(false);
+    }
+  };
+
+  const fetchSummaryStats = async () => {
+    try {
+      const { count: total, error: e1 } = await supabase
+        .from('student_attempts')
+        .select('id', { count: 'exact', head: true });
+      if (!e1 && total !== null) setTotalAttempts(total);
+
+      const { data: userRows, error: e2 } = await supabase
+        .from('student_attempts')
+        .select('user_id');
+      if (!e2 && userRows) {
+        setUniqueStudents(new Set(userRows.map(r => r.user_id)).size);
+      }
+
+      const { data: scoreRows, error: e3 } = await supabase
+        .from('student_attempts')
+        .select('percentage_attained')
+        .not('percentage_attained', 'is', null);
+      if (!e3 && scoreRows && scoreRows.length > 0) {
+        const avg = scoreRows.reduce((sum, r) => sum + (r.percentage_attained || 0), 0) / scoreRows.length;
+        setAvgScore(avg);
+      }
+    } catch (error) {
+      logger.error('Error fetching summary stats:', error);
     }
   };
 
