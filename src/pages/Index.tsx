@@ -500,9 +500,9 @@ const Index = () => {
 
               {/* Topic suggestions */}
               <div className="pt-8">
-                <p className="text-sm text-muted-foreground mb-4">Popular topics:</p>
+                <p className="text-sm text-muted-foreground mb-4">Pick a topic:</p>
                 <div className="flex flex-wrap gap-3 justify-center">
-                  {(POPULAR_TOPICS_BY_MODULE[module ?? "P3"] ?? POPULAR_TOPICS_BY_MODULE.P3).map((topic) => (
+                  {mainTopics.map((topic) => (
                     <button
                       key={topic}
                       onClick={() => {
