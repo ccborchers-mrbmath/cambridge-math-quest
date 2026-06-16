@@ -8,9 +8,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
-import { useActiveModule, moduleOf, getModuleInfo } from "@/lib/modules";
 import { useQuestionsVersion } from "@/lib/questionStore";
-import { sortTopicsBySyllabus } from "@/lib/curriculum";
+import { useActiveModule, moduleOf, getModuleInfo, getTopicsInCurriculumOrder } from "@/lib/modules";
 import {
   Select,
   SelectContent,
@@ -51,12 +50,10 @@ const Index = () => {
     [module, questionsVersion]
   );
 
-  // Get unique main topics for the "Test me on" dropdown
-  const mainTopics = sortTopicsBySyllabus(
-    Array.from(
-      new Set(pool.map((q) => q.topic?.trim()).filter((topic): topic is string => Boolean(topic)))
-    ),
-    pool
+  // Get unique main topics for the "Test me on" dropdown, in curriculum order.
+  const mainTopics = useMemo(
+    () => getTopicsInCurriculumOrder(pool),
+    [pool]
   );
 
   // Reset any current question when switching modules.
