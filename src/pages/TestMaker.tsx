@@ -711,7 +711,7 @@ const TestMaker = () => {
                 </p>
               ) : (
                 <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
-                  {Array.from(selectedTopics).sort().map(topic => {
+                  {getTopicsInCurriculumOrder(pool.filter(q => selectedTopics.has(q.topic))).map(topic => {
                     const topicQuestions = filteredQuestions.filter(q => q.topic === topic);
                     const selectedInTopic = topicQuestions.filter(q => isQuestionSelected(getQuestionId(q))).length;
                     
