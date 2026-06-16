@@ -22,11 +22,8 @@ interface StudentAttempt {
   paper_number: number;
   question_number: number;
   topic: string | null;
-  subtopic: string | null;
-  attempted: boolean;
   percentage_attained: number | null;
   nature_of_errors: string | null;
-  image_url: string | null;
   created_at: string;
   profiles: Profile | Profile[] | null;
 }
@@ -43,6 +40,9 @@ const AdminDashboard = () => {
   const [errorPatterns, setErrorPatterns] = useState<ErrorPattern[]>([]);
   const [loadingAttempts, setLoadingAttempts] = useState(false);
   const [loadingErrors, setLoadingErrors] = useState(false);
+  const [totalAttempts, setTotalAttempts] = useState<number>(0);
+  const [uniqueStudents, setUniqueStudents] = useState<number>(0);
+  const [avgScore, setAvgScore] = useState<number>(0);
 
   useEffect(() => {
     if (loading) return;
@@ -53,32 +53,57 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (user) {
-      fetchAllAttempts();
+      fetchRecentAttempts();
+      fetchSummaryStats();
       fetchErrorPatterns();
     }
   }, [user]);
 
-  const fetchAllAttempts = async () => {
+  const fetchRecentAttempts = async () => {
     setLoadingAttempts(true);
     try {
       const { data, error } = await supabase
         .from('student_attempts')
         .select(`
-          *,
-          profiles (
-            full_name,
-            email
-          )
+          id, user_id, year, sitting, paper_number, question_number,
+          topic, percentage_attained, nature_of_errors, created_at,
+          profiles ( full_name, email )
         `)
         .order('created_at', { ascending: false })
-        .limit(50);
-
+        .limit(20);
       if (error) throw error;
       setAttempts(data || []);
     } catch (error) {
-      logger.error('Error fetching attempts:', error);
+      logger.error('Error fetching recent attempts:', error);
     } finally {
       setLoadingAttempts(false);
+    }
+  };
+
+  const fetchSummaryStats = async () => {
+    try {
+      const { count: total, error: e1 } = await supabase
+        .from('student_attempts')
+        .select('id', { count: 'exact', head: true });
+      if (!e1 && total !== null) setTotalAttempts(total);
+
+      const { data: userRows, error: e2 } = await supabase
+        .from('student_attempts')
+        .select('user_id');
+      if (!e2 && userRows) {
+        setUniqueStudents(new Set(userRows.map(r => r.user_id)).size);
+      }
+
+      const { data: scoreRows, error: e3 } = await supabase
+        .from('student_attempts')
+        .select('percentage_attained')
+        .not('percentage_attained', 'is', null);
+      if (!e3 && scoreRows && scoreRows.length > 0) {
+        const avg = scoreRows.reduce((sum, r) => sum + (r.percentage_attained || 0), 0) / scoreRows.length;
+        setAvgScore(avg);
+      }
+    } catch (error) {
+      logger.error('Error fetching summary stats:', error);
     }
   };
 
@@ -88,23 +113,19 @@ const AdminDashboard = () => {
       const { data, error } = await supabase
         .from('student_attempts')
         .select('nature_of_errors')
-        .not('nature_of_errors', 'is', null);
-
+        .not('nature_of_errors', 'is', null)
+        .limit(500);
       if (error) throw error;
-
-      // Count error patterns
       const patterns: Record<string, number> = {};
       data?.forEach(item => {
         if (item.nature_of_errors) {
           patterns[item.nature_of_errors] = (patterns[item.nature_of_errors] || 0) + 1;
         }
       });
-
       const sortedPatterns = Object.entries(patterns)
         .map(([nature_of_errors, count]) => ({ nature_of_errors, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 10);
-
       setErrorPatterns(sortedPatterns);
     } catch (error) {
       logger.error('Error fetching error patterns:', error);
@@ -132,13 +153,6 @@ const AdminDashboard = () => {
   if (!user) {
     return null;
   }
-
-  const totalAttempts = attempts.length;
-  const uniqueStudents = new Set(attempts.map(a => a.user_id)).size;
-  const avgScore = attempts
-    .filter(a => a.percentage_attained !== null)
-    .reduce((sum, a) => sum + (a.percentage_attained || 0), 0) / 
-    (attempts.filter(a => a.percentage_attained !== null).length || 1);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
@@ -215,7 +229,7 @@ const AdminDashboard = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Recent Student Attempts</CardTitle>
-                <CardDescription>Latest 50 question attempts across all students</CardDescription>
+                <CardDescription>Latest 20 question attempts across all students</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
