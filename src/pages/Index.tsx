@@ -493,7 +493,7 @@ const Index = () => {
               <div className="pt-8">
                 <p className="text-sm text-muted-foreground mb-4">Popular topics:</p>
                 <div className="flex flex-wrap gap-3 justify-center">
-                  {["Complex numbers", "Differentiation", "Integration", "Vectors", "Differential equations"].map((topic) => (
+                  {(POPULAR_TOPICS_BY_MODULE[module ?? "P3"] ?? POPULAR_TOPICS_BY_MODULE.P3).map((topic) => (
                     <button
                       key={topic}
                       onClick={() => {
