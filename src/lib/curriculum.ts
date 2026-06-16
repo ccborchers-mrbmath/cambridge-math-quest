@@ -1,4 +1,5 @@
 import { questionsDatabase } from "@/data/questions";
+import type { Question } from "@/data/questions";
 
 export interface ParsedSubtopic {
   code: string;
@@ -55,4 +56,50 @@ export const getMasteredSubtopicCodes = (attempts: AttemptLike[]): Set<string> =
     }
   }
   return mastered;
+};
+
+/**
+ * Compare two syllabus codes like "1.2.3" numerically segment-by-segment.
+ */
+const compareCodes = (a: string, b: string): number => {
+  const pa = a.split(".").map((n) => parseInt(n, 10));
+  const pb = b.split(".").map((n) => parseInt(n, 10));
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const ai = pa[i] ?? 0;
+    const bi = pb[i] ?? 0;
+    if (ai !== bi) return ai - bi;
+  }
+  return 0;
+};
+
+/**
+ * Sort an array of topic names by their position in the syllabus,
+ * determined by the smallest subtopic code attached to any question
+ * with that topic in the supplied pool. Topics with no parseable code
+ * fall back to alphabetical at the end.
+ */
+export const sortTopicsBySyllabus = (
+  topics: string[],
+  pool: Question[]
+): string[] => {
+  const minCode = new Map<string, string>();
+  for (const q of pool) {
+    const topic = q.topic?.trim();
+    if (!topic) continue;
+    for (const { code } of parseSubtopics(q.subtopics)) {
+      // only treat as a syllabus code if it looks like "1.2" or "1.2.3"
+      if (!/^\d+(\.\d+)+$/.test(code)) continue;
+      const cur = minCode.get(topic);
+      if (!cur || compareCodes(code, cur) < 0) minCode.set(topic, code);
+    }
+  }
+  return [...topics].sort((a, b) => {
+    const ca = minCode.get(a);
+    const cb = minCode.get(b);
+    if (ca && cb) return compareCodes(ca, cb) || a.localeCompare(b);
+    if (ca) return -1;
+    if (cb) return 1;
+    return a.localeCompare(b);
+  });
 };
