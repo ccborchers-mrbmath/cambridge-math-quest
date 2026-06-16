@@ -326,7 +326,7 @@ const AdminRetag = () => {
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             {r.subtopic_ids?.length
-                              ? r.subtopic_ids.join(", ")
+                              ? formatSubtopicCodes(r.subtopic_ids)
                               : r.subtopics ?? "—"}
                           </div>
                         </TableCell>
@@ -340,7 +340,7 @@ const AdminRetag = () => {
                                 )}
                               </div>
                               <div className="text-xs text-muted-foreground mt-1">
-                                {sug.subtopic_ids?.length ? sug.subtopic_ids.join(", ") : "—"}
+                                {formatSubtopicCodes(sug.subtopic_ids)}
                               </div>
                             </>
                           ) : (
