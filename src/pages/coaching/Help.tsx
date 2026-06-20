@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/use-profile";
@@ -21,6 +21,7 @@ import { toast } from "sonner";
 export default function Help() {
   const { data: me } = useProfile();
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const coaches = useQuery({
     queryKey: ["my-coaches", me?.user.id],
@@ -78,6 +79,21 @@ export default function Help() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Prefill subject (and optionally coach) when arriving from "Ask my Coach".
+  useEffect(() => {
+    const s = searchParams.get("subject");
+    if (s) setSubject(s);
+    const c = searchParams.get("coach");
+    if (c) setCoachId(c);
+  }, [searchParams]);
+
+  // If the student is linked to exactly one coach, auto-select them.
+  useEffect(() => {
+    if (!coachId && coaches.data && coaches.data.length === 1) {
+      setCoachId(coaches.data[0].id);
+    }
+  }, [coaches.data, coachId]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!me) return;
@@ -94,6 +110,10 @@ export default function Help() {
     setSubject("");
     setMessage("");
     setCoachId("");
+    // Clear any prefill params so a refresh doesn't repopulate the form.
+    if (searchParams.get("subject") || searchParams.get("coach")) {
+      setSearchParams({}, { replace: true });
+    }
     qc.invalidateQueries({ queryKey: ["help-requests"] });
   };
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/use-profile";
@@ -28,20 +29,25 @@ export default function Connections() {
       if (otherIds.length === 0) return [];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, display_name, full_name, email")
+        .select("user_id, display_name, full_name, email, share_progress_with_coaches")
         .in("user_id", otherIds);
-      const nameById = new Map(
+      const byId = new Map(
         (profiles ?? []).map((p) => [
           p.user_id,
-          p.display_name || p.full_name || p.email || "Unknown",
+          {
+            name: p.display_name || p.full_name || p.email || "Unknown",
+            sharesProgress: !!p.share_progress_with_coaches,
+          },
         ])
       );
       return (data ?? []).map((l) => {
         const otherId = l.coach_id === me!.user.id ? l.student_id : l.coach_id;
+        const info = byId.get(otherId);
         return {
           id: l.id,
           otherId,
-          otherName: nameById.get(otherId) ?? "Unknown",
+          otherName: info?.name ?? "Unknown",
+          sharesProgress: info?.sharesProgress ?? false,
           role: l.coach_id === me!.user.id ? ("student" as const) : ("coach" as const),
         };
       });
@@ -113,9 +119,18 @@ export default function Connections() {
                       ({l.role === "coach" ? "your coach" : "your student"})
                     </span>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => unlink(l.id)}>
-                    Unlink
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {l.role === "student" && l.sharesProgress && (
+                      <Link to={`/progress?studentId=${l.otherId}`}>
+                        <Button variant="outline" size="sm">
+                          View progress
+                        </Button>
+                      </Link>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => unlink(l.id)}>
+                      Unlink
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
