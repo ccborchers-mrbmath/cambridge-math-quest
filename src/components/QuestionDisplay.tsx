@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { logger } from "@/lib/logger";
 import { Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check, Copy, ClipboardPaste, Plus, Trash2, RotateCcw } from "lucide-react";
+import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check, Copy, ClipboardPaste, Plus, Trash2, RotateCcw, MessageCircleQuestion } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
@@ -22,6 +23,7 @@ interface QuestionDisplayProps {
 
 export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [showMarkscheme, setShowMarkscheme] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
@@ -52,6 +54,11 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [isCopyingQuestion, setIsCopyingQuestion] = useState(false);
   const [isPastingAnswer, setIsPastingAnswer] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const askMyCoach = () => {
+    const subject = `${question.topic ?? "Question"} ${question.year} ${question.sitting} ${question.paperNumber} Q${question.questionNumber}`;
+    navigate(`/coaching/help?subject=${encodeURIComponent(subject)}`);
+  };
 
   const handleHint = async () => {
     if (hint) {
