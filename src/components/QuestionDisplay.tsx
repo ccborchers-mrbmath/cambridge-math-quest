@@ -448,6 +448,15 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           <Camera className="h-5 w-5" />
           Submit an answer
         </Button>
+
+        <Button
+          onClick={askMyCoach}
+          variant="outline"
+          className="gap-2 h-12 px-6 border-primary/30 hover:bg-primary/5 hover:border-primary transition-all"
+        >
+          <MessageCircleQuestion className="h-5 w-5 text-primary" />
+          Ask my Coach
+        </Button>
       </div>
       )}
 
