@@ -8,23 +8,20 @@ export async function linkCoachByCode(rawCode: string) {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) throw new Error("You must be signed in.");
 
-  const { data: coach, error: lookupErr } = await supabase
-    .from("profiles")
-    .select("user_id")
-    .eq("coach_code", code)
-    .maybeSingle();
+  const { data: coachId, error: lookupErr } = await supabase
+    .rpc("find_coach_by_code", { _code: code });
   if (lookupErr) throw new Error(lookupErr.message);
-  if (!coach) throw new Error("No coach found with that code.");
-  if (coach.user_id === u.user.id) throw new Error("You can't link to your own coach code.");
+  if (!coachId) throw new Error("No coach found with that code.");
+  if (coachId === u.user.id) throw new Error("You can't link to your own coach code.");
 
   const { error: insertErr } = await supabase
     .from("coach_student_links")
-    .insert({ coach_id: coach.user_id, student_id: u.user.id });
+    .insert({ coach_id: coachId as string, student_id: u.user.id });
   if (insertErr) {
     if (insertErr.code === "23505") throw new Error("You are already linked to this coach.");
     throw new Error(insertErr.message);
   }
-  return { ok: true, coachId: coach.user_id };
+  return { ok: true, coachId: coachId as string };
 }
 
 // Promote current user to coach. Trigger auto-assigns coach_code.
