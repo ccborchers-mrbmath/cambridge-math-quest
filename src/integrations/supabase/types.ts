@@ -16,7 +16,9 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
+          coach_code: string | null
           created_at: string
+          display_name: string | null
           email: string
           full_name: string | null
           id: string
@@ -24,7 +26,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          coach_code?: string | null
           created_at?: string
+          display_name?: string | null
           email: string
           full_name?: string | null
           id?: string
@@ -32,7 +36,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          coach_code?: string | null
           created_at?: string
+          display_name?: string | null
           email?: string
           full_name?: string | null
           id?: string
@@ -219,7 +225,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "student"
+      app_role: "admin" | "student" | "coach"
       module_code: "P1" | "P2" | "P3" | "S1" | "S2" | "M1"
     }
     CompositeTypes: {
@@ -348,7 +354,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "student"],
+      app_role: ["admin", "student", "coach"],
       module_code: ["P1", "P2", "P3", "S1", "S2", "M1"],
     },
   },
