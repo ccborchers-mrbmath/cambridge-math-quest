@@ -1,11 +1,14 @@
 import { Link, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 
 export default function Call() {
   const { sessionId } = useParams<{ sessionId: string }>();
+  const qc = useQueryClient();
 
   const session = useQuery({
     queryKey: ["session", sessionId],
@@ -22,6 +25,31 @@ export default function Call() {
       return data;
     },
   });
+
+  const createRoom = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("create-daily-room", {
+        body: { sessionId },
+      });
+      if (error) throw error;
+      return data as { url: string };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["session", sessionId] }),
+    onError: (e: unknown) =>
+      toast({
+        title: "Couldn't create video room",
+        description: e instanceof Error ? e.message : "Try again in a moment.",
+        variant: "destructive",
+      }),
+  });
+
+  // Auto-create the room if it's missing.
+  useEffect(() => {
+    if (session.data && !session.data.daily_room_url && !createRoom.isPending) {
+      createRoom.mutate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.data?.id, session.data?.daily_room_url]);
 
   if (session.isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (!session.data) return <p className="text-sm">Session not found.</p>;
@@ -57,18 +85,23 @@ export default function Call() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>Video room not ready yet</CardTitle>
+            <CardTitle>
+              {createRoom.isPending ? "Preparing your video room…" : "Video room not ready"}
+            </CardTitle>
             <CardDescription>
-              The video calling integration needs to be enabled. This app uses Daily.co for
-              embedded calls — once a Daily API key is added, rooms will be created automatically
-              when a session is confirmed.
+              {createRoom.isPending
+                ? "Creating a Daily.co room for this session."
+                : "We couldn't create the room automatically."}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            <p>
-              Ask your admin to add the <code>DAILY_API_KEY</code> secret, then re-open this
-              session.
-            </p>
+            <Button
+              size="sm"
+              onClick={() => createRoom.mutate()}
+              disabled={createRoom.isPending}
+            >
+              {createRoom.isPending ? "Creating…" : "Create video room"}
+            </Button>
           </CardContent>
         </Card>
       )}

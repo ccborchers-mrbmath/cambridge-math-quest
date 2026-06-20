@@ -76,5 +76,14 @@ export async function confirmSlot(slotId: string) {
   await supabase.from("help_requests").update({ status: "scheduled" }).eq("id", slot.request_id);
   await supabase.from("proposed_slots").delete().eq("request_id", slot.request_id);
 
+  // Best-effort: create Daily room now so the call is ready to join.
+  try {
+    await supabase.functions.invoke("create-daily-room", {
+      body: { sessionId: session.id },
+    });
+  } catch (e) {
+    console.warn("create-daily-room failed (will retry on join)", e);
+  }
+
   return { ok: true, sessionId: session.id };
 }
