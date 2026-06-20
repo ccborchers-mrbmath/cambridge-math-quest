@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { logger } from "@/lib/logger";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X } from 'lucide-react';
+import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X, Eye } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 import { LatexRenderer } from '@/components/LatexRenderer';
 import { getAllCurriculumSubtopics, getMasteredSubtopicCodes } from '@/lib/curriculum';
 import { questionsDatabase } from '@/data/questions';
@@ -36,11 +39,18 @@ type SortMode = 'recent' | 'reference' | 'topic' | 'score';
 
 const StudentProgress = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const viewingStudentId = searchParams.get('studentId');
   const { user, loading, signOut } = useAuth();
   useQuestionsVersion();
   const [attempts, setAttempts] = useState<StudentAttempt[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [sortMode, setSortMode] = useState<SortMode>('recent');
+  const [shareProgress, setShareProgress] = useState(false);
+  const [savingShare, setSavingShare] = useState(false);
+  const [viewedName, setViewedName] = useState<string | null>(null);
+
+  const isCoachView = !!viewingStudentId && !!user && viewingStudentId !== user.id;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -51,15 +61,21 @@ const StudentProgress = () => {
   useEffect(() => {
     if (user) {
       fetchMyAttempts();
+      if (!isCoachView) {
+        void fetchShareFlag();
+      } else {
+        void fetchViewedName();
+      }
     }
-  }, [user]);
+  }, [user, viewingStudentId]);
 
   const fetchMyAttempts = async () => {
     try {
+      const targetId = isCoachView ? viewingStudentId! : user!.id;
       const { data, error } = await supabase
         .from('student_attempts')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', targetId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -73,6 +89,42 @@ const StudentProgress = () => {
     } finally {
       setLoadingData(false);
     }
+  };
+
+  const fetchShareFlag = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('share_progress_with_coaches')
+      .eq('user_id', user!.id)
+      .maybeSingle();
+    setShareProgress(!!data?.share_progress_with_coaches);
+  };
+
+  const fetchViewedName = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('display_name, full_name, email')
+      .eq('user_id', viewingStudentId!)
+      .maybeSingle();
+    setViewedName(data?.display_name || data?.full_name || data?.email || 'Student');
+  };
+
+  const toggleShare = async (next: boolean) => {
+    if (!user) return;
+    setSavingShare(true);
+    const prev = shareProgress;
+    setShareProgress(next);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ share_progress_with_coaches: next })
+      .eq('user_id', user.id);
+    setSavingShare(false);
+    if (error) {
+      setShareProgress(prev);
+      toast.error(error.message);
+      return;
+    }
+    toast.success(next ? 'Your coaches can now see your progress.' : 'Sharing turned off.');
   };
 
   const handleSignOut = async () => {
@@ -157,14 +209,24 @@ const StudentProgress = () => {
                 <BookOpen className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-2xl font-serif font-bold">My Progress</h1>
-                <p className="text-sm text-muted-foreground">Track your learning journey</p>
+                <h1 className="text-2xl font-serif font-bold">
+                  {isCoachView ? `${viewedName ?? 'Student'} — Progress` : 'My Progress'}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {isCoachView ? 'Viewing as coach' : 'Track your learning journey'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <Button variant="outline" onClick={() => navigate('/')}>
-                Back to Questions
-              </Button>
+              {isCoachView ? (
+                <Button variant="outline" onClick={() => navigate('/coaching/connections')}>
+                  Back to Connections
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => navigate('/')}>
+                  Back to Questions
+                </Button>
+              )}
               <Button variant="outline" onClick={handleSignOut}>
                 Sign Out
               </Button>
@@ -174,6 +236,30 @@ const StudentProgress = () => {
       </header>
 
       <main className="container mx-auto px-4 py-12">
+        {!isCoachView && (
+          <Card className="mb-6">
+            <CardContent className="flex items-center justify-between gap-4 py-4">
+              <div className="flex items-start gap-3">
+                <Eye className="h-5 w-5 text-primary mt-0.5" />
+                <div>
+                  <Label htmlFor="share-progress" className="text-sm font-medium">
+                    Let my coaches see this page
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    When on, any coach you're linked to can view your attempt history.
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="share-progress"
+                checked={shareProgress}
+                disabled={savingShare}
+                onCheckedChange={toggleShare}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
