@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, User, Settings, FileEdit } from "lucide-react";
+import { BookOpen, User, Settings, FileEdit, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
@@ -71,6 +71,10 @@ const ModulePicker = () => {
                   <Button variant="outline" onClick={() => navigate("/progress")}>
                     <User className="h-4 w-4 mr-2" />
                     My Progress
+                  </Button>
+                  <Button variant="outline" onClick={() => navigate("/coaching")}>
+                    <GraduationCap className="h-4 w-4 mr-2" />
+                    Coaching
                   </Button>
                   <Button variant="outline" onClick={handleSignOut}>
                     Sign Out
