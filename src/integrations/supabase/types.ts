@@ -14,6 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
+      coach_student_links: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          student_id: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          student_id: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
+      help_requests: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          message: string
+          status: Database["public"]["Enums"]["help_request_status"]
+          student_id: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          message?: string
+          status?: Database["public"]["Enums"]["help_request_status"]
+          student_id: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          status?: Database["public"]["Enums"]["help_request_status"]
+          student_id?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          payload: Json
+          read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          payload?: Json
+          read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          payload?: Json
+          read_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           coach_code: string | null
@@ -46,6 +127,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      proposed_slots: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          id: string
+          proposed_by: string
+          request_id: string
+          scheduled_at: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          proposed_by: string
+          request_id: string
+          scheduled_at: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          proposed_by?: string
+          request_id?: string
+          scheduled_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposed_slots_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "help_requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       questions: {
         Row: {
@@ -124,6 +240,56 @@ export type Database = {
           year?: number
         }
         Relationships: []
+      }
+      sessions: {
+        Row: {
+          coach_id: string
+          created_at: string
+          daily_room_name: string | null
+          daily_room_url: string | null
+          duration_minutes: number
+          id: string
+          request_id: string | null
+          scheduled_at: string
+          status: Database["public"]["Enums"]["session_status"]
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          daily_room_name?: string | null
+          daily_room_url?: string | null
+          duration_minutes?: number
+          id?: string
+          request_id?: string | null
+          scheduled_at: string
+          status?: Database["public"]["Enums"]["session_status"]
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          daily_room_name?: string | null
+          daily_room_url?: string | null
+          duration_minutes?: number
+          id?: string
+          request_id?: string | null
+          scheduled_at?: string
+          status?: Database["public"]["Enums"]["session_status"]
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "help_requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       student_attempts: {
         Row: {
@@ -216,6 +382,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_coach_code: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -226,7 +393,15 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "student" | "coach"
+      help_request_status:
+        | "pending"
+        | "accepted"
+        | "declined"
+        | "scheduled"
+        | "completed"
+        | "cancelled"
       module_code: "P1" | "P2" | "P3" | "S1" | "S2" | "M1"
+      session_status: "scheduled" | "in_progress" | "completed" | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -355,7 +530,16 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "student", "coach"],
+      help_request_status: [
+        "pending",
+        "accepted",
+        "declined",
+        "scheduled",
+        "completed",
+        "cancelled",
+      ],
       module_code: ["P1", "P2", "P3", "S1", "S2", "M1"],
+      session_status: ["scheduled", "in_progress", "completed", "cancelled"],
     },
   },
 } as const
