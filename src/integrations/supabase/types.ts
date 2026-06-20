@@ -385,6 +385,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      find_coach_by_code: { Args: { _code: string }; Returns: string }
       generate_coach_code: { Args: never; Returns: string }
       has_role: {
         Args: {
