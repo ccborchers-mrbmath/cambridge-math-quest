@@ -805,6 +805,18 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                           </Button>
                         </div>
                       )}
+                      <div className="mt-4 pt-3 border-t border-border/60 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={askMyCoach}
+                          className="gap-2"
+                        >
+                          <MessageCircleQuestion className="h-4 w-4" />
+                          Ask my Coach about this
+                        </Button>
+                      </div>
                     </Card>
                   )}
                 </div>
