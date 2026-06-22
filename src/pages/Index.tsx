@@ -138,6 +138,17 @@ const Index = () => {
   // Helper to get a unique question ID
   const getQuestionId = (q: Question) => `${q.year}-${q.sitting}-${q.paperNumber}-${q.questionNumber}`;
 
+  // Free-tier daily cap: record each unique question view server-side and
+  // pop the upgrade dialog the moment the user is over the limit.
+  useEffect(() => {
+    if (!selectedQuestion) return;
+    void recordView(getQuestionId(selectedQuestion));
+  }, [selectedQuestion, recordView]);
+
+  useEffect(() => {
+    if (capped) setShowCapDialog(true);
+  }, [capped]);
+
   useEffect(() => {
     const year = searchParams.get("year");
     const sitting = searchParams.get("sitting");
