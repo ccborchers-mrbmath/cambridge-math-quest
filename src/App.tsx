@@ -11,6 +11,7 @@ import AdminQuestions from "./pages/AdminQuestions";
 import AdminRetag from "./pages/AdminRetag";
 import StudentProgress from "./pages/StudentProgress";
 import TestMaker from "./pages/TestMaker";
+import Pricing from "./pages/Pricing";
 import NotFound from "./pages/NotFound";
 import CoachingLayout from "./pages/coaching/CoachingLayout";
 import CoachingDashboard from "./pages/coaching/CoachingDashboard";
@@ -21,6 +22,8 @@ import Call from "./pages/coaching/Call";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { refreshQuestionsFromDb } from "@/lib/questionStore";
+import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
+import { RequireSubscription } from "@/components/RequireSubscription";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +42,7 @@ const AppShell = () => {
 
   return (
     <BrowserRouter>
+      <PaymentTestModeBanner />
       <Routes>
         <Route path="/" element={<ModulePicker />} />
         <Route path="/practice" element={<Index />} />
@@ -46,9 +50,31 @@ const AppShell = () => {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/questions" element={<AdminQuestions />} />
         <Route path="/admin/retag" element={<AdminRetag />} />
-        <Route path="/progress" element={<StudentProgress />} />
-        <Route path="/test-maker" element={<TestMaker />} />
-        <Route path="/coaching" element={<CoachingLayout />}>
+        <Route
+          path="/progress"
+          element={
+            <RequireSubscription featureName="My Progress">
+              <StudentProgress />
+            </RequireSubscription>
+          }
+        />
+        <Route
+          path="/test-maker"
+          element={
+            <RequireSubscription featureName="Test Maker">
+              <TestMaker />
+            </RequireSubscription>
+          }
+        />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route
+          path="/coaching"
+          element={
+            <RequireSubscription featureName="Coaching">
+              <CoachingLayout />
+            </RequireSubscription>
+          }
+        >
           <Route index element={<CoachingDashboard />} />
           <Route path="connections" element={<Connections />} />
           <Route path="help" element={<Help />} />
