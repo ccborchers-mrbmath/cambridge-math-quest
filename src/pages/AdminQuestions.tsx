@@ -150,6 +150,10 @@ const AdminQuestions = () => {
       navigate("/auth?redirect=/admin/questions", { replace: true });
       return;
     }
+    if (userRole && userRole !== 'admin') {
+      navigate('/', { replace: true });
+      return;
+    }
   }, [user, userRole, loading, navigate]);
 
   const fetchRows = async () => {
