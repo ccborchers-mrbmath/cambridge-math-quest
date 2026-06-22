@@ -5,7 +5,7 @@ export default function Terms() {
   return (
     <LegalLayout title="Terms & Conditions" updated="22 June 2026">
       <p>
-        These Terms govern your use of {LEGAL.businessName} ({LEGAL.productSummary}).
+        These Terms govern your use of {LEGAL.tradingName} ({LEGAL.productSummary}).
         By creating an account or making a purchase you agree to them.
       </p>
 

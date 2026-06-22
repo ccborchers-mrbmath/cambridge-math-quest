@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { BookOpen, User, Settings, FileEdit, GraduationCap, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -164,6 +164,17 @@ const ModulePicker = () => {
           </Button>
         </div>
       </main>
+
+      <footer className="border-t border-border bg-card/80 backdrop-blur-sm mt-auto">
+        <div className="container mx-auto px-4 py-6 flex flex-wrap items-center justify-between gap-4 text-sm text-muted-foreground">
+          <span>&copy; {new Date().getFullYear()} Cambridge Math Quest</span>
+          <div className="flex gap-4">
+            <Link to="/terms" className="hover:underline">Terms</Link>
+            <Link to="/refund" className="hover:underline">Refund Policy</Link>
+            <Link to="/privacy" className="hover:underline">Privacy</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

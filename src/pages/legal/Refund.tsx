@@ -5,7 +5,7 @@ export default function Refund() {
   return (
     <LegalLayout title="Refund Policy" updated="22 June 2026">
       <p>
-        We want you to be happy with {LEGAL.businessName}. This policy explains when and
+        We want you to be happy with {LEGAL.tradingName}. This policy explains when and
         how you can request a refund.
       </p>
 
