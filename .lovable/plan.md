@@ -1,79 +1,60 @@
-# Pricing & Subscription Plan (pending payment provider integration)
 
-Single source of truth for the monetisation model. Implementation is blocked on Stripe/Paddle setup (user awaiting ID verification).
+# My Progress — Curriculum Coverage View
 
-## Tiers
+Goal: turn the attempt-history table into a curriculum coverage tool. Users pick a module, optionally filter by topic, and see every question in that module — attempted ones colour-coded (green = 100%, amber = partial, red = low), unattempted ones greyed out — with a one-click "Go to question" button.
 
-### Free tier (no account required beyond sign-in)
-- Full searchable question archive across all six 9709 modules (P1, P2, P3, S1, S2, M1)
-- View question images and associated mark scheme images
-- "Show me another" navigation
-- No AI features (no marking, no hints, no AI feedback)
-- Cost to us: effectively zero per user
+## UX
 
-### Paid tier — "Practice+"
-- **R50 / month = 50 credits/month**
-- **7-day free trial** with **10 free credits** (no card required to start trial; card required to convert)
-- Unlocks:
-  - AI marking of uploaded/drawn answers (1 credit each)
-  - AI hints (1 credit each)
-  - Test Maker — **free to generate and print** (draw-card feature; revenue comes from marking the completed printed tests)
-  - Saving worked answers
-- **Top-ups**: R25 = 25 credits (1:1 with subscription rate; keeps pricing transparent)
-- **Credit rollover**: unused credits roll over for **one month** only
-- **Cancellation**: credits remain usable for **one month** after cancellation, then expire
-- **Inactivity policy**:
-  - 30 days no AI use → reminder email
-  - 60 days no AI use → auto-pause subscription (no further charges) until user reactivates
+Top of the existing "Your Attempt History" card add a control row:
 
-## Credit costs (per action)
-| Action | Credits |
-|---|---|
-| AI mark a single question (uploaded or drawn answer) | 1 |
-| AI hint on a single question | 1 |
-| Test Maker — generate/print a test | 0 (free) |
-| Test Maker — AI mark each question on completed test | 1 per question |
-| Search / view questions / view mark schemes | 0 (free tier) |
+- **Module dropdown** — All modules / P1 / P2 / P3 / S1 / S2 / M1. Defaults to "All".
+- **Topic dropdown** — populated from questions in the selected module (disabled when module = All).
+- **Show unattempted** toggle (on by default once a module is selected) — when on, the table is the full question list for the module; when off, only attempted questions show.
+- **Sort** chips kept: Recent / Reference / Topic / Score. Default switches to **Reference** when a module is selected.
 
-## Admin
-- `ccborchers@gmail.com` is the sole admin
-- Admin bypasses all credit checks and tier gating
-- All other accounts default to free user role
+Rename card title to "Question Coverage" when a module is selected; keep "Your Attempt History" otherwise.
 
-## Implementation blockers
-- Payment provider (Stripe or Paddle) — requires user's ID verification
-- Until then: no `subscriptions` table, no credit ledger, no paywall enforcement
+## Table rows
 
-## Implementation order (once payments unblocked)
-1. `credits` ledger table + `subscriptions` table (RLS, GRANTs, has_role checks)
-2. Server-side credit deduction in the AI marking and hint edge functions
-3. Paywall UI on AI features for free users
-4. Stripe/Paddle webhook → grant credits on successful payment
-5. Trial flow (7 days, 10 credits, no card)
-6. Top-up purchase flow
-7. Inactivity cron (30/60 day reminders + auto-pause)
-8. Storage refactor: move base64 student work out of `student_attempts.image_url` into `student-work` bucket before scaling past pilot
+Source of truth: `questionsDatabase` (already merged with DB rows via `questionStore`), left-joined to the user's `student_attempts` on (year, sitting, paper_number, question_number, module).
 
-## Open items
-- Currency display (ZAR only vs. multi-currency)
-- Whether hints cost 1 credit or a fractional amount (currently 1)
-- Annual plan discount (deferred)
+Columns when a module is selected:
 
-## VIP tier (owner-granted, off-menu)
+| Question (ref) | Topic | Score | Status | Action |
 
-Not publicly listed. Granted manually by admin (`ccborchers@gmail.com`) to a small number of trusted colleagues.
+Row colouring (subtle background tint, not bright):
+- **Green tint** — best attempt = 100%.
+- **Amber tint** — attempted, best attempt < 100%.
+- **Muted/greyed** — never attempted (text `text-muted-foreground`).
 
-### Mechanism (preferred: combined)
-1. **`vip` role** on `user_roles` (alongside `student`, `admin`).
-2. **Credit multiplier**: VIPs burn **0.2 credits** per AI action (mark or hint) instead of 1 — so 50 credits ≈ 250 AI marks.
-   - Implemented server-side in the credit-deduction logic of the AI edge functions. Multiplier read from a single config (e.g. `vip_credit_multiplier` constant or `profiles.credit_multiplier` column) so it can be tuned without code changes.
-3. **Stripe/Paddle coupon** (once payments are live): permanent discount on the R50 plan for VIP accounts (e.g. 80% off → R10/month, or 100% off → free). Handles the cash side cleanly via the payment provider.
+Status column shows: "Mastered" / "Attempted (best 67%)" / "Not attempted".
 
-### Admin UX
-- Toggle "VIP" on a user from the admin dashboard (grants the `vip` role).
-- Optional per-user multiplier override on `profiles` for one-off arrangements.
+Action column:
+- Attempted → **Reattempt** (existing behaviour).
+- Not attempted → **Go to question** (same navigation, just different label).
 
-### Rules
-- VIP status does not bypass credit accounting entirely (unlike admin) — usage is still tracked for visibility.
-- VIP does not grant access to `/admin` pages.
-- Revoking the role reverts the user to standard 1-credit-per-action rates immediately.
+Both buttons navigate to `/practice?module=…&year=…&sitting=…&paper=…&question=…`.
+
+If multiple attempts exist for the same question, collapse to one row using the **best** `percentage_attained`; keep a small "× N attempts" hint.
+
+When "All modules" is selected, behaviour is unchanged from today (attempt-only history, no greyed rows).
+
+## Grouping option
+
+Keep it flat for now — sorting by Reference already groups naturally by year → sitting → paper → question, matching the screenshot. We can add a true grouped/sectioned view later if you want the bold "Pure 1 / 2025 May/June P12" headers from the mock; flag if you want that included in this pass.
+
+## Technical notes
+
+- New helpers in `src/lib/curriculum.ts` (or inline in the page):
+  - `getQuestionsForModule(module)` → filter `questionsDatabase`.
+  - `bestAttemptByQuestion(attempts)` → `Map<key, StudentAttempt>` keyed by `module|year|sitting|paper|q`.
+- New state in `StudentProgress.tsx`: `moduleFilter`, `topicFilter`, `showUnattempted`.
+- Row model becomes `{ question, bestAttempt | null, attemptCount }` so attempted and unattempted use the same renderer.
+- No DB or edge-function changes. No new migrations. No credit impact.
+- Coach view (`?studentId=…`) inherits the same filters automatically.
+
+## Out of scope (call out if you want them in)
+
+- True grouped/sectioned headers like the screenshot.
+- Per-paper progress bars.
+- Exporting the coverage table.
