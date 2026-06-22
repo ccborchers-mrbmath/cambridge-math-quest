@@ -11,11 +11,12 @@ import { Progress } from '@/components/ui/progress';
 import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X, Eye } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { LatexRenderer } from '@/components/LatexRenderer';
 import { getAllCurriculumSubtopics, getMasteredSubtopicCodes } from '@/lib/curriculum';
 import { questionsDatabase } from '@/data/questions';
-import { moduleOf } from '@/lib/modules';
+import { moduleOf, MODULES, questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
 import { useQuestionsVersion } from '@/lib/questionStore';
 
 interface StudentAttempt {
@@ -36,6 +37,7 @@ interface StudentAttempt {
 }
 
 type SortMode = 'recent' | 'reference' | 'topic' | 'score';
+type ModuleFilter = 'all' | ModuleCode;
 
 const StudentProgress = () => {
   const navigate = useNavigate();
@@ -46,6 +48,9 @@ const StudentProgress = () => {
   const [attempts, setAttempts] = useState<StudentAttempt[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [sortMode, setSortMode] = useState<SortMode>('recent');
+  const [moduleFilter, setModuleFilter] = useState<ModuleFilter>('all');
+  const [topicFilter, setTopicFilter] = useState<string>('all');
+  const [showUnattempted, setShowUnattempted] = useState(true);
   const [shareProgress, setShareProgress] = useState(false);
   const [savingShare, setSavingShare] = useState(false);
   const [viewedName, setViewedName] = useState<string | null>(null);
@@ -153,6 +158,23 @@ const StudentProgress = () => {
     navigate(`/practice?${params.toString()}`);
   };
 
+  const goToQuestion = (
+    moduleCode: ModuleCode,
+    year: number,
+    sitting: string,
+    paperNumber: number,
+    questionNumber: number,
+  ) => {
+    const params = new URLSearchParams({
+      module: moduleCode,
+      year: year.toString(),
+      sitting,
+      paper: paperNumber.toString(),
+      question: questionNumber.toString(),
+    });
+    navigate(`/practice?${params.toString()}`);
+  };
+
   if (loading || loadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -198,6 +220,99 @@ const StudentProgress = () => {
 
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+
+  // ----- Curriculum coverage rows (when a module is selected) -----
+  const attemptKey = (year: number, sitting: string, paper: number, q: number) =>
+    `${year}|${sitting}|${paper}|${q}`;
+
+  const bestByKey = new Map<string, { best: StudentAttempt; count: number }>();
+  for (const a of attempts) {
+    const k = attemptKey(a.year, a.sitting, a.paper_number, a.question_number);
+    const existing = bestByKey.get(k);
+    const score = a.percentage_attained ?? -1;
+    if (!existing) {
+      bestByKey.set(k, { best: a, count: 1 });
+    } else {
+      existing.count += 1;
+      const prev = existing.best.percentage_attained ?? -1;
+      if (score > prev) existing.best = a;
+    }
+  }
+
+  const moduleQuestions =
+    moduleFilter === 'all' ? [] : questionsInModule(moduleFilter as ModuleCode);
+  const moduleTopics =
+    moduleFilter === 'all' ? [] : getTopicsInCurriculumOrder(moduleQuestions);
+
+  type CoverageRow = {
+    module: ModuleCode;
+    year: number;
+    sitting: string;
+    paperNumber: number;
+    questionNumber: number;
+    topic: string;
+    best: StudentAttempt | null;
+    attemptCount: number;
+  };
+
+  const coverageRows: CoverageRow[] =
+    moduleFilter === 'all'
+      ? []
+      : moduleQuestions
+          .filter((q) => topicFilter === 'all' || (q.topic || '') === topicFilter)
+          .map((q) => {
+            const k = attemptKey(q.year, q.sitting, q.paperNumber, q.questionNumber);
+            const hit = bestByKey.get(k);
+            return {
+              module: moduleOf(q),
+              year: q.year,
+              sitting: q.sitting,
+              paperNumber: q.paperNumber,
+              questionNumber: q.questionNumber,
+              topic: q.topic || '',
+              best: hit?.best ?? null,
+              attemptCount: hit?.count ?? 0,
+            };
+          })
+          .filter((r) => showUnattempted || r.best !== null)
+          .sort((a, b) => {
+            if (sortMode === 'topic') {
+              return (a.topic || 'zzz').localeCompare(b.topic || 'zzz')
+                || a.year - b.year || a.sitting.localeCompare(b.sitting)
+                || a.paperNumber - b.paperNumber || a.questionNumber - b.questionNumber;
+            }
+            if (sortMode === 'score') {
+              return (b.best?.percentage_attained ?? -1) - (a.best?.percentage_attained ?? -1);
+            }
+            if (sortMode === 'recent') {
+              const ta = a.best ? new Date(a.best.created_at).getTime() : 0;
+              const tb = b.best ? new Date(b.best.created_at).getTime() : 0;
+              if (ta !== tb) return tb - ta;
+            }
+            // reference (default for module view)
+            return a.year - b.year
+              || a.sitting.localeCompare(b.sitting)
+              || a.paperNumber - b.paperNumber
+              || a.questionNumber - b.questionNumber;
+          });
+
+  const inModuleView = moduleFilter !== 'all';
+
+  const rowTint = (best: StudentAttempt | null): string => {
+    if (!best) return 'bg-muted/30 text-muted-foreground';
+    const p = best.percentage_attained;
+    if (p === null) return '';
+    if (p >= 100) return 'bg-green-500/10';
+    return 'bg-amber-500/10';
+  };
+
+  const statusLabel = (row: CoverageRow): string => {
+    if (!row.best) return 'Not attempted';
+    const p = row.best.percentage_attained;
+    if (p === null) return `Attempted${row.attemptCount > 1 ? ` × ${row.attemptCount}` : ''}`;
+    if (p >= 100) return `Mastered${row.attemptCount > 1 ? ` × ${row.attemptCount}` : ''}`;
+    return `Attempted (best ${p}%)${row.attemptCount > 1 ? ` × ${row.attemptCount}` : ''}`;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30">
@@ -310,8 +425,12 @@ const StudentProgress = () => {
           <CardHeader>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <CardTitle>Your Attempt History</CardTitle>
-                <CardDescription>Review your past attempts and identify areas for improvement</CardDescription>
+                <CardTitle>{inModuleView ? 'Question Coverage' : 'Your Attempt History'}</CardTitle>
+                <CardDescription>
+                  {inModuleView
+                    ? 'Every question in the selected module. Green = mastered, amber = needs work, grey = not yet attempted.'
+                    : 'Review your past attempts and identify areas for improvement'}
+                </CardDescription>
               </div>
               {attempts.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -330,9 +449,102 @@ const StudentProgress = () => {
                 </div>
               )}
             </div>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Module</Label>
+                <Select
+                  value={moduleFilter}
+                  onValueChange={(v) => {
+                    setModuleFilter(v as ModuleFilter);
+                    setTopicFilter('all');
+                    if (v !== 'all') setSortMode('reference');
+                  }}
+                >
+                  <SelectTrigger className="w-[200px] h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All modules</SelectItem>
+                    {MODULES.map((m) => (
+                      <SelectItem key={m.code} value={m.code}>{m.shortLabel} — {m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Topic</Label>
+                <Select
+                  value={topicFilter}
+                  onValueChange={setTopicFilter}
+                  disabled={!inModuleView}
+                >
+                  <SelectTrigger className="w-[260px] h-9"><SelectValue placeholder="All topics" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All topics</SelectItem>
+                    {moduleTopics.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {inModuleView && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="show-unattempted"
+                    checked={showUnattempted}
+                    onCheckedChange={setShowUnattempted}
+                  />
+                  <Label htmlFor="show-unattempted" className="text-xs">Show unattempted</Label>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            {attempts.length === 0 ? (
+            {inModuleView ? (
+              coverageRows.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">No questions match the current filters.</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Question</TableHead>
+                      <TableHead>Topic</TableHead>
+                      <TableHead>Score</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {coverageRows.map((row) => {
+                      const p = row.best?.percentage_attained ?? null;
+                      return (
+                        <TableRow key={`${row.year}|${row.sitting}|${row.paperNumber}|${row.questionNumber}`} className={rowTint(row.best)}>
+                          <TableCell className="font-medium">
+                            {row.year} {row.sitting} P{row.paperNumber} Q{row.questionNumber}
+                          </TableCell>
+                          <TableCell>{row.topic || '-'}</TableCell>
+                          <TableCell>
+                            {p === null ? '-' : (
+                              <span className={p >= 100 ? 'text-green-600' : p >= 60 ? 'text-amber-600' : 'text-red-600'}>
+                                {p}%
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">{statusLabel(row)}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant={row.best ? 'outline' : 'default'}
+                              size="sm"
+                              onClick={() => goToQuestion(row.module, row.year, row.sitting, row.paperNumber, row.questionNumber)}
+                            >
+                              {row.best ? (<><RotateCcw className="h-4 w-4" /> Reattempt</>) : 'Go to question'}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )
+            ) : attempts.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground mb-4">No attempts yet. Start practicing!</p>
                 <Button onClick={() => navigate('/')}>Browse Questions</Button>
