@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { CreditsPill } from "@/components/CreditsPill";
+import { useFreeTierCap } from "@/hooks/useFreeTierCap";
+import { FreeTierCapDialog } from "@/components/FreeTierCapDialog";
 import { useQuestionsVersion } from "@/lib/questionStore";
 import { useActiveModule, moduleOf, getModuleInfo, getTopicsInCurriculumOrder } from "@/lib/modules";
 import {
@@ -33,6 +35,8 @@ const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, userRole, loading, signOut } = useAuth();
   const { module, setModule } = useActiveModule({ redirectIfMissing: true });
+  const { recordView, capped } = useFreeTierCap();
+  const [showCapDialog, setShowCapDialog] = useState(false);
   // Subscribe to DB question loads so dropdowns/search reflect uploads.
   const questionsVersion = useQuestionsVersion();
   const [searchQuery, setSearchQuery] = useState("");
@@ -133,6 +137,17 @@ const Index = () => {
 
   // Helper to get a unique question ID
   const getQuestionId = (q: Question) => `${q.year}-${q.sitting}-${q.paperNumber}-${q.questionNumber}`;
+
+  // Free-tier daily cap: record each unique question view server-side and
+  // pop the upgrade dialog the moment the user is over the limit.
+  useEffect(() => {
+    if (!selectedQuestion) return;
+    void recordView(getQuestionId(selectedQuestion));
+  }, [selectedQuestion, recordView]);
+
+  useEffect(() => {
+    if (capped) setShowCapDialog(true);
+  }, [capped]);
 
   useEffect(() => {
     const year = searchParams.get("year");
@@ -616,10 +631,18 @@ const Index = () => {
         )}
       </main>
 
+      <FreeTierCapDialog open={showCapDialog} onOpenChange={setShowCapDialog} />
+
       {/* Footer */}
       <footer className="border-t border-border mt-24 py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>Cambridge International AS & A Level Mathematics 9709 Paper 3 Practice Tool</p>
+          <div className="mt-3 flex justify-center gap-4 text-xs">
+            <a href="/terms" className="hover:underline">Terms</a>
+            <a href="/refund" className="hover:underline">Refund</a>
+            <a href="/privacy" className="hover:underline">Privacy</a>
+            <a href="/pricing" className="hover:underline">Pricing</a>
+          </div>
         </div>
       </footer>
     </div>

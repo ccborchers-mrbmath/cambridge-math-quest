@@ -62,6 +62,27 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_question_views: {
+        Row: {
+          day: string
+          updated_at: string
+          user_id: string
+          view_count: number
+        }
+        Insert: {
+          day?: string
+          updated_at?: string
+          user_id: string
+          view_count?: number
+        }
+        Update: {
+          day?: string
+          updated_at?: string
+          user_id?: string
+          view_count?: number
+        }
+        Relationships: []
+      }
       help_requests: {
         Row: {
           coach_id: string
@@ -119,6 +140,27 @@ export type Database = {
           payload?: Json
           read_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      processed_paddle_events: {
+        Row: {
+          environment: string
+          event_id: string
+          event_type: string
+          processed_at: string
+        }
+        Insert: {
+          environment: string
+          event_id: string
+          event_type: string
+          processed_at?: string
+        }
+        Update: {
+          environment?: string
+          event_id?: string
+          event_type?: string
+          processed_at?: string
         }
         Relationships: []
       }
@@ -551,6 +593,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      record_question_view: { Args: { _user_id: string }; Returns: Json }
       set_vip_status: {
         Args: { _is_vip: boolean; _user_id: string }
         Returns: undefined

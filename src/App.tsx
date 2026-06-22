@@ -12,6 +12,9 @@ import AdminRetag from "./pages/AdminRetag";
 import StudentProgress from "./pages/StudentProgress";
 import TestMaker from "./pages/TestMaker";
 import Pricing from "./pages/Pricing";
+import Terms from "./pages/legal/Terms";
+import Refund from "./pages/legal/Refund";
+import Privacy from "./pages/legal/Privacy";
 import NotFound from "./pages/NotFound";
 import CoachingLayout from "./pages/coaching/CoachingLayout";
 import CoachingDashboard from "./pages/coaching/CoachingDashboard";
@@ -67,6 +70,9 @@ const AppShell = () => {
           }
         />
         <Route path="/pricing" element={<Pricing />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/refund" element={<Refund />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route
           path="/coaching"
           element={

@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Check, Sparkles, ArrowLeft } from "lucide-react";
+import { Check, Sparkles, ArrowLeft, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useCredits } from "@/hooks/useCredits";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
+import { supabase } from "@/integrations/supabase/client";
+import { getPaddleEnvironment } from "@/lib/paddle";
 import { toast } from "sonner";
 
 const fmtZAR = (cents: number) =>
@@ -19,6 +21,23 @@ export default function Pricing() {
   const { balance, refresh: refreshCredits } = useCredits();
   const { openCheckout, loading: checkoutLoading } = usePaddleCheckout();
   const [params, setParams] = useSearchParams();
+  const pastDue = status === "past_due";
+
+  const openCustomerPortal = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("customer-portal", {
+        body: { environment: getPaddleEnvironment() },
+      });
+      if (error) throw error;
+      const url = (data as any)?.subscriptionUrls?.[0]?.cancelSubscription
+        || (data as any)?.subscriptionUrls?.[0]?.updateSubscriptionPaymentMethod
+        || (data as any)?.overviewUrl;
+      if (!url) throw new Error("Portal URL missing");
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not open the customer portal");
+    }
+  };
 
   useEffect(() => {
     if (params.get("checkout") === "success") {
@@ -89,6 +108,16 @@ export default function Pricing() {
                 </>
               )}
             </p>
+          )}
+          {pastDue && (
+            <div className="max-w-xl mx-auto rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
+              Your last payment failed. We're retrying it — please update your payment method to keep your access.
+            </div>
+          )}
+          {isActive && (
+            <Button variant="outline" size="sm" onClick={openCustomerPortal} className="gap-2">
+              <Settings className="h-4 w-4" /> Manage subscription
+            </Button>
           )}
         </div>
 
