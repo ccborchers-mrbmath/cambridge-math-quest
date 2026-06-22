@@ -71,6 +71,28 @@ serve(async (req) => {
       validatedImages.push(img);
     }
 
+    // Credit check — service-role client because deduct_credits is REVOKE'd from authenticated.
+    const userId = claimsData.claims.sub as string;
+    const adminClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    );
+    const { data: deductResult, error: deductError } = await adminClient.rpc('deduct_credits', {
+      _user_id: userId,
+      _base_cost: 1,
+      _reason: 'ai_mark',
+      _metadata: {
+        questionNumber: body?.questionMeta?.questionNumber ?? null,
+        year: body?.questionMeta?.year ?? null,
+      },
+    });
+    if (deductError) {
+      return jsonResponse({ error: 'Credit check failed' }, 500);
+    }
+    if (!(deductResult as any)?.allowed) {
+      return jsonResponse({ error: 'Out of credits', code: 'insufficient_credits' }, 402);
+    }
+
     // Compact, validated history of this student's recent prior attempts of
     // the same question. Used by the AI to call out concrete improvements or
     // regressions in feedback. Never includes prior images.

@@ -72,7 +72,14 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
         body: { questionUrl: question.questionUrl }
       });
 
-      if (error) throw error;
+      if (error) {
+        const ctx: any = (error as any).context;
+        if (ctx?.status === 402) {
+          toast.error("You're out of credits. AI hints need an active Practice+ subscription.");
+          return;
+        }
+        throw error;
+      }
 
       if (data?.hint) {
         setHint(data.hint);
@@ -301,7 +308,14 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        const ctx: any = (error as any).context;
+        if (ctx?.status === 402) {
+          toast.error("You're out of credits. AI marking needs an active Practice+ subscription.");
+          return;
+        }
+        throw error;
+      }
 
       setPercentageAttained(String(data.percentageAttained ?? ""));
       setNatureOfErrors(data.natureOfErrors ?? "");

@@ -35,6 +35,33 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          metadata: Json
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          metadata?: Json
+          reason: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          metadata?: Json
+          reason?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       help_requests: {
         Row: {
           coach_id: string
@@ -99,10 +126,12 @@ export type Database = {
         Row: {
           coach_code: string | null
           created_at: string
+          credit_multiplier: number
           display_name: string | null
           email: string
           full_name: string | null
           id: string
+          last_ai_use_at: string | null
           share_progress_with_coaches: boolean
           updated_at: string
           user_id: string
@@ -110,10 +139,12 @@ export type Database = {
         Insert: {
           coach_code?: string | null
           created_at?: string
+          credit_multiplier?: number
           display_name?: string | null
           email: string
           full_name?: string | null
           id?: string
+          last_ai_use_at?: string | null
           share_progress_with_coaches?: boolean
           updated_at?: string
           user_id: string
@@ -121,10 +152,12 @@ export type Database = {
         Update: {
           coach_code?: string | null
           created_at?: string
+          credit_multiplier?: number
           display_name?: string | null
           email?: string
           full_name?: string | null
           id?: string
+          last_ai_use_at?: string | null
           share_progress_with_coaches?: boolean
           updated_at?: string
           user_id?: string
@@ -359,6 +392,42 @@ export type Database = {
           },
         ]
       }
+      user_credits: {
+        Row: {
+          balance: number
+          created_at: string
+          credits_expire_at: string | null
+          subscription_ends_at: string | null
+          subscription_status: string
+          trial_ends_at: string | null
+          trial_started_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          credits_expire_at?: string | null
+          subscription_ends_at?: string | null
+          subscription_status?: string
+          trial_ends_at?: string | null
+          trial_started_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          credits_expire_at?: string | null
+          subscription_ends_at?: string | null
+          subscription_status?: string
+          trial_ends_at?: string | null
+          trial_started_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -385,8 +454,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      deduct_credits: {
+        Args: {
+          _base_cost: number
+          _metadata?: Json
+          _reason: string
+          _user_id: string
+        }
+        Returns: Json
+      }
       find_coach_by_code: { Args: { _code: string }; Returns: string }
       generate_coach_code: { Args: never; Returns: string }
+      grant_credits: {
+        Args: {
+          _amount: number
+          _metadata?: Json
+          _reason?: string
+          _user_id: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -394,9 +481,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      set_vip_status: {
+        Args: { _is_vip: boolean; _user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
-      app_role: "admin" | "student" | "coach"
+      app_role: "admin" | "student" | "coach" | "vip"
       help_request_status:
         | "pending"
         | "accepted"
@@ -533,7 +624,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "student", "coach"],
+      app_role: ["admin", "student", "coach", "vip"],
       help_request_status: [
         "pending",
         "accepted",

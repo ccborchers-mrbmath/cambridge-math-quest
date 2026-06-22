@@ -47,6 +47,31 @@ serve(async (req) => {
       );
     }
 
+    // Credit check — service-role client because deduct_credits is REVOKE'd from authenticated.
+    const userId = claimsData.claims.sub as string;
+    const adminClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    );
+    const { data: deductResult, error: deductError } = await adminClient.rpc('deduct_credits', {
+      _user_id: userId,
+      _base_cost: 1,
+      _reason: 'ai_hint',
+      _metadata: {},
+    });
+    if (deductError) {
+      return new Response(
+        JSON.stringify({ error: 'Credit check failed' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!(deductResult as any)?.allowed) {
+      return new Response(
+        JSON.stringify({ error: 'Out of credits', code: 'insufficient_credits' }),
+        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       return new Response(

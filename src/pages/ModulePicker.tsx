@@ -4,6 +4,7 @@ import { BookOpen, User, Settings, FileEdit, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { CreditsPill } from "@/components/CreditsPill";
 import { useQuestionsVersion } from "@/lib/questionStore";
 import {
   MODULES,
@@ -62,6 +63,7 @@ const ModulePicker = () => {
                 <div className="h-8 w-8 animate-pulse bg-secondary rounded-full" />
               ) : user ? (
                 <>
+                  <CreditsPill />
                   {userRole === "admin" && (
                     <Button variant="outline" onClick={() => navigate("/admin")}>
                       <Settings className="h-4 w-4 mr-2" />

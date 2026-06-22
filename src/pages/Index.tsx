@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
+import { CreditsPill } from "@/components/CreditsPill";
 import { useQuestionsVersion } from "@/lib/questionStore";
 import { useActiveModule, moduleOf, getModuleInfo, getTopicsInCurriculumOrder } from "@/lib/modules";
 import {
@@ -407,6 +408,7 @@ const Index = () => {
                 <div className="h-8 w-8 animate-pulse bg-secondary rounded-full" />
               ) : user ? (
                 <>
+                  <CreditsPill />
                   {userRole === 'admin' && (
                     <Button variant="outline" onClick={() => navigate('/admin')}>
                       <Settings className="h-4 w-4 mr-2" />

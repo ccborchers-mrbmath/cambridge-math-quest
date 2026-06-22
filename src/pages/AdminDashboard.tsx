@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BookOpen, Users, TrendingDown, BarChart } from 'lucide-react';
+import { UsersCreditsPanel } from '@/components/admin/UsersCreditsPanel';
 
 interface Profile {
   full_name: string | null;
@@ -227,6 +228,7 @@ const AdminDashboard = () => {
           <TabsList>
             <TabsTrigger value="attempts">Recent Attempts</TabsTrigger>
             <TabsTrigger value="errors">Common Errors</TabsTrigger>
+            <TabsTrigger value="credits">Users & Credits</TabsTrigger>
           </TabsList>
 
           <TabsContent value="attempts" className="space-y-4">
@@ -309,6 +311,10 @@ const AdminDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="credits" className="space-y-4">
+            <UsersCreditsPanel />
           </TabsContent>
         </Tabs>
       </main>
