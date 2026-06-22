@@ -637,6 +637,12 @@ const Index = () => {
       <footer className="border-t border-border mt-24 py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>Cambridge International AS & A Level Mathematics 9709 Paper 3 Practice Tool</p>
+          <div className="mt-3 flex justify-center gap-4 text-xs">
+            <a href="/terms" className="hover:underline">Terms</a>
+            <a href="/refund" className="hover:underline">Refund</a>
+            <a href="/privacy" className="hover:underline">Privacy</a>
+            <a href="/pricing" className="hover:underline">Pricing</a>
+          </div>
         </div>
       </footer>
     </div>
