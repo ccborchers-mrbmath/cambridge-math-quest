@@ -6,7 +6,8 @@
  * the seller and disclose Paddle as the Merchant of Record / data sharing recipient.
  */
 export const LEGAL = {
-  businessName: "Cambridge Math Quest",
+  businessName: "Christopher Charles Borchers",
+  tradingName: "Cambridge Math Quest",
   contactEmail: "support@cambridge-math-quest.lovable.app",
   // Country of the seller. Affects governing-law clause.
   countryOfBusiness: "South Africa",
