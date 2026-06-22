@@ -150,6 +150,26 @@ async function handleTransactionCompleted(data: any, env: PaddleEnv) {
 async function handleWebhook(req: Request, env: PaddleEnv) {
   const event = await verifyWebhook(req, env);
   console.log('Paddle event:', event.eventType, 'env:', env);
+
+  // Idempotency: Paddle retries failed webhooks for up to 3 days.
+  // We use event.eventId (stable per delivered notification) so duplicates
+  // never re-grant credits or re-process state changes.
+  const eventId = (event as any).eventId as string | undefined;
+  if (eventId) {
+    const sb = getSupabase();
+    const { error } = await sb
+      .from('processed_paddle_events')
+      .insert({ event_id: eventId, event_type: event.eventType, environment: env });
+    if (error) {
+      // 23505 = unique_violation → already processed, ack 200.
+      if ((error as any).code === '23505') {
+        console.log('Duplicate event, skipping:', eventId);
+        return;
+      }
+      throw error;
+    }
+  }
+
   switch (event.eventType) {
     case EventName.SubscriptionCreated:
     case EventName.SubscriptionUpdated:
