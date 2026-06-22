@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, User, Settings, FileEdit, GraduationCap } from "lucide-react";
+import { BookOpen, User, Settings, FileEdit, GraduationCap, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { CreditsPill } from "@/components/CreditsPill";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useQuestionsVersion } from "@/lib/questionStore";
 import {
   MODULES,
@@ -17,6 +18,7 @@ import {
 const ModulePicker = () => {
   const navigate = useNavigate();
   const { user, userRole, loading, signOut } = useAuth();
+  const { isActive: hasSubscription } = useSubscription();
   // Re-render once DB questions finish loading so counts reflect uploads.
   useQuestionsVersion();
   const counts = countByModule();
@@ -64,6 +66,17 @@ const ModulePicker = () => {
               ) : user ? (
                 <>
                   <CreditsPill />
+                  {!hasSubscription && userRole !== "admin" && (
+                    <Button onClick={() => navigate("/pricing")} className="gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      Upgrade
+                    </Button>
+                  )}
+                  {hasSubscription && (
+                    <Button variant="outline" onClick={() => navigate("/pricing")}>
+                      Plans
+                    </Button>
+                  )}
                   {userRole === "admin" && (
                     <Button variant="outline" onClick={() => navigate("/admin")}>
                       <Settings className="h-4 w-4 mr-2" />
