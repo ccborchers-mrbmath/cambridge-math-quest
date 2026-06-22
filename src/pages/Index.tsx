@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { CreditsPill } from "@/components/CreditsPill";
+import { useFreeTierCap } from "@/hooks/useFreeTierCap";
+import { FreeTierCapDialog } from "@/components/FreeTierCapDialog";
 import { useQuestionsVersion } from "@/lib/questionStore";
 import { useActiveModule, moduleOf, getModuleInfo, getTopicsInCurriculumOrder } from "@/lib/modules";
 import {
@@ -33,6 +35,8 @@ const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, userRole, loading, signOut } = useAuth();
   const { module, setModule } = useActiveModule({ redirectIfMissing: true });
+  const { recordView, capped } = useFreeTierCap();
+  const [showCapDialog, setShowCapDialog] = useState(false);
   // Subscribe to DB question loads so dropdowns/search reflect uploads.
   const questionsVersion = useQuestionsVersion();
   const [searchQuery, setSearchQuery] = useState("");
