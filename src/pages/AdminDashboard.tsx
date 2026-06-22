@@ -312,6 +312,10 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="credits" className="space-y-4">
+            <UsersCreditsPanel />
+          </TabsContent>
         </Tabs>
       </main>
     </div>
