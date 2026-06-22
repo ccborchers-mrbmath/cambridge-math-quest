@@ -11,6 +11,7 @@ import AdminQuestions from "./pages/AdminQuestions";
 import AdminRetag from "./pages/AdminRetag";
 import StudentProgress from "./pages/StudentProgress";
 import TestMaker from "./pages/TestMaker";
+import Pricing from "./pages/Pricing";
 import NotFound from "./pages/NotFound";
 import CoachingLayout from "./pages/coaching/CoachingLayout";
 import CoachingDashboard from "./pages/coaching/CoachingDashboard";
@@ -21,6 +22,7 @@ import Call from "./pages/coaching/Call";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { refreshQuestionsFromDb } from "@/lib/questionStore";
+import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +41,7 @@ const AppShell = () => {
 
   return (
     <BrowserRouter>
+      <PaymentTestModeBanner />
       <Routes>
         <Route path="/" element={<ModulePicker />} />
         <Route path="/practice" element={<Index />} />
@@ -48,6 +51,7 @@ const AppShell = () => {
         <Route path="/admin/retag" element={<AdminRetag />} />
         <Route path="/progress" element={<StudentProgress />} />
         <Route path="/test-maker" element={<TestMaker />} />
+        <Route path="/pricing" element={<Pricing />} />
         <Route path="/coaching" element={<CoachingLayout />}>
           <Route index element={<CoachingDashboard />} />
           <Route path="connections" element={<Connections />} />
