@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
+import { CreditsPill } from "@/components/CreditsPill";
 import { useQuestionsVersion } from "@/lib/questionStore";
 import { useActiveModule, moduleOf, getModuleInfo, getTopicsInCurriculumOrder } from "@/lib/modules";
 import {
