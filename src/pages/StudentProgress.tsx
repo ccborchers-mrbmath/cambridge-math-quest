@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { LatexRenderer } from '@/components/LatexRenderer';
 import { getAllCurriculumSubtopics, getMasteredSubtopicCodes } from '@/lib/curriculum';
 import { questionsDatabase } from '@/data/questions';
-import { moduleOf, MODULES, questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
+import { moduleOf, moduleFromPaperNumber, MODULES, questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
 import { useQuestionsVersion } from '@/lib/questionStore';
 
 interface StudentAttempt {
@@ -186,16 +186,45 @@ const StudentProgress = () => {
     );
   }
 
-  const totalAttempts = attempts.length;
-  const attemptsWithScores = attempts.filter(a => a.percentage_attained !== null);
+  // Scope stats to the selected module (or all if "All modules").
+  const scopedAttempts =
+    moduleFilter === 'all'
+      ? attempts
+      : attempts.filter((a) => moduleFromPaperNumber(a.paper_number) === moduleFilter);
+
+  const totalAttempts = scopedAttempts.length;
+  const attemptsWithScores = scopedAttempts.filter((a) => a.percentage_attained !== null);
   const avgScore = attemptsWithScores.length > 0
     ? attemptsWithScores.reduce((sum, a) => sum + (a.percentage_attained || 0), 0) / attemptsWithScores.length
     : 0;
-  const topicsAttempted = new Set(attempts.map(a => a.topic).filter(Boolean)).size;
+  const topicsAttempted = new Set(scopedAttempts.map((a) => a.topic).filter(Boolean)).size;
 
-  const allSubtopics = getAllCurriculumSubtopics();
+  // Curriculum mastery: scope subtopic universe to the selected module.
+  const allSubtopics = (() => {
+    if (moduleFilter === 'all') return getAllCurriculumSubtopics();
+    const map = new Map<string, string>();
+    for (const q of questionsInModule(moduleFilter as ModuleCode)) {
+      for (const { code, label } of (function () {
+        // inline parse to avoid extra import; reuse same regex semantics
+        return (q.subtopics || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((entry) => {
+            const m = entry.match(/^(\d+(?:\.\d+)+)\s+(.*)$/);
+            return m ? { code: m[1], label: m[2].trim() } : { code: entry, label: entry };
+          });
+      })()) {
+        if (!map.has(code)) map.set(code, label);
+      }
+    }
+    return map;
+  })();
   const totalSubtopics = allSubtopics.size;
-  const masteredSubtopics = getMasteredSubtopicCodes(attempts).size;
+  const masteredAll = getMasteredSubtopicCodes(scopedAttempts);
+  const masteredSubtopics = moduleFilter === 'all'
+    ? masteredAll.size
+    : [...masteredAll].filter((c) => allSubtopics.has(c)).length;
   const masteryPct = totalSubtopics > 0
     ? Math.round((masteredSubtopics / totalSubtopics) * 100)
     : 0;
