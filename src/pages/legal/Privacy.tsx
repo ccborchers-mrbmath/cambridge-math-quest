@@ -6,7 +6,7 @@ export default function Privacy() {
     <LegalLayout title="Privacy Notice" updated="22 June 2026">
       <p>
         {LEGAL.businessName} ("we") is the data controller for personal data processed
-        through this service. Contact:{" "}
+        through {LEGAL.tradingName}. Contact:{" "}
         <a className="underline" href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a>.
       </p>
 
