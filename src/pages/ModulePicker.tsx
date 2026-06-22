@@ -62,6 +62,7 @@ const ModulePicker = () => {
                 <div className="h-8 w-8 animate-pulse bg-secondary rounded-full" />
               ) : user ? (
                 <>
+                  <CreditsPill />
                   {userRole === "admin" && (
                     <Button variant="outline" onClick={() => navigate("/admin")}>
                       <Settings className="h-4 w-4 mr-2" />
