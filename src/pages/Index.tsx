@@ -631,6 +631,8 @@ const Index = () => {
         )}
       </main>
 
+      <FreeTierCapDialog open={showCapDialog} onOpenChange={setShowCapDialog} />
+
       {/* Footer */}
       <footer className="border-t border-border mt-24 py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
