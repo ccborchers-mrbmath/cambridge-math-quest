@@ -392,13 +392,66 @@ export type Database = {
           },
         ]
       }
+      subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          environment: string
+          id: string
+          last_granted_period_start: string | null
+          paddle_customer_id: string
+          paddle_subscription_id: string
+          price_id: string
+          product_id: string
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          environment?: string
+          id?: string
+          last_granted_period_start?: string | null
+          paddle_customer_id: string
+          paddle_subscription_id: string
+          price_id: string
+          product_id: string
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          environment?: string
+          id?: string
+          last_granted_period_start?: string | null
+          paddle_customer_id?: string
+          paddle_subscription_id?: string
+          price_id?: string
+          product_id?: string
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_credits: {
         Row: {
           balance: number
           created_at: string
           credits_expire_at: string | null
+          subscription_credits: number
           subscription_ends_at: string | null
           subscription_status: string
+          topup_credits: number
           trial_ends_at: string | null
           trial_started_at: string | null
           updated_at: string
@@ -408,8 +461,10 @@ export type Database = {
           balance?: number
           created_at?: string
           credits_expire_at?: string | null
+          subscription_credits?: number
           subscription_ends_at?: string | null
           subscription_status?: string
+          topup_credits?: number
           trial_ends_at?: string | null
           trial_started_at?: string | null
           updated_at?: string
@@ -419,8 +474,10 @@ export type Database = {
           balance?: number
           created_at?: string
           credits_expire_at?: string | null
+          subscription_credits?: number
           subscription_ends_at?: string | null
           subscription_status?: string
+          topup_credits?: number
           trial_ends_at?: string | null
           trial_started_at?: string | null
           updated_at?: string
@@ -463,6 +520,7 @@ export type Database = {
         }
         Returns: Json
       }
+      expire_all_credits: { Args: { _user_id: string }; Returns: undefined }
       find_coach_by_code: { Args: { _code: string }; Returns: string }
       generate_coach_code: { Args: never; Returns: string }
       grant_credits: {
@@ -473,6 +531,18 @@ export type Database = {
           _user_id: string
         }
         Returns: Json
+      }
+      grant_subscription_credits: {
+        Args: { _amount: number; _expires_at: string; _user_id: string }
+        Returns: undefined
+      }
+      grant_topup_credits: {
+        Args: { _amount: number; _metadata?: Json; _user_id: string }
+        Returns: undefined
+      }
+      has_active_subscription: {
+        Args: { check_env?: string; user_uuid: string }
+        Returns: boolean
       }
       has_role: {
         Args: {
