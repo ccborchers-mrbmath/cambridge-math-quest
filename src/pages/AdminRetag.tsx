@@ -52,7 +52,7 @@ async function signed(path: string | null | undefined): Promise<string | null> {
 
 const AdminRetag = () => {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user, userRole, loading } = useAuth();
   const [module, setModule] = useState<ModuleCode>("P3");
   const [onlyUntagged, setOnlyUntagged] = useState(true);
   const [rows, setRows] = useState<QRow[]>([]);
@@ -64,8 +64,14 @@ const AdminRetag = () => {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) navigate("/auth?redirect=/admin/retag", { replace: true });
-  }, [user, loading, navigate]);
+    if (!user) {
+      navigate("/auth?redirect=/admin/retag", { replace: true });
+      return;
+    }
+    if (userRole && userRole !== 'admin') {
+      navigate('/', { replace: true });
+    }
+  }, [user, userRole, loading, navigate]);
 
   useEffect(() => {
     if (!user) return;

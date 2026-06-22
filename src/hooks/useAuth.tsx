@@ -42,14 +42,26 @@ const updateAuthState = (patch: Partial<AuthState>) => {
   notify();
 };
 
+const fetchUserRole = async (userId: string): Promise<AuthRole> => {
+  const { data, error } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId);
+  if (error || !data) return 'student';
+  const roles = data.map((r) => r.role as string);
+  if (roles.includes('admin')) return 'admin';
+  return 'student';
+};
+
 const syncSession = (session: Session | null) => {
-  // Temporary: every signed-in user is treated as admin while role-based
-  // gating is rolled back. See plan in .lovable/plan.md.
-  updateAuthState({
-    session,
-    user: session?.user ?? null,
-    userRole: session?.user ? 'admin' : null,
-    loading: false,
+  if (!session?.user) {
+    updateAuthState({ session: null, user: null, userRole: null, loading: false });
+    return;
+  }
+  updateAuthState({ session, user: session.user, loading: false });
+  // Resolve role asynchronously to avoid deadlocks inside the auth callback.
+  void fetchUserRole(session.user.id).then((role) => {
+    updateAuthState({ userRole: role });
   });
 };
 
