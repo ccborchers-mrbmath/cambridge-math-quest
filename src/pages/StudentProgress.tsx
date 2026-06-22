@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X, Eye } from 'lucide-react';
+import { Loader2, Wand2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,6 +19,7 @@ import { getAllCurriculumSubtopics, getMasteredSubtopicCodes } from '@/lib/curri
 import { questionsDatabase } from '@/data/questions';
 import { moduleOf, moduleFromPaperNumber, MODULES, questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
 import { useQuestionsVersion } from '@/lib/questionStore';
+import { ensureMarkschemeText } from '@/utils/ensureMarkschemeText';
 
 interface StudentAttempt {
   id: string;
@@ -54,6 +56,7 @@ const StudentProgress = () => {
   const [shareProgress, setShareProgress] = useState(false);
   const [savingShare, setSavingShare] = useState(false);
   const [viewedName, setViewedName] = useState<string | null>(null);
+  const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
 
   const isCoachView = !!viewingStudentId && !!user && viewingStudentId !== user.id;
 
@@ -173,6 +176,117 @@ const StudentProgress = () => {
       question: questionNumber.toString(),
     });
     navigate(`/practice?${params.toString()}`);
+  };
+
+  const fetchImageAsDataUrl = async (url: string): Promise<string> => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch image (${res.status})`);
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const handleAIMark = async (attempt: StudentAttempt) => {
+    if (isCoachView) return;
+    if (!attempt.image_url) {
+      toast.error('No saved answer image to mark.');
+      return;
+    }
+    const q = questionsDatabase.find(
+      (qq) =>
+        qq.year === attempt.year &&
+        qq.sitting === attempt.sitting &&
+        qq.paperNumber === attempt.paper_number &&
+        qq.questionNumber === attempt.question_number
+    );
+    if (!q) {
+      toast.error("Couldn't find the original question for this attempt.");
+      return;
+    }
+    setMarkingIds((prev) => {
+      const next = new Set(prev);
+      next.add(attempt.id);
+      return next;
+    });
+    try {
+      const workDataUrl = await fetchImageAsDataUrl(attempt.image_url);
+
+      let questionText: string | null = null;
+      let markschemeText: string | null = null;
+      try {
+        const { data: row } = await supabase
+          .from('questions')
+          .select('question_text, markscheme_text')
+          .eq('year', q.year)
+          .eq('sitting', q.sitting)
+          .eq('paper_number', q.paperNumber)
+          .eq('question_number', q.questionNumber)
+          .maybeSingle();
+        questionText = row?.question_text ?? null;
+        markschemeText = row?.markscheme_text ?? null;
+      } catch {
+        // ignore — fall back to images
+      }
+      if (!markschemeText) {
+        try { markschemeText = await ensureMarkschemeText(q); } catch { /* fallback */ }
+      }
+
+      const { data, error } = await supabase.functions.invoke('mark-work', {
+        body: {
+          questionUrl: q.questionUrl,
+          markschemeUrl: q.markschemeUrl,
+          questionText,
+          markschemeText,
+          workImages: [workDataUrl],
+          questionMeta: {
+            year: q.year,
+            sitting: q.sitting,
+            paperNumber: q.paperNumber,
+            questionNumber: q.questionNumber,
+            topic: q.topic,
+            subtopics: q.subtopics,
+            marks: q.marks,
+          },
+        },
+      });
+      if (error) {
+        const ctx: any = (error as any).context;
+        if (ctx?.status === 402) {
+          toast.error("You're out of credits. AI marking needs an active Practice+ subscription.");
+          return;
+        }
+        throw error;
+      }
+
+      const markBreakdown = Array.isArray(data?.markBreakdown) ? data.markBreakdown : [];
+      const pct = typeof data?.percentageAttained === 'number' ? data.percentageAttained : null;
+      const { error: updErr } = await supabase
+        .from('student_attempts')
+        .update({
+          percentage_attained: pct,
+          nature_of_errors: data?.natureOfErrors ?? null,
+          ai_feedback: data?.feedback ?? null,
+          mark_breakdown: markBreakdown.length > 0 ? markBreakdown : null,
+        })
+        .eq('id', attempt.id);
+      if (updErr) throw updErr;
+
+      toast.success('AI marking complete');
+      await fetchMyAttempts();
+    } catch (e: any) {
+      logger.error('AI Mark from progress failed:', e);
+      toast.error(e?.message || 'Failed to mark attempt.');
+    } finally {
+      setMarkingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(attempt.id);
+        return next;
+      });
+    }
   };
 
   if (loading || loadingData) {
@@ -341,6 +455,127 @@ const StudentProgress = () => {
     if (p === null) return `Attempted${row.attemptCount > 1 ? ` × ${row.attemptCount}` : ''}`;
     if (p >= 100) return `Mastered${row.attemptCount > 1 ? ` × ${row.attemptCount}` : ''}`;
     return `Attempted (best ${p}%)${row.attemptCount > 1 ? ` × ${row.attemptCount}` : ''}`;
+  };
+
+  // Rich cells reused by both the attempt-history table and the per-question
+  // coverage table so the same answer image, AI feedback dialog, and action
+  // buttons are available regardless of filter.
+  const renderAttemptRichCells = (attempt: StudentAttempt) => (
+    <>
+      <TableCell className="max-w-xs">
+        {attempt.nature_of_errors ? (
+          <LatexRenderer content={attempt.nature_of_errors} className="text-sm text-foreground/80" />
+        ) : '-'}
+      </TableCell>
+      <TableCell>
+        {attempt.image_url ? (
+          <Dialog>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                className="h-14 w-14 rounded-md overflow-hidden border border-border hover:ring-2 hover:ring-primary transition-all"
+                aria-label="View submitted answer"
+              >
+                <img
+                  src={attempt.image_url}
+                  alt={`Submitted answer for ${attempt.year} ${attempt.sitting} P${attempt.paper_number} Q${attempt.question_number}`}
+                  className="h-full w-full object-cover"
+                />
+              </button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>
+                  Your answer — {attempt.year} {attempt.sitting} P{attempt.paper_number} Q{attempt.question_number}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="overflow-auto max-h-[75vh]">
+                <img src={attempt.image_url} alt="Submitted answer full size" className="w-full h-auto rounded-md" />
+              </div>
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <ImageIcon className="h-3 w-3" /> None
+          </span>
+        )}
+      </TableCell>
+      <TableCell>
+        {attempt.ai_feedback ? (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1">
+                <Sparkles className="h-3 w-3" /> View
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>
+                  AI feedback — {attempt.year} {attempt.sitting} P{attempt.paper_number} Q{attempt.question_number}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="overflow-auto max-h-[75vh]">
+                <LatexRenderer content={attempt.ai_feedback} className="text-sm text-foreground/80 leading-relaxed" />
+                {attempt.mark_breakdown && attempt.mark_breakdown.length > 0 && (
+                  <div className="mt-5 pt-4 border-t border-border/60">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Mark breakdown</p>
+                    <ul className="space-y-1.5">
+                      {attempt.mark_breakdown.map((m, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm">
+                          <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${m.earned ? 'bg-primary/15 text-primary' : 'bg-destructive/15 text-destructive'}`}>
+                            {m.earned ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                          </span>
+                          <span className="font-mono text-xs font-semibold text-foreground/80 w-10 shrink-0 mt-0.5">{m.label}</span>
+                          <LatexRenderer content={m.note || ''} className="text-foreground/80" />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        )}
+      </TableCell>
+    </>
+  );
+
+  const renderActionButtons = (
+    attempt: StudentAttempt | null,
+    fallback: { module: ModuleCode; year: number; sitting: string; paperNumber: number; questionNumber: number } | null,
+  ) => {
+    const isMarking = attempt ? markingIds.has(attempt.id) : false;
+    const canMark = !isCoachView && !!attempt?.image_url && !attempt?.ai_feedback;
+    return (
+      <div className="flex flex-wrap justify-end gap-2">
+        {canMark && attempt && (
+          <Button
+            variant="default"
+            size="sm"
+            disabled={isMarking}
+            onClick={() => handleAIMark(attempt)}
+          >
+            {isMarking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+            {isMarking ? 'Marking…' : 'AI Mark'}
+          </Button>
+        )}
+        {attempt ? (
+          <Button variant="outline" size="sm" onClick={() => handleReattempt(attempt)}>
+            <RotateCcw className="h-4 w-4" /> Reattempt
+          </Button>
+        ) : fallback ? (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => goToQuestion(fallback.module, fallback.year, fallback.sitting, fallback.paperNumber, fallback.questionNumber)}
+          >
+            Go to question
+          </Button>
+        ) : null}
+      </div>
+    );
   };
 
   return (
@@ -538,6 +773,10 @@ const StudentProgress = () => {
                       <TableHead>Topic</TableHead>
                       <TableHead>Score</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Areas to Improve</TableHead>
+                      <TableHead>Answer</TableHead>
+                      <TableHead>AI Feedback</TableHead>
+                      <TableHead>Date</TableHead>
                       <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -558,14 +797,18 @@ const StudentProgress = () => {
                             )}
                           </TableCell>
                           <TableCell className="text-sm">{statusLabel(row)}</TableCell>
+                          {row.best ? renderAttemptRichCells(row.best) : (
+                            <>
+                              <TableCell className="text-xs text-muted-foreground">-</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">-</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">-</TableCell>
+                            </>
+                          )}
+                          <TableCell className="text-sm text-muted-foreground">
+                            {row.best ? new Date(row.best.created_at).toLocaleDateString() : '-'}
+                          </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant={row.best ? 'outline' : 'default'}
-                              size="sm"
-                              onClick={() => goToQuestion(row.module, row.year, row.sitting, row.paperNumber, row.questionNumber)}
-                            >
-                              {row.best ? (<><RotateCcw className="h-4 w-4" /> Reattempt</>) : 'Go to question'}
-                            </Button>
+                            {renderActionButtons(row.best, { module: row.module, year: row.year, sitting: row.sitting, paperNumber: row.paperNumber, questionNumber: row.questionNumber })}
                           </TableCell>
                         </TableRow>
                       );
@@ -609,97 +852,12 @@ const StudentProgress = () => {
                           {attempt.percentage_attained !== null ? `${attempt.percentage_attained}%` : '-'}
                         </span>
                       </TableCell>
-                      <TableCell className="max-w-xs">
-                        {attempt.nature_of_errors ? (
-                          <LatexRenderer content={attempt.nature_of_errors} className="text-sm text-foreground/80" />
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {attempt.image_url ? (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <button
-                                type="button"
-                                className="h-14 w-14 rounded-md overflow-hidden border border-border hover:ring-2 hover:ring-primary transition-all"
-                                aria-label="View submitted answer"
-                              >
-                                <img
-                                  src={attempt.image_url}
-                                  alt={`Submitted answer for ${attempt.year} ${attempt.sitting} P${attempt.paper_number} Q${attempt.question_number}`}
-                                  className="h-full w-full object-cover"
-                                />
-                              </button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-3xl">
-                              <DialogHeader>
-                                <DialogTitle>
-                                  Your answer — {attempt.year} {attempt.sitting} P{attempt.paper_number} Q{attempt.question_number}
-                                </DialogTitle>
-                              </DialogHeader>
-                              <div className="overflow-auto max-h-[75vh]">
-                                <img
-                                  src={attempt.image_url}
-                                  alt="Submitted answer full size"
-                                  className="w-full h-auto rounded-md"
-                                />
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                            <ImageIcon className="h-3 w-3" /> None
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {attempt.ai_feedback ? (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="sm" className="gap-1">
-                                <Sparkles className="h-3 w-3" /> View
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-3xl">
-                              <DialogHeader>
-                                <DialogTitle>
-                                  AI feedback — {attempt.year} {attempt.sitting} P{attempt.paper_number} Q{attempt.question_number}
-                                </DialogTitle>
-                              </DialogHeader>
-                              <div className="overflow-auto max-h-[75vh]">
-                                <LatexRenderer
-                                  content={attempt.ai_feedback}
-                                  className="text-sm text-foreground/80 leading-relaxed"
-                                />
-                                {attempt.mark_breakdown && attempt.mark_breakdown.length > 0 && (
-                                  <div className="mt-5 pt-4 border-t border-border/60">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Mark breakdown</p>
-                                    <ul className="space-y-1.5">
-                                      {attempt.mark_breakdown.map((m, i) => (
-                                        <li key={i} className="flex items-start gap-2 text-sm">
-                                          <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${m.earned ? 'bg-primary/15 text-primary' : 'bg-destructive/15 text-destructive'}`}>
-                                            {m.earned ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                                          </span>
-                                          <span className="font-mono text-xs font-semibold text-foreground/80 w-10 shrink-0 mt-0.5">{m.label}</span>
-                                          <LatexRenderer content={m.note || ''} className="text-foreground/80" />
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
+                      {renderAttemptRichCells(attempt)}
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(attempt.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" onClick={() => handleReattempt(attempt)}>
-                          <RotateCcw className="h-4 w-4" /> Reattempt
-                        </Button>
+                        {renderActionButtons(attempt, null)}
                       </TableCell>
                     </TableRow>
                   ))}
