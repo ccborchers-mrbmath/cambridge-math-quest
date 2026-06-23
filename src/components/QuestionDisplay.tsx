@@ -533,6 +533,15 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                 content={hint} 
                 className="text-foreground/80 leading-relaxed"
               />
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={reportHint}
+                  className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+                >
+                  <Flag className="h-3 w-3" /> Report this hint
+                </button>
+              </div>
             </div>
             <Button
               variant="ghost"
