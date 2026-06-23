@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Lightbulb, FileText, Camera, X, Loader2, Upload, Save, Sparkles, Pencil, Check, Copy, ClipboardPaste, Plus, Trash2, RotateCcw, MessageCircleQuestion } from "lucide-react";
+import { Flag } from "lucide-react";
+import { openFeedback } from "@/lib/feedback";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
@@ -59,6 +61,45 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
     const subject = `${question.topic ?? "Question"} ${question.year} ${question.sitting} ${question.paperNumber} Q${question.questionNumber}`;
     navigate(`/coaching/help?subject=${encodeURIComponent(subject)}`);
   };
+
+  const questionContext = () => ({
+    year: question.year,
+    sitting: question.sitting,
+    paperNumber: question.paperNumber,
+    questionNumber: question.questionNumber,
+    topic: question.topic,
+    subtopics: question.subtopics,
+    module: question.module,
+    questionUrl: question.questionUrl,
+  });
+
+  const reportHint = () =>
+    openFeedback({
+      category: "ai_inaccuracy",
+      message: `The AI hint for ${question.year} ${question.sitting} P${question.paperNumber} Q${question.questionNumber} looks wrong because:\n\n`,
+      context: { kind: "hint", hint, question: questionContext() },
+    });
+
+  const reportMarking = () =>
+    openFeedback({
+      category: "ai_inaccuracy",
+      message: `The AI marking for ${question.year} ${question.sitting} P${question.paperNumber} Q${question.questionNumber} looks wrong because:\n\n`,
+      context: {
+        kind: "marking",
+        question: questionContext(),
+        marksAwarded,
+        totalMarks,
+        markBreakdown,
+        aiFeedback,
+      },
+    });
+
+  const reportCategorisation = () =>
+    openFeedback({
+      category: "wrong_categorisation",
+      message: `Question ${question.year} ${question.sitting} P${question.paperNumber} Q${question.questionNumber} is tagged as "${question.topic} — ${question.subtopics}". I think it should be:\n\n`,
+      context: { question: questionContext() },
+    });
 
   const handleHint = async () => {
     if (hint) {
