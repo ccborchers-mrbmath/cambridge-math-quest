@@ -180,6 +180,9 @@ const AdminDashboard = () => {
               <Button variant="outline" onClick={() => navigate('/admin/retag')}>
                 Bulk Re-tag
               </Button>
+              <Button variant="outline" onClick={() => navigate('/admin/feedback')}>
+                Feedback
+              </Button>
               <Button variant="outline" onClick={() => navigate('/')}>
                 Back to Questions
               </Button>
