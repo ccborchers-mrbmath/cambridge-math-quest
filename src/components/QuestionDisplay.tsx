@@ -888,6 +888,15 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
                           Ask my Coach about this
                         </Button>
                       </div>
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={reportMarking}
+                          className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+                        >
+                          <Flag className="h-3 w-3" /> Report this AI marking
+                        </button>
+                      </div>
                     </Card>
                   )}
                 </div>
