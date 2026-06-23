@@ -83,6 +83,56 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback: {
+        Row: {
+          admin_notes: string | null
+          category: Database["public"]["Enums"]["feedback_category"]
+          context: Json
+          created_at: string
+          id: string
+          message: string
+          page_url: string | null
+          question_id: string | null
+          status: Database["public"]["Enums"]["feedback_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          category: Database["public"]["Enums"]["feedback_category"]
+          context?: Json
+          created_at?: string
+          id?: string
+          message: string
+          page_url?: string | null
+          question_id?: string | null
+          status?: Database["public"]["Enums"]["feedback_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          category?: Database["public"]["Enums"]["feedback_category"]
+          context?: Json
+          created_at?: string
+          id?: string
+          message?: string
+          page_url?: string | null
+          question_id?: string | null
+          status?: Database["public"]["Enums"]["feedback_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       help_requests: {
         Row: {
           coach_id: string
@@ -601,6 +651,13 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "student" | "coach" | "vip"
+      feedback_category:
+        | "ai_inaccuracy"
+        | "wrong_categorisation"
+        | "bug"
+        | "feature_request"
+        | "other"
+      feedback_status: "open" | "triaged" | "resolved" | "wont_fix"
       help_request_status:
         | "pending"
         | "accepted"
@@ -738,6 +795,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "student", "coach", "vip"],
+      feedback_category: [
+        "ai_inaccuracy",
+        "wrong_categorisation",
+        "bug",
+        "feature_request",
+        "other",
+      ],
+      feedback_status: ["open", "triaged", "resolved", "wont_fix"],
       help_request_status: [
         "pending",
         "accepted",

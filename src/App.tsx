@@ -27,6 +27,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { refreshQuestionsFromDb } from "@/lib/questionStore";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { RequireSubscription } from "@/components/RequireSubscription";
+import { FeedbackButton } from "@/components/FeedbackButton";
+import AdminFeedback from "./pages/AdminFeedback";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +55,7 @@ const AppShell = () => {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/questions" element={<AdminQuestions />} />
         <Route path="/admin/retag" element={<AdminRetag />} />
+        <Route path="/admin/feedback" element={<AdminFeedback />} />
         <Route
           path="/progress"
           element={
@@ -90,6 +93,7 @@ const AppShell = () => {
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <FeedbackButton />
     </BrowserRouter>
   );
 };
