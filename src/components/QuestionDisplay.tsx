@@ -438,6 +438,13 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
         <div className="text-right">
           <p className="text-sm font-medium text-primary">{question.topic}</p>
           <p className="text-xs text-muted-foreground max-w-xs">{question.subtopics}</p>
+          <button
+            type="button"
+            onClick={reportCategorisation}
+            className="mt-1 text-[11px] text-muted-foreground hover:text-primary underline-offset-2 hover:underline inline-flex items-center gap-1"
+          >
+            <Flag className="h-3 w-3" /> Report wrong topic
+          </button>
         </div>
       </div>
 
