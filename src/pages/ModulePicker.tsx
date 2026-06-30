@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { CreditsPill } from "@/components/CreditsPill";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useQuestionsVersion } from "@/lib/questionStore";
+import { PromoHero } from "@/components/PromoHero";
 import {
   MODULES,
   ModuleCode,
