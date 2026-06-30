@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { CreditsPill } from "@/components/CreditsPill";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useQuestionsVersion } from "@/lib/questionStore";
+import { PromoHero } from "@/components/PromoHero";
 import {
   MODULES,
   ModuleCode,
@@ -109,6 +110,10 @@ const ModulePicker = () => {
       </header>
 
       <main className="container mx-auto px-4 py-16">
+        {!loading && !user && (
+          <PromoHero onStart={() => navigate("/auth")} onPricing={() => navigate("/pricing")} />
+        )}
+
         <div className="text-center space-y-4 max-w-2xl mx-auto mb-12">
           <h2 className="text-4xl md:text-5xl font-serif font-bold text-foreground leading-tight">
             Choose your module
