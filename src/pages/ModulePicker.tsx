@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, User, Settings, FileEdit, GraduationCap, Sparkles } from "lucide-react";
+import { BookOpen, User, Settings, FileEdit, GraduationCap, Sparkles, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
@@ -109,6 +109,10 @@ const ModulePicker = () => {
       </header>
 
       <main className="container mx-auto px-4 py-16">
+        {!loading && !user && (
+          <PromoHero onStart={() => navigate("/auth")} onPricing={() => navigate("/pricing")} />
+        )}
+
         <div className="text-center space-y-4 max-w-2xl mx-auto mb-12">
           <h2 className="text-4xl md:text-5xl font-serif font-bold text-foreground leading-tight">
             Choose your module
