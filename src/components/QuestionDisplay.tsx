@@ -958,6 +958,11 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           </div>
         </Card>
       )}
+      <UpgradePrompt
+        open={upgradeFeature !== null}
+        onOpenChange={(o) => { if (!o) setUpgradeFeature(null); }}
+        featureName={upgradeFeature ?? ""}
+      />
     </div>
   );
 };
