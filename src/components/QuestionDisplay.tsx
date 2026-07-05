@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { DrawingPad, type Stroke } from "@/components/DrawingPad";
 import { copyImageUrlToClipboard, readImageFromClipboard } from "@/utils/clipboard";
 import { pdfFileToImages } from "@/utils/pdfToImages";
@@ -25,6 +27,10 @@ interface QuestionDisplayProps {
 
 export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const { user } = useAuth();
+  const { userRole } = useAuth();
+  const { isActive: hasActiveSub } = useSubscription();
+  const canUseAi = userRole === "admin" || hasActiveSub;
+  const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
   const navigate = useNavigate();
   const [showMarkscheme, setShowMarkscheme] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -107,6 +113,11 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
       return;
     }
 
+    if (!canUseAi) {
+      setUpgradeFeature("AI hints");
+      return;
+    }
+
     setIsLoadingHint(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-hint', {
@@ -137,6 +148,10 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   };
 
   const handleMarkWork = () => {
+    if (!showCamera && !canUseAi) {
+      setUpgradeFeature("AI marking");
+      return;
+    }
     setShowCamera(!showCamera);
     setUploadedImages([]);
     setShowDrawing(false);
@@ -943,6 +958,11 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
           </div>
         </Card>
       )}
+      <UpgradePrompt
+        open={upgradeFeature !== null}
+        onOpenChange={(o) => { if (!o) setUpgradeFeature(null); }}
+        featureName={upgradeFeature ?? ""}
+      />
     </div>
   );
 };
