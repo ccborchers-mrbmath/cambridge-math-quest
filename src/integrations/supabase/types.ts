@@ -216,6 +216,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          billing_exempt: boolean
           coach_code: string | null
           created_at: string
           credit_multiplier: number
@@ -229,6 +230,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          billing_exempt?: boolean
           coach_code?: string | null
           created_at?: string
           credit_multiplier?: number
@@ -242,6 +244,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          billing_exempt?: boolean
           coach_code?: string | null
           created_at?: string
           credit_multiplier?: number
@@ -644,6 +647,14 @@ export type Database = {
         Returns: boolean
       }
       record_question_view: { Args: { _user_id: string }; Returns: Json }
+      set_billing_exempt: {
+        Args: { _exempt: boolean; _user_id: string }
+        Returns: undefined
+      }
+      set_credit_multiplier: {
+        Args: { _multiplier: number; _user_id: string }
+        Returns: undefined
+      }
       set_vip_status: {
         Args: { _is_vip: boolean; _user_id: string }
         Returns: undefined
