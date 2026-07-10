@@ -651,6 +651,10 @@ export type Database = {
         Args: { _exempt: boolean; _user_id: string }
         Returns: undefined
       }
+      set_credit_multiplier: {
+        Args: { _multiplier: number; _user_id: string }
+        Returns: undefined
+      }
       set_vip_status: {
         Args: { _is_vip: boolean; _user_id: string }
         Returns: undefined

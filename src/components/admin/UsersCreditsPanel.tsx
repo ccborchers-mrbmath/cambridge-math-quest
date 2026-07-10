@@ -28,6 +28,7 @@ export const UsersCreditsPanel = () => {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [grantAmount, setGrantAmount] = useState<Record<string, string>>({});
+  const [rateInput, setRateInput] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<Set<string>>(new Set());
   const [billedFilter, setBilledFilter] = useState<Set<string>>(new Set());
@@ -103,6 +104,26 @@ export const UsersCreditsPanel = () => {
       return;
     }
     toast.success(makeVip ? "User is now VIP (0.2× credit rate)" : "VIP status removed");
+    void load();
+  };
+
+  const setRate = async (userId: string) => {
+    const raw = rateInput[userId];
+    const multiplier = Number(raw);
+    if (!raw || Number.isNaN(multiplier) || multiplier < 0) {
+      toast.error("Enter a rate of 0 or higher");
+      return;
+    }
+    const { error } = await (supabase as any).rpc("set_credit_multiplier", {
+      _user_id: userId,
+      _multiplier: multiplier,
+    });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Rate set to ${multiplier}× per action`);
+    setRateInput((s) => ({ ...s, [userId]: "" }));
     void load();
   };
 
@@ -213,8 +234,9 @@ export const UsersCreditsPanel = () => {
       <CardHeader>
         <CardTitle>Users & Credits</CardTitle>
         <CardDescription>
-          Grant credits manually, toggle VIP status (VIPs burn 0.2 credits per AI action instead of 1), or
-          exempt a user from billing entirely so their credits never get burned. Admins bypass credits regardless.
+          Grant credits manually, edit a user's per-action credit rate for custom pricing, toggle VIP status
+          (0.2× shortcut), or exempt a user from billing entirely so their credits never get burned. Admins
+          bypass credits regardless.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -264,7 +286,27 @@ export const UsersCreditsPanel = () => {
                     </TableCell>
                     <TableCell>{u.balance.toFixed(2)}</TableCell>
                     <TableCell>
-                      {isAdmin ? "bypass" : `${u.multiplier}× / action`}
+                      {isAdmin ? (
+                        "bypass"
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            className="w-20"
+                            placeholder={`${u.multiplier}`}
+                            value={rateInput[u.user_id] ?? ""}
+                            onChange={(e) =>
+                              setRateInput((s) => ({ ...s, [u.user_id]: e.target.value }))
+                            }
+                          />
+                          <span className="text-xs text-muted-foreground">×</span>
+                          <Button size="sm" variant="outline" onClick={() => setRate(u.user_id)}>
+                            Save
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
