@@ -397,6 +397,8 @@ const StudentProgress = () => {
     paperNumber: number;
     questionNumber: number;
     topic: string;
+    subtopics: string;
+    questionUrl: string;
     best: StudentAttempt | null;
     attemptCount: number;
   };
@@ -416,6 +418,8 @@ const StudentProgress = () => {
               paperNumber: q.paperNumber,
               questionNumber: q.questionNumber,
               topic: q.topic || '',
+              subtopics: q.subtopics || '',
+              questionUrl: q.questionUrl,
               best: hit?.best ?? null,
               attemptCount: hit?.count ?? 0,
             };
