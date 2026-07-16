@@ -695,11 +695,17 @@ const TestMaker = () => {
                         <TabsTrigger value="markscheme">Mark Scheme</TabsTrigger>
                       </TabsList>
                       <TabsContent value="question">
-                        {pq.processedImageUrl ? (
-                          <img 
-                            src={pq.processedImageUrl} 
+                        {pq.cleanedImageUrl ? (
+                          <DraggableNumberOverlay
+                            cleanedImageUrl={pq.cleanedImageUrl}
+                            number={pq.newNumber}
+                            imageWidth={pq.imageWidth}
+                            imageHeight={pq.imageHeight}
+                            fontSize={pq.fontSize}
+                            x={pq.overlayX}
+                            y={pq.overlayY}
+                            onChange={(nx, ny) => updateOverlayPosition(pq.newNumber, nx, ny)}
                             alt={`Question ${pq.newNumber}`}
-                            className="w-full max-w-3xl rounded-lg border"
                           />
                         ) : (
                           <div className="text-center py-8 text-muted-foreground">
@@ -723,11 +729,17 @@ const TestMaker = () => {
                       </TabsContent>
                     </Tabs>
                   ) : (
-                    pq.processedImageUrl ? (
-                      <img 
-                        src={pq.processedImageUrl} 
+                    pq.cleanedImageUrl ? (
+                      <DraggableNumberOverlay
+                        cleanedImageUrl={pq.cleanedImageUrl}
+                        number={pq.newNumber}
+                        imageWidth={pq.imageWidth}
+                        imageHeight={pq.imageHeight}
+                        fontSize={pq.fontSize}
+                        x={pq.overlayX}
+                        y={pq.overlayY}
+                        onChange={(nx, ny) => updateOverlayPosition(pq.newNumber, nx, ny)}
                         alt={`Question ${pq.newNumber}`}
-                        className="w-full max-w-3xl rounded-lg border"
                       />
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
