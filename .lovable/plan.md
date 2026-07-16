@@ -1,60 +1,56 @@
 
-# My Progress — Curriculum Coverage View
+## Goal
 
-Goal: turn the attempt-history table into a curriculum coverage tool. Users pick a module, optionally filter by topic, and see every question in that module — attempted ones colour-coded (green = 100%, amber = partial, red = low), unattempted ones greyed out — with a one-click "Go to question" button.
+On the My Progress page (for signed-in / subscribed users, plus coach view), add a **Topic Progress Grid** view when a specific module is selected. Rows = topics in the module. Each row shows a horizontal strip of "question cells" — one per question the student has attempted in that topic — sorted best score first, colour-coded by attainment. Optionally include grey cells for questions not yet attempted in that topic. Clicking a cell opens a popup with the paper reference, subtopics, and a clickable thumbnail preview of the question image.
 
 ## UX
 
-Top of the existing "Your Attempt History" card add a control row:
+Add a new **view toggle** at the top of the existing Question Coverage card, next to the module/topic/sort controls:
 
-- **Module dropdown** — All modules / P1 / P2 / P3 / S1 / S2 / M1. Defaults to "All".
-- **Topic dropdown** — populated from questions in the selected module (disabled when module = All).
-- **Show unattempted** toggle (on by default once a module is selected) — when on, the table is the full question list for the module; when off, only attempted questions show.
-- **Sort** chips kept: Recent / Reference / Topic / Score. Default switches to **Reference** when a module is selected.
+- **List** (current table view — unchanged default)
+- **Grid** (new) — only enabled when a specific module is selected
 
-Rename card title to "Question Coverage" when a module is selected; keep "Your Attempt History" otherwise.
+### Grid layout
 
-## Table rows
+```text
+Topic name        [100%] [96%] [88%] [72%] [ – ] [ – ] ...
+Functions         [100%] [92%] [ – ]
+Coordinate geom.  [64%]  [ – ] [ – ]
+...
+```
 
-Source of truth: `questionsDatabase` (already merged with DB rows via `questionStore`), left-joined to the user's `student_attempts` on (year, sitting, paper_number, question_number, module).
+- One row per topic in the module (curriculum order, from `getTopicsInCurriculumOrder`).
+- Cells within a row are sorted **left → right by best percentage descending**. Unattempted cells appear after attempted ones (rightmost), respecting the existing "Show unattempted" toggle — off = hide grey cells.
+- Cell colours (semantic tokens defined in `index.css`, not hardcoded):
+  - **≥ 100%** → strong green (`bg-emerald-500` equivalent semantic token)
+  - **90–99%** → light green (`bg-emerald-500/30`)
+  - **< 90%** → amber (`bg-amber-500/40`)
+  - **Not attempted** → muted grey (`bg-muted`)
+- Each cell is a small square/rounded tile (~56px) showing the score % (or "—" for unattempted) with the paper ref (`25 M/J P12 Q3`) as a tiny caption underneath, so students can scan without opening the popup.
+- Grid is horizontally scrollable per row when it overflows.
 
-Columns when a module is selected:
+### Cell click → popup
 
-| Question (ref) | Topic | Score | Status | Action |
+Reuse `Dialog` from shadcn. Popup contents:
 
-Row colouring (subtle background tint, not bright):
-- **Green tint** — best attempt = 100%.
-- **Amber tint** — attempted, best attempt < 100%.
-- **Muted/greyed** — never attempted (text `text-muted-foreground`).
+- **Header**: paper reference — `2025 May/Jun · Paper 12 · Question 3`.
+- **Score line**: "Best score: 88% (× 2 attempts)" — omitted for unattempted.
+- **Subtopics**: rendered as chips from `q.subtopics` (parsed via existing `parseSubtopics`).
+- **Question preview**: clickable thumbnail (`q.questionUrl`) — clicking the thumbnail opens a nested full-size preview dialog (mirror the existing answer-image dialog pattern already in the file).
+- **Actions**:
+  - Attempted → "Reattempt" button (existing `handleReattempt` logic).
+  - Unattempted → "Go to question" button (existing `goToQuestion` logic).
 
-Status column shows: "Mastered" / "Attempted (best 67%)" / "Not attempted".
+## Scope
 
-Action column:
-- Attempted → **Reattempt** (existing behaviour).
-- Not attempted → **Go to question** (same navigation, just different label).
+- Only touches `src/pages/StudentProgress.tsx` (plus a small helper if the grouping/sorting logic grows).
+- Reuses existing data: `attempts`, `bestByKey`, `moduleQuestions`, `getTopicsInCurriculumOrder`, `parseSubtopics`.
+- Defaults: when the user picks Grid view and no module is selected yet, show a small hint telling them to pick a module.
+- Coach view (`?studentId=…`) inherits the grid automatically since it already uses the same attempts data.
 
-Both buttons navigate to `/practice?module=…&year=…&sitting=…&paper=…&question=…`.
+## Out of scope
 
-If multiple attempts exist for the same question, collapse to one row using the **best** `percentage_attained`; keep a small "× N attempts" hint.
-
-When "All modules" is selected, behaviour is unchanged from today (attempt-only history, no greyed rows).
-
-## Grouping option
-
-Keep it flat for now — sorting by Reference already groups naturally by year → sitting → paper → question, matching the screenshot. We can add a true grouped/sectioned view later if you want the bold "Pure 1 / 2025 May/June P12" headers from the mock; flag if you want that included in this pass.
-
-## Technical notes
-
-- New helpers in `src/lib/curriculum.ts` (or inline in the page):
-  - `getQuestionsForModule(module)` → filter `questionsDatabase`.
-  - `bestAttemptByQuestion(attempts)` → `Map<key, StudentAttempt>` keyed by `module|year|sitting|paper|q`.
-- New state in `StudentProgress.tsx`: `moduleFilter`, `topicFilter`, `showUnattempted`.
-- Row model becomes `{ question, bestAttempt | null, attemptCount }` so attempted and unattempted use the same renderer.
-- No DB or edge-function changes. No new migrations. No credit impact.
-- Coach view (`?studentId=…`) inherits the same filters automatically.
-
-## Out of scope (call out if you want them in)
-
-- True grouped/sectioned headers like the screenshot.
-- Per-paper progress bars.
-- Exporting the coverage table.
+- No DB, RLS, edge-function, or migration changes.
+- No changes to the underlying attempt-history table — the grid is purely an alternative view.
+- No export / print of the grid.
+- No per-cell inline history of every attempt (popup shows best only, with the "× N attempts" count).
