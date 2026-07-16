@@ -980,6 +980,94 @@ const StudentProgress = () => {
           </CardContent>
         </Card>
       </main>
+
+      <Dialog open={!!activeGridRow} onOpenChange={(o) => { if (!o) { setGridDialogKey(null); setGridPreviewOpen(false); } }}>
+        <DialogContent className="max-w-lg">
+          {activeGridRow && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {activeGridRow.year} {activeGridRow.sitting} · Paper {activeGridRow.paperNumber} · Question {activeGridRow.questionNumber}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {activeGridRow.best && activeGridRow.best.percentage_attained !== null ? (
+                  <div className="text-sm">
+                    <span className="font-medium">Best score:</span>{' '}
+                    <span className={activeGridRow.best.percentage_attained >= 100 ? 'text-emerald-600' : activeGridRow.best.percentage_attained >= 90 ? 'text-emerald-600' : 'text-amber-600'}>
+                      {activeGridRow.best.percentage_attained}%
+                    </span>
+                    {activeGridRow.attemptCount > 1 && (
+                      <span className="text-muted-foreground"> · {activeGridRow.attemptCount} attempts</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">Not attempted yet</div>
+                )}
+
+                {activeGridRow.subtopics && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Subtopics</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {parseSubtopics(activeGridRow.subtopics).map((s) => (
+                        <span key={s.code} className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
+                          {s.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeGridRow.questionUrl && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Preview</p>
+                    <button
+                      type="button"
+                      onClick={() => setGridPreviewOpen(true)}
+                      className="block w-full rounded-md overflow-hidden border border-border hover:ring-2 hover:ring-primary transition-all"
+                    >
+                      <img
+                        src={activeGridRow.questionUrl}
+                        alt={`Question ${activeGridRow.questionNumber} preview`}
+                        className="w-full max-h-56 object-contain bg-background"
+                      />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  {activeGridRow.best ? (
+                    <Button onClick={() => handleReattempt(activeGridRow.best!)}>
+                      <RotateCcw className="h-4 w-4" /> Reattempt
+                    </Button>
+                  ) : (
+                    <Button onClick={() => goToQuestion(activeGridRow.module, activeGridRow.year, activeGridRow.sitting, activeGridRow.paperNumber, activeGridRow.questionNumber)}>
+                      Go to question
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={gridPreviewOpen} onOpenChange={setGridPreviewOpen}>
+        <DialogContent className="max-w-4xl">
+          {activeGridRow && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {activeGridRow.year} {activeGridRow.sitting} P{activeGridRow.paperNumber} Q{activeGridRow.questionNumber}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="overflow-auto max-h-[80vh]">
+                <img src={activeGridRow.questionUrl} alt="Question full size" className="w-full h-auto rounded-md" />
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
