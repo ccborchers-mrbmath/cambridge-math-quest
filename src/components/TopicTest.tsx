@@ -3,7 +3,7 @@ import { logger } from "@/lib/logger";
 import { Question, questionsDatabase } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Eye, EyeOff, Loader2 } from "lucide-react";
-import { processQuestionImage } from "@/utils/imageProcessing";
+import { processQuestionImage, bakeNumberIntoImage } from "@/utils/imageProcessing";
 import { moduleOf, ModuleCode } from "@/lib/modules";
 
 interface TopicTestProps {
@@ -81,9 +81,13 @@ export const TopicTest = ({ topic, onBack, module }: TopicTestProps) => {
         questions.map(async (q, index) => {
           const newNumber = index + 1;
           try {
-            const processedImageUrl = await processQuestionImage(
-              q.questionUrl,
-              newNumber
+            const info = await processQuestionImage(q.questionUrl, newNumber);
+            const processedImageUrl = await bakeNumberIntoImage(
+              info.cleanedImageUrl,
+              newNumber,
+              info.defaultX,
+              info.defaultY,
+              info.fontSize
             );
             return {
               original: q,
@@ -128,9 +132,16 @@ export const TopicTest = ({ topic, onBack, module }: TopicTestProps) => {
         processedQuestions.map(async (pq) => {
           if (pq.processedMarkschemeUrl) return pq;
           try {
-            const processedMarkschemeUrl = await processQuestionImage(
+            const info = await processQuestionImage(
               pq.original.markschemeUrl,
               pq.newNumber
+            );
+            const processedMarkschemeUrl = await bakeNumberIntoImage(
+              info.cleanedImageUrl,
+              pq.newNumber,
+              info.defaultX,
+              info.defaultY,
+              info.fontSize
             );
             return { ...pq, processedMarkschemeUrl };
           } catch (error) {
