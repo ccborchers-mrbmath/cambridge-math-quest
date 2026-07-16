@@ -150,11 +150,35 @@ const detectNumberCluster = (
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 };
 
-// Process image: detect original number, erase it, and draw new number in same position
+// Font family used for the burnt-in number. Kept identical between the
+// preview overlay (HTML) and the bake step (canvas) so what the user sees
+// is what gets saved.
+export const NUMBER_FONT_FAMILY = "'Times New Roman', Times, serif";
+
+export interface ProcessedNumberedImage {
+  // Data URL of the source image with the original Cambridge question
+  // number erased (white rectangle in its place). The new number is NOT
+  // drawn — it is rendered as a draggable overlay in the UI and only
+  // baked in when the user downloads.
+  cleanedImageUrl: string;
+  // Natural pixel dimensions of the image.
+  width: number;
+  height: number;
+  // Default position of the new number's top-left corner, in image
+  // pixels. Anchored to where the original number was detected; the
+  // user can drag it if it looks off.
+  defaultX: number;
+  defaultY: number;
+  // Font size (image pixels) used when baking the number in.
+  fontSize: number;
+}
+
+// Process image: detect the original number, erase it, and return the
+// cleaned image plus the default position/size for the new number.
 export const processQuestionImage = async (
   imageUrl: string,
   newNumber: number
-): Promise<string> => {
+): Promise<ProcessedNumberedImage> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -170,53 +194,49 @@ export const processQuestionImage = async (
         return;
       }
 
-      // Draw original image
       ctx.drawImage(img, 0, 0);
 
-      // Detect original number's bounding box before erasing
       const bbox = detectNumberBoundingBox(ctx, img.width);
 
-      // Determine erase and draw coordinates
       let eraseWidth: number;
       let eraseHeight: number;
-      let numberX: number;
-      let numberBaseline: number;
-      let fontSize: number;
+      let numberRightX: number;
+      let numberBaselineY: number;
+      const fontSize = 48;
 
       if (bbox) {
-        // Add padding around detected number for clean erasure
         const padX = 15;
         const padY = 10;
         eraseWidth = bbox.x + bbox.width + padX;
         eraseHeight = bbox.y + bbox.height + padY;
-
-        // Place new number aligned to the same position as original
-        // Right-align to where the original number's right edge was
-        numberX = bbox.x + bbox.width + 4;
-        // Baseline = bottom of the original number (+ offset to align with text)
-        numberBaseline = bbox.y + bbox.height + 10;
-        fontSize = 48;
+        numberRightX = bbox.x + bbox.width + 4;
+        numberBaselineY = bbox.y + bbox.height + 10;
       } else {
-        // Fallback: use original fixed approach
         eraseWidth = 255;
         eraseHeight = 155;
-        numberX = 228;
-        numberBaseline = 105;
-        fontSize = 48;
+        numberRightX = 228;
+        numberBaselineY = 105;
       }
 
-      // Draw white rectangle to erase original number
+      // Erase the original number with a white rectangle.
       ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, 0, eraseWidth, eraseHeight);
 
-      // Draw new question number in Cambridge style
-      ctx.fillStyle = "#000000";
-      ctx.font = `bold ${fontSize}px 'Times New Roman', Times, serif`;
-      ctx.textAlign = "right";
-      ctx.textBaseline = "bottom";
-      ctx.fillText(`${newNumber}`, numberX, numberBaseline);
+      // Measure the new number so we can convert (right-anchor, baseline)
+      // to a top-left position that matches the HTML overlay.
+      ctx.font = `bold ${fontSize}px ${NUMBER_FONT_FAMILY}`;
+      const textWidth = ctx.measureText(String(newNumber)).width;
+      const defaultX = Math.max(0, numberRightX - textWidth);
+      const defaultY = Math.max(0, numberBaselineY - fontSize);
 
-      resolve(canvas.toDataURL("image/jpeg", 0.95));
+      resolve({
+        cleanedImageUrl: canvas.toDataURL("image/jpeg", 0.95),
+        width: img.width,
+        height: img.height,
+        defaultX,
+        defaultY,
+        fontSize,
+      });
     };
 
     img.onerror = () => {
@@ -225,6 +245,40 @@ export const processQuestionImage = async (
     };
 
     img.src = getProxiedImageUrl(imageUrl);
+  });
+};
+
+// Bake the new question number into the cleaned image at the given
+// top-left position (image pixel coordinates). Used at download time so
+// any user adjustment made in the preview is burnt in.
+export const bakeNumberIntoImage = async (
+  cleanedImageUrl: string,
+  newNumber: number,
+  x: number,
+  y: number,
+  fontSize: number
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      ctx.fillStyle = "#000000";
+      ctx.font = `bold ${fontSize}px ${NUMBER_FONT_FAMILY}`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(String(newNumber), x, y);
+      resolve(canvas.toDataURL("image/jpeg", 0.95));
+    };
+    img.onerror = () => reject(new Error("Failed to load cleaned image"));
+    img.src = cleanedImageUrl;
   });
 };
 
