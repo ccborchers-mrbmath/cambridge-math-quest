@@ -17,6 +17,7 @@ import { useActiveModule, moduleOf, getTopicsInCurriculumOrder } from "@/lib/mod
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { useQuestionsVersion } from "@/lib/questionStore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import JSZip from "jszip";
 
 interface ProcessedQuestion {
   original: Question;
