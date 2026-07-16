@@ -817,10 +817,65 @@ const StudentProgress = () => {
                   <Label htmlFor="show-unattempted" className="text-xs">Show unattempted</Label>
                 </div>
               )}
+              {inModuleView && (
+                <div className="flex items-center gap-1 ml-auto border border-border rounded-md p-0.5">
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7"
+                    onClick={() => setViewMode('list')}
+                  >
+                    <ListIcon className="h-4 w-4" /> List
+                  </Button>
+                  <Button
+                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7"
+                    onClick={() => setViewMode('grid')}
+                  >
+                    <LayoutGrid className="h-4 w-4" /> Grid
+                  </Button>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent>
-            {inModuleView ? (
+            {inModuleView && viewMode === 'grid' ? (
+              gridTopics.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">No questions match the current filters.</div>
+              ) : (
+                <div className="space-y-4">
+                  {gridTopics.map((g) => (
+                    <div key={g.topic} className="flex items-start gap-4">
+                      <div className="w-40 shrink-0 pt-2 text-sm font-medium text-foreground/90">
+                        {g.topic || 'Other'}
+                      </div>
+                      <div className="flex-1 flex flex-wrap gap-2">
+                        {g.cells.map((r) => {
+                          const k = attemptKey(r.year, r.sitting, r.paperNumber, r.questionNumber);
+                          const p = r.best?.percentage_attained;
+                          const label = r.best && p !== null ? `${p}%` : '—';
+                          return (
+                            <button
+                              key={k}
+                              type="button"
+                              onClick={() => { setGridDialogKey(k); setGridPreviewOpen(false); }}
+                              className={`w-16 h-16 rounded-md flex flex-col items-center justify-center text-sm font-semibold shadow-sm transition-colors ${cellTint(r.best)}`}
+                              title={`${r.year} ${r.sitting} P${r.paperNumber} Q${r.questionNumber}`}
+                            >
+                              <span className="leading-none">{label}</span>
+                              <span className="mt-1 text-[10px] font-normal opacity-80 leading-none">
+                                P{r.paperNumber} Q{r.questionNumber}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : inModuleView ? (
               coverageRows.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">No questions match the current filters.</div>
               ) : (
