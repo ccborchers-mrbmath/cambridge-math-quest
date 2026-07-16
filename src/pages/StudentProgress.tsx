@@ -8,15 +8,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X, Eye } from 'lucide-react';
+import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X, Eye, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { Loader2, Wand2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { LatexRenderer } from '@/components/LatexRenderer';
-import { getAllCurriculumSubtopics, getMasteredSubtopicCodes } from '@/lib/curriculum';
-import { questionsDatabase } from '@/data/questions';
+import { getAllCurriculumSubtopics, getMasteredSubtopicCodes, parseSubtopics } from '@/lib/curriculum';
+import { questionsDatabase, type Question } from '@/data/questions';
 import { moduleOf, moduleFromPaperNumber, MODULES, questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
 import { useQuestionsVersion } from '@/lib/questionStore';
 import { ensureMarkschemeText } from '@/utils/ensureMarkschemeText';
@@ -53,6 +53,9 @@ const StudentProgress = () => {
   const [moduleFilter, setModuleFilter] = useState<ModuleFilter>('all');
   const [topicFilter, setTopicFilter] = useState<string>('all');
   const [showUnattempted, setShowUnattempted] = useState(true);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [gridDialogRow, setGridDialogRow] = useState<CoverageRow | null>(null);
+  const [gridPreviewOpen, setGridPreviewOpen] = useState(false);
   const [shareProgress, setShareProgress] = useState(false);
   const [savingShare, setSavingShare] = useState(false);
   const [viewedName, setViewedName] = useState<string | null>(null);
