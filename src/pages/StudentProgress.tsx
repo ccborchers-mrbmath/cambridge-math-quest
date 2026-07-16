@@ -54,7 +54,7 @@ const StudentProgress = () => {
   const [topicFilter, setTopicFilter] = useState<string>('all');
   const [showUnattempted, setShowUnattempted] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const [gridDialogRow, setGridDialogRow] = useState<CoverageRow | null>(null);
+  const [gridDialogKey, setGridDialogKey] = useState<string | null>(null);
   const [gridPreviewOpen, setGridPreviewOpen] = useState(false);
   const [shareProgress, setShareProgress] = useState(false);
   const [savingShare, setSavingShare] = useState(false);
