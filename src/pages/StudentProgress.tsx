@@ -448,6 +448,57 @@ const StudentProgress = () => {
 
   const inModuleView = moduleFilter !== 'all';
 
+  // Build per-topic groups for the grid view. Cells are sorted by best score
+  // desc (attempted first), then unattempted (respecting showUnattempted).
+  const coverageByKey = new Map<string, CoverageRow>();
+  for (const r of coverageRows) {
+    coverageByKey.set(attemptKey(r.year, r.sitting, r.paperNumber, r.questionNumber), r);
+  }
+
+  const gridTopics: { topic: string; cells: CoverageRow[] }[] = (() => {
+    if (!inModuleView) return [];
+    const orderedTopics = topicFilter === 'all' ? moduleTopics : [topicFilter];
+    const byTopic = new Map<string, CoverageRow[]>();
+    for (const t of orderedTopics) byTopic.set(t, []);
+    for (const r of coverageRows) {
+      const t = r.topic || 'Other';
+      if (!byTopic.has(t)) byTopic.set(t, []);
+      byTopic.get(t)!.push(r);
+    }
+    return [...byTopic.entries()]
+      .filter(([, cells]) => cells.length > 0)
+      .map(([topic, cells]) => ({
+        topic,
+        cells: [...cells].sort((a, b) => {
+          const pa = a.best?.percentage_attained;
+          const pb = b.best?.percentage_attained;
+          const aHas = a.best !== null;
+          const bHas = b.best !== null;
+          if (aHas !== bHas) return aHas ? -1 : 1;
+          if (aHas && bHas) {
+            const va = pa === null ? -1 : pa!;
+            const vb = pb === null ? -1 : pb!;
+            if (va !== vb) return vb - va;
+          }
+          return a.year - b.year
+            || a.sitting.localeCompare(b.sitting)
+            || a.paperNumber - b.paperNumber
+            || a.questionNumber - b.questionNumber;
+        }),
+      }));
+  })();
+
+  const cellTint = (best: StudentAttempt | null): string => {
+    if (!best) return 'bg-muted text-muted-foreground hover:bg-muted/80';
+    const p = best.percentage_attained;
+    if (p === null) return 'bg-muted text-muted-foreground hover:bg-muted/80';
+    if (p >= 100) return 'bg-emerald-500 text-white hover:bg-emerald-500/90';
+    if (p >= 90) return 'bg-emerald-500/30 text-emerald-900 dark:text-emerald-100 hover:bg-emerald-500/40';
+    return 'bg-amber-500/50 text-amber-950 dark:text-amber-50 hover:bg-amber-500/60';
+  };
+
+  const activeGridRow = gridDialogKey ? coverageByKey.get(gridDialogKey) ?? null : null;
+
   const rowTint = (best: StudentAttempt | null): string => {
     if (!best) return 'bg-muted/30 text-muted-foreground';
     const p = best.percentage_attained;
