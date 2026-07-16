@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X, Eye, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X, Eye, LayoutGrid, List as ListIcon, Info } from 'lucide-react';
 import { Loader2, Wand2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -779,7 +779,12 @@ const StudentProgress = () => {
                   onValueChange={(v) => {
                     setModuleFilter(v as ModuleFilter);
                     setTopicFilter('all');
-                    if (v !== 'all') setSortMode('reference');
+                    if (v !== 'all') {
+                      setSortMode('reference');
+                      setViewMode('grid');
+                    } else {
+                      setViewMode('list');
+                    }
                   }}
                 >
                   <SelectTrigger className="w-[200px] h-9"><SelectValue /></SelectTrigger>
@@ -840,6 +845,19 @@ const StudentProgress = () => {
             </div>
           </CardHeader>
           <CardContent>
+            {!inModuleView && attempts.length > 0 && (
+              <div className="mb-6 flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/10 p-4 text-primary">
+                <Info className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">
+                    Want to see your strengths and gaps at a glance?
+                  </p>
+                  <p className="text-sm opacity-90">
+                    Select a specific module above to open the Topic Progress Grid — a visual map of every question you've attempted, organised by topic and coloured by your best score.
+                  </p>
+                </div>
+              </div>
+            )}
             {inModuleView && viewMode === 'grid' ? (
               gridTopics.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">No questions match the current filters.</div>
