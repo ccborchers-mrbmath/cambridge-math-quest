@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { logger } from "@/lib/logger";
 import { useNavigate } from "react-router-dom";
 import { questionsDatabase, Question } from "@/data/questions";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical, BookOpen, Eye, EyeOff, ImageDown } from "lucide-react";
-import { processQuestionImage } from "@/utils/imageProcessing";
+import { processQuestionImage, bakeNumberIntoImage, NUMBER_FONT_FAMILY } from "@/utils/imageProcessing";
 import { ensureMarkschemeText } from "@/utils/ensureMarkschemeText";
 import { renderLatexToHtml } from "@/utils/renderLatex";
 import { LatexRenderer } from "@/components/LatexRenderer";
@@ -22,9 +22,117 @@ import JSZip from "jszip";
 interface ProcessedQuestion {
   original: Question;
   newNumber: number;
-  processedImageUrl: string | null;
+  // Cleaned image with original number erased. The new number is
+  // rendered as a draggable HTML overlay in the preview and burnt in
+  // at download time using overlayX / overlayY.
+  cleanedImageUrl: string | null;
+  imageWidth: number;
+  imageHeight: number;
+  overlayX: number;
+  overlayY: number;
+  fontSize: number;
   markschemeText: string | null;
 }
+
+// Draggable HTML overlay of the new question number, positioned in image
+// pixel coordinates and scaled to the displayed image size. The user can
+// nudge it if the auto-placement is off; the current position is what
+// gets baked into the image on download.
+interface DraggableNumberOverlayProps {
+  cleanedImageUrl: string;
+  number: number;
+  imageWidth: number;
+  imageHeight: number;
+  fontSize: number;
+  x: number;
+  y: number;
+  onChange: (x: number, y: number) => void;
+  alt: string;
+}
+
+const DraggableNumberOverlay = ({
+  cleanedImageUrl,
+  number,
+  imageWidth,
+  imageHeight,
+  fontSize,
+  x,
+  y,
+  onChange,
+  alt,
+}: DraggableNumberOverlayProps) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ startPointerX: number; startPointerY: number; startX: number; startY: number; scale: number } | null>(null);
+
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const scale = rect.width / imageWidth;
+    dragState.current = {
+      startPointerX: e.clientX,
+      startPointerY: e.clientY,
+      startX: x,
+      startY: y,
+      scale: scale || 1,
+    };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }, [imageWidth, x, y]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const s = dragState.current;
+    if (!s) return;
+    const dx = (e.clientX - s.startPointerX) / s.scale;
+    const dy = (e.clientY - s.startPointerY) / s.scale;
+    const nx = Math.max(0, Math.min(imageWidth - 2, s.startX + dx));
+    const ny = Math.max(0, Math.min(imageHeight - 2, s.startY + dy));
+    onChange(nx, ny);
+  }, [imageWidth, imageHeight, onChange]);
+
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragState.current) {
+      dragState.current = null;
+      try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    }
+  }, []);
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="relative inline-block w-full max-w-3xl rounded-lg border overflow-hidden"
+      style={{ containerType: "inline-size" }}
+    >
+      <img src={cleanedImageUrl} alt={alt} className="block w-full h-auto" draggable={false} />
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        title="Drag to reposition the question number"
+        style={{
+          position: "absolute",
+          left: `${(x / imageWidth) * 100}%`,
+          top: `${(y / imageHeight) * 100}%`,
+          fontFamily: NUMBER_FONT_FAMILY,
+          fontWeight: 700,
+          fontSize: `${(fontSize / imageWidth) * 100}cqw`,
+          lineHeight: 1,
+          color: "#000",
+          cursor: "grab",
+          touchAction: "none",
+          userSelect: "none",
+          padding: "0 2px",
+          background: "rgba(191, 219, 254, 0.35)",
+          outline: "1px dashed hsl(var(--primary) / 0.7)",
+          borderRadius: 2,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {number}
+      </div>
+    </div>
+  );
+};
 
 function getQuestionId(q: Question) {
   return `${q.year}-${q.sitting}-${q.paperNumber}-${q.questionNumber}`;
@@ -195,7 +303,7 @@ const TestMaker = () => {
       compiledQuestions.map(async (q, index) => {
         const newNumber = index + 1;
         try {
-          const [processedImageUrl, rawMarkschemeText] = await Promise.all([
+          const [info, rawMarkschemeText] = await Promise.all([
             processQuestionImage(q.questionUrl, newNumber),
             includeMarkschemes ? ensureMarkschemeText(q) : Promise.resolve(null),
           ]);
@@ -205,7 +313,12 @@ const TestMaker = () => {
           return {
             original: q,
             newNumber,
-            processedImageUrl,
+            cleanedImageUrl: info.cleanedImageUrl,
+            imageWidth: info.width,
+            imageHeight: info.height,
+            overlayX: info.defaultX,
+            overlayY: info.defaultY,
+            fontSize: info.fontSize,
             markschemeText,
           };
         } catch (error) {
@@ -213,7 +326,12 @@ const TestMaker = () => {
           return {
             original: q,
             newNumber,
-            processedImageUrl: null,
+            cleanedImageUrl: null,
+            imageWidth: 0,
+            imageHeight: 0,
+            overlayX: 0,
+            overlayY: 0,
+            fontSize: 48,
             markschemeText: null,
           };
         }
@@ -225,13 +343,46 @@ const TestMaker = () => {
     setIsCompiled(true);
   };
 
-  // Download all renumbered question images as a single ZIP file
+  // Update the overlay position for a single question when the user drags.
+  const updateOverlayPosition = useCallback((newNumber: number, nx: number, ny: number) => {
+    setProcessedQuestions((prev) =>
+      prev.map((pq) => (pq.newNumber === newNumber ? { ...pq, overlayX: nx, overlayY: ny } : pq))
+    );
+  }, []);
+
+  // Bake the new number into every cleaned image at its current overlay
+  // position. Returned in the same order as processedQuestions; entries
+  // may be null when the source image failed to load.
+  const bakeAllImages = async (): Promise<(string | null)[]> => {
+    return Promise.all(
+      processedQuestions.map(async (pq) => {
+        if (!pq.cleanedImageUrl) return null;
+        try {
+          return await bakeNumberIntoImage(
+            pq.cleanedImageUrl,
+            pq.newNumber,
+            pq.overlayX,
+            pq.overlayY,
+            pq.fontSize
+          );
+        } catch (error) {
+          logger.error("Error baking number into image:", error);
+          return null;
+        }
+      })
+    );
+  };
+
+  // Download all renumbered question images as a single ZIP file.
   const handleDownloadImages = async () => {
+    const baked = await bakeAllImages();
     const zip = new JSZip();
-    for (const pq of processedQuestions) {
-      if (!pq.processedImageUrl) continue;
+    for (let i = 0; i < processedQuestions.length; i++) {
+      const pq = processedQuestions[i];
+      const url = baked[i];
+      if (!url) continue;
       try {
-        const res = await fetch(pq.processedImageUrl);
+        const res = await fetch(url);
         const blob = await res.blob();
         const filename = `Q${pq.newNumber}_${pq.original.topic.replace(/\s+/g, "_")}_${pq.original.year}_${pq.original.sitting}_P${pq.original.paperNumber}.jpg`;
         zip.file(filename, blob);
