@@ -672,6 +672,10 @@ const TestMaker = () => {
             </CardContent>
           </Card>
 
+          <p className="text-xs text-muted-foreground mb-4 text-center">
+            Tip: if the question number sits in the wrong place, drag it to reposition. Your adjustment is burnt in when you download.
+          </p>
+
           {/* Questions with optional Markschemes */}
           <div className="space-y-6">
             {processedQuestions.map((pq) => (
