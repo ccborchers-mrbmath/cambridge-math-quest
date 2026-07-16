@@ -431,7 +431,8 @@ const TestMaker = () => {
 
   // Question paper: portrait A4. Cambridge-style — bold question number on the
   // left margin of each question page, no "Question N" header banner.
-  const handleDownloadQuestionPaper = () => {
+  const handleDownloadQuestionPaper = async () => {
+    const bakedImages = await bakeAllImages();
     const topics = Array.from(new Set(processedQuestions.map(pq => pq.original.topic)));
     const thresholds = `A: ${testStats.gradeThresholds.A}  ·  B: ${testStats.gradeThresholds.B}  ·  C: ${testStats.gradeThresholds.C}  ·  D: ${testStats.gradeThresholds.D}  ·  E: ${testStats.gradeThresholds.E}`;
 
@@ -450,16 +451,17 @@ const TestMaker = () => {
 
     const linesHtml = Array.from({ length: 40 }).map(() => `<div class="line"></div>`).join("");
     let pageNum = 0;
-    const questionPages = processedQuestions.map(pq => {
+    const questionPages = processedQuestions.map((pq, i) => {
       pageNum += 1;
       const qPageNo = pageNum;
       pageNum += 1;
       const wPageNo = pageNum;
+      const bakedUrl = bakedImages[i];
       return `
       <section class="page question-page">
         <div class="page-number">${qPageNo}</div>
-        ${pq.processedImageUrl
-          ? `<img class="q-img" src="${pq.processedImageUrl}" alt="Question ${pq.newNumber}"/>`
+        ${bakedUrl
+          ? `<img class="q-img" src="${bakedUrl}" alt="Question ${pq.newNumber}"/>`
           : `<p class="err">Question image unavailable</p>`}
         <div class="lines-wrap"><div class="lines-inner">${linesHtml}</div></div>
       </section>
