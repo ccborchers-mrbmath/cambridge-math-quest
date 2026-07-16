@@ -8,15 +8,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X, Eye } from 'lucide-react';
+import { BookOpen, TrendingUp, Target, CheckCircle, ArrowDownAZ, Trophy, Hash, RotateCcw, ImageIcon, Sparkles, Award, Check, X, Eye, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { Loader2, Wand2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { LatexRenderer } from '@/components/LatexRenderer';
-import { getAllCurriculumSubtopics, getMasteredSubtopicCodes } from '@/lib/curriculum';
-import { questionsDatabase } from '@/data/questions';
+import { getAllCurriculumSubtopics, getMasteredSubtopicCodes, parseSubtopics } from '@/lib/curriculum';
+import { questionsDatabase, type Question } from '@/data/questions';
 import { moduleOf, moduleFromPaperNumber, MODULES, questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
 import { useQuestionsVersion } from '@/lib/questionStore';
 import { ensureMarkschemeText } from '@/utils/ensureMarkschemeText';
@@ -53,6 +53,9 @@ const StudentProgress = () => {
   const [moduleFilter, setModuleFilter] = useState<ModuleFilter>('all');
   const [topicFilter, setTopicFilter] = useState<string>('all');
   const [showUnattempted, setShowUnattempted] = useState(true);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [gridDialogKey, setGridDialogKey] = useState<string | null>(null);
+  const [gridPreviewOpen, setGridPreviewOpen] = useState(false);
   const [shareProgress, setShareProgress] = useState(false);
   const [savingShare, setSavingShare] = useState(false);
   const [viewedName, setViewedName] = useState<string | null>(null);
@@ -394,6 +397,8 @@ const StudentProgress = () => {
     paperNumber: number;
     questionNumber: number;
     topic: string;
+    subtopics: string;
+    questionUrl: string;
     best: StudentAttempt | null;
     attemptCount: number;
   };
@@ -413,6 +418,8 @@ const StudentProgress = () => {
               paperNumber: q.paperNumber,
               questionNumber: q.questionNumber,
               topic: q.topic || '',
+              subtopics: q.subtopics || '',
+              questionUrl: q.questionUrl,
               best: hit?.best ?? null,
               attemptCount: hit?.count ?? 0,
             };
@@ -440,6 +447,57 @@ const StudentProgress = () => {
           });
 
   const inModuleView = moduleFilter !== 'all';
+
+  // Build per-topic groups for the grid view. Cells are sorted by best score
+  // desc (attempted first), then unattempted (respecting showUnattempted).
+  const coverageByKey = new Map<string, CoverageRow>();
+  for (const r of coverageRows) {
+    coverageByKey.set(attemptKey(r.year, r.sitting, r.paperNumber, r.questionNumber), r);
+  }
+
+  const gridTopics: { topic: string; cells: CoverageRow[] }[] = (() => {
+    if (!inModuleView) return [];
+    const orderedTopics = topicFilter === 'all' ? moduleTopics : [topicFilter];
+    const byTopic = new Map<string, CoverageRow[]>();
+    for (const t of orderedTopics) byTopic.set(t, []);
+    for (const r of coverageRows) {
+      const t = r.topic || 'Other';
+      if (!byTopic.has(t)) byTopic.set(t, []);
+      byTopic.get(t)!.push(r);
+    }
+    return [...byTopic.entries()]
+      .filter(([, cells]) => cells.length > 0)
+      .map(([topic, cells]) => ({
+        topic,
+        cells: [...cells].sort((a, b) => {
+          const pa = a.best?.percentage_attained;
+          const pb = b.best?.percentage_attained;
+          const aHas = a.best !== null;
+          const bHas = b.best !== null;
+          if (aHas !== bHas) return aHas ? -1 : 1;
+          if (aHas && bHas) {
+            const va = pa === null ? -1 : pa!;
+            const vb = pb === null ? -1 : pb!;
+            if (va !== vb) return vb - va;
+          }
+          return a.year - b.year
+            || a.sitting.localeCompare(b.sitting)
+            || a.paperNumber - b.paperNumber
+            || a.questionNumber - b.questionNumber;
+        }),
+      }));
+  })();
+
+  const cellTint = (best: StudentAttempt | null): string => {
+    if (!best) return 'bg-muted text-muted-foreground hover:bg-muted/80';
+    const p = best.percentage_attained;
+    if (p === null) return 'bg-muted text-muted-foreground hover:bg-muted/80';
+    if (p >= 100) return 'bg-emerald-500 text-white hover:bg-emerald-500/90';
+    if (p >= 90) return 'bg-emerald-500/30 text-emerald-900 dark:text-emerald-100 hover:bg-emerald-500/40';
+    return 'bg-amber-500/50 text-amber-950 dark:text-amber-50 hover:bg-amber-500/60';
+  };
+
+  const activeGridRow = gridDialogKey ? coverageByKey.get(gridDialogKey) ?? null : null;
 
   const rowTint = (best: StudentAttempt | null): string => {
     if (!best) return 'bg-muted/30 text-muted-foreground';
@@ -759,10 +817,65 @@ const StudentProgress = () => {
                   <Label htmlFor="show-unattempted" className="text-xs">Show unattempted</Label>
                 </div>
               )}
+              {inModuleView && (
+                <div className="flex items-center gap-1 ml-auto border border-border rounded-md p-0.5">
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7"
+                    onClick={() => setViewMode('list')}
+                  >
+                    <ListIcon className="h-4 w-4" /> List
+                  </Button>
+                  <Button
+                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7"
+                    onClick={() => setViewMode('grid')}
+                  >
+                    <LayoutGrid className="h-4 w-4" /> Grid
+                  </Button>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent>
-            {inModuleView ? (
+            {inModuleView && viewMode === 'grid' ? (
+              gridTopics.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">No questions match the current filters.</div>
+              ) : (
+                <div className="space-y-4">
+                  {gridTopics.map((g) => (
+                    <div key={g.topic} className="flex items-start gap-4">
+                      <div className="w-40 shrink-0 pt-2 text-sm font-medium text-foreground/90">
+                        {g.topic || 'Other'}
+                      </div>
+                      <div className="flex-1 flex flex-wrap gap-2">
+                        {g.cells.map((r) => {
+                          const k = attemptKey(r.year, r.sitting, r.paperNumber, r.questionNumber);
+                          const p = r.best?.percentage_attained;
+                          const label = r.best && p !== null ? `${p}%` : '—';
+                          return (
+                            <button
+                              key={k}
+                              type="button"
+                              onClick={() => { setGridDialogKey(k); setGridPreviewOpen(false); }}
+                              className={`w-16 h-16 rounded-md flex flex-col items-center justify-center text-sm font-semibold shadow-sm transition-colors ${cellTint(r.best)}`}
+                              title={`${r.year} ${r.sitting} P${r.paperNumber} Q${r.questionNumber}`}
+                            >
+                              <span className="leading-none">{label}</span>
+                              <span className="mt-1 text-[10px] font-normal opacity-80 leading-none">
+                                P{r.paperNumber} Q{r.questionNumber}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : inModuleView ? (
               coverageRows.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">No questions match the current filters.</div>
               ) : (
@@ -867,6 +980,94 @@ const StudentProgress = () => {
           </CardContent>
         </Card>
       </main>
+
+      <Dialog open={!!activeGridRow} onOpenChange={(o) => { if (!o) { setGridDialogKey(null); setGridPreviewOpen(false); } }}>
+        <DialogContent className="max-w-lg">
+          {activeGridRow && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {activeGridRow.year} {activeGridRow.sitting} · Paper {activeGridRow.paperNumber} · Question {activeGridRow.questionNumber}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {activeGridRow.best && activeGridRow.best.percentage_attained !== null ? (
+                  <div className="text-sm">
+                    <span className="font-medium">Best score:</span>{' '}
+                    <span className={activeGridRow.best.percentage_attained >= 100 ? 'text-emerald-600' : activeGridRow.best.percentage_attained >= 90 ? 'text-emerald-600' : 'text-amber-600'}>
+                      {activeGridRow.best.percentage_attained}%
+                    </span>
+                    {activeGridRow.attemptCount > 1 && (
+                      <span className="text-muted-foreground"> · {activeGridRow.attemptCount} attempts</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">Not attempted yet</div>
+                )}
+
+                {activeGridRow.subtopics && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Subtopics</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {parseSubtopics(activeGridRow.subtopics).map((s) => (
+                        <span key={s.code} className="text-xs px-2 py-1 rounded-full bg-secondary text-secondary-foreground">
+                          {s.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeGridRow.questionUrl && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Preview</p>
+                    <button
+                      type="button"
+                      onClick={() => setGridPreviewOpen(true)}
+                      className="block w-full rounded-md overflow-hidden border border-border hover:ring-2 hover:ring-primary transition-all"
+                    >
+                      <img
+                        src={activeGridRow.questionUrl}
+                        alt={`Question ${activeGridRow.questionNumber} preview`}
+                        className="w-full max-h-56 object-contain bg-background"
+                      />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  {activeGridRow.best ? (
+                    <Button onClick={() => handleReattempt(activeGridRow.best!)}>
+                      <RotateCcw className="h-4 w-4" /> Reattempt
+                    </Button>
+                  ) : (
+                    <Button onClick={() => goToQuestion(activeGridRow.module, activeGridRow.year, activeGridRow.sitting, activeGridRow.paperNumber, activeGridRow.questionNumber)}>
+                      Go to question
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={gridPreviewOpen} onOpenChange={setGridPreviewOpen}>
+        <DialogContent className="max-w-4xl">
+          {activeGridRow && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {activeGridRow.year} {activeGridRow.sitting} P{activeGridRow.paperNumber} Q{activeGridRow.questionNumber}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="overflow-auto max-h-[80vh]">
+                <img src={activeGridRow.questionUrl} alt="Question full size" className="w-full h-auto rounded-md" />
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
