@@ -586,6 +586,114 @@ const TestMaker = () => {
     printHtmlDocument(docHtml);
   };
 
+  // Markdown export: text-only test paper + mark schemes as a single .md file.
+  // Question text is transcribed on-demand via the extract-question-text edge
+  // function if not already cached on the questions row.
+  const [isDownloadingMd, setIsDownloadingMd] = useState(false);
+  const handleDownloadMarkdown = async () => {
+    if (isDownloadingMd) return;
+    setIsDownloadingMd(true);
+    try {
+      const info = getModuleInfo(module);
+      // Best-effort paper number from the tagline (e.g. "Paper 3").
+      const paperMatch = /Paper\s+(\d+)/i.exec(info.tagline);
+      const paperNo = paperMatch?.[1] ?? "";
+
+      toast({
+        title: "Preparing markdown",
+        description: "Transcribing question text — this can take a moment.",
+      });
+
+      const questionTexts = await Promise.all(
+        processedQuestions.map(async (pq) => {
+          try {
+            const raw = await ensureQuestionText(pq.original);
+            return raw?.trim() || null;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const includeMs = includeMarkschemes && processedQuestions.some(pq => pq.markschemeText);
+
+      const headerLines = [
+        `# ${info.tagline} — 9709 ${info.name}`,
+        ``,
+        `**Curriculum:** Cambridge International AS & A Level Mathematics`,
+        paperNo ? `**Paper:** ${paperNo}` : null,
+        `**Syllabus code:** 9709`,
+        `**Total marks:** ${testStats.totalMarks}`,
+        ``,
+        `---`,
+        ``,
+        `# QUESTIONS`,
+        ``,
+        `---`,
+        ``,
+      ].filter((l): l is string => l !== null);
+
+      const questionBlocks = processedQuestions.map((pq, i) => {
+        const text = questionTexts[i];
+        const body = text
+          ? `**${pq.newNumber}** ${text}`
+          : `**${pq.newNumber}** _Question text not yet available. See the original image (${pq.original.year} ${pq.original.sitting} Paper ${pq.original.paperNumber} Q${pq.original.questionNumber})._`;
+        return `${body}\n\n---\n`;
+      });
+
+      const msBlocks: string[] = [];
+      if (includeMs) {
+        msBlocks.push(``, `# MARK SCHEMES`, ``, `---`, ``);
+        for (const pq of processedQuestions) {
+          msBlocks.push(`## Mark Scheme — Question ${pq.newNumber}`, ``);
+          msBlocks.push(`**${pq.original.marks} marks · ${pq.original.topic}**`, ``);
+          if (pq.markschemeText && pq.markschemeText.trim()) {
+            msBlocks.push(pq.markschemeText.trim(), ``);
+          } else {
+            msBlocks.push(`_Mark scheme text not yet available._`, ``);
+          }
+          msBlocks.push(`---`, ``);
+        }
+      }
+
+      const md = [
+        headerLines.join("\n"),
+        questionBlocks.join("\n"),
+        msBlocks.join("\n"),
+      ].join("\n").replace(/\n{3,}/g, "\n\n");
+
+      const date = new Date().toISOString().split("T")[0];
+      const safeName = `${info.tagline}-9709-${info.name}-${date}`
+        .replace(/[^\w.-]+/g, "_");
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${safeName}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const missing = questionTexts.filter((t) => !t).length;
+      toast({
+        title: "Markdown downloaded",
+        description: missing
+          ? `${missing} question(s) had no transcribed text and were noted as unavailable.`
+          : `All ${questionTexts.length} questions included.`,
+      });
+    } catch (e) {
+      logger.error("markdown export failed", e);
+      toast({
+        title: "Markdown export failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingMd(false);
+    }
+  };
+
   if (isCompiled) {
     const hasMarkschemes = processedQuestions.some(pq => pq.markschemeText);
     
