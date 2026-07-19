@@ -171,6 +171,7 @@ function withColgroups(html: string): string {
 
 const TestMaker = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { module, setModule } = useActiveModule({ redirectIfMissing: true });
   const questionsVersion = useQuestionsVersion();
   const [selectedTopics, setSelectedTopics] = useState<Set<string>>(new Set());
