@@ -733,6 +733,14 @@ const TestMaker = () => {
                   <Download className="h-4 w-4 mr-2" />
                   Question Paper
                 </Button>
+                <Button variant="outline" onClick={handleDownloadMarkdown} disabled={isDownloadingMd}>
+                  {isDownloadingMd ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileText className="h-4 w-4 mr-2" />
+                  )}
+                  Markdown (.md)
+                </Button>
                 {hasMarkschemes && (
                   <Button onClick={handleDownloadMarkScheme}>
                     <Download className="h-4 w-4 mr-2" />
