@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical, BookOpen, Eye, EyeOff, ImageDown } from "lucide-react";
 import { processQuestionImage, bakeNumberIntoImage, NUMBER_FONT_FAMILY } from "@/utils/imageProcessing";
 import { ensureMarkschemeText } from "@/utils/ensureMarkschemeText";
-import { ensureQuestionText } from "@/utils/ensureQuestionText";
+import { supabase } from "@/integrations/supabase/client";
 import { renderLatexToHtml } from "@/utils/renderLatex";
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { Switch } from "@/components/ui/switch";
@@ -587,8 +587,8 @@ const TestMaker = () => {
   };
 
   // Markdown export: text-only test paper + mark schemes as a single .md file.
-  // Question text is transcribed on-demand via the extract-question-text edge
-  // function if not already cached on the questions row.
+  // Reads the already-transcribed `question_text` and `markscheme_text` from
+  // the DB — no AI calls, no re-transcription.
   const [isDownloadingMd, setIsDownloadingMd] = useState(false);
   const handleDownloadMarkdown = async () => {
     if (isDownloadingMd) return;
@@ -599,19 +599,19 @@ const TestMaker = () => {
       const paperMatch = /Paper\s+(\d+)/i.exec(info.tagline);
       const paperNo = paperMatch?.[1] ?? "";
 
-      toast({
-        title: "Preparing markdown",
-        description: "Transcribing question text — this can take a moment.",
-      });
-
       const questionTexts = await Promise.all(
         processedQuestions.map(async (pq) => {
-          try {
-            const raw = await ensureQuestionText(pq.original);
-            return raw?.trim() || null;
-          } catch {
-            return null;
-          }
+          const { data, error } = await supabase
+            .from("questions")
+            .select("question_text")
+            .eq("year", pq.original.year)
+            .eq("sitting", pq.original.sitting)
+            .eq("paper_number", pq.original.paperNumber)
+            .eq("question_number", pq.original.questionNumber)
+            .maybeSingle();
+          if (error) return null;
+          const raw = data?.question_text?.trim();
+          return raw ? raw : null;
         })
       );
 
