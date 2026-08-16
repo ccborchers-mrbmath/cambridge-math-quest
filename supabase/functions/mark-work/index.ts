@@ -234,22 +234,46 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching exactly this
     // values. Both make JSON.parse throw. Walk the blob and repair only the
     // content INSIDE string literals: escape invalid backslash sequences,
     // and escape raw \n \r \t.
+    //
+    // The subtle case is a backslash followed by b/f/n/r/t/u: that is a valid
+    // JSON escape, but it is far more often the start of a LaTeX command
+    // (\frac, \theta, \to, \times, \neq, \rightarrow, \bar, \underline...).
+    // Reading those as control characters silently shreds the maths — \frac
+    // becomes a form feed followed by "rac", and \theta a tab followed by
+    // "heta", neither of which KaTeX can render. The prompt requires all
+    // maths to sit inside $...$, so track that: within maths a backslash
+    // always starts a command, and outside it only a multi-letter command
+    // name is taken as LaTeX (\n stays a newline, since that is what it
+    // almost always is in prose).
+    const isLower = (ch: string) => ch >= 'a' && ch <= 'z';
     const repairJsonStrings = (s: string): string => {
       let out = '';
       let inString = false;
+      let inMath = false;
       let i = 0;
       while (i < s.length) {
         const c = s[i];
         if (!inString) {
-          if (c === '"') inString = true;
+          if (c === '"') { inString = true; inMath = false; }
           out += c;
           i++;
           continue;
         }
-        if (c === '"') { inString = false; out += c; i++; continue; }
+        if (c === '"') { inString = false; inMath = false; out += c; i++; continue; }
+        if (c === '$') {
+          const display = s[i + 1] === '$';
+          inMath = !inMath;
+          out += display ? '$$' : '$';
+          i += display ? 2 : 1;
+          continue;
+        }
         if (c === '\\') {
           const next = s[i + 1] ?? '';
-          if ('"\\/bfnrtu'.includes(next)) {
+          const after = s[i + 2] ?? '';
+          const isLatexCommand = inMath
+            ? isLower(next)
+            : next !== 'n' && isLower(next) && isLower(after);
+          if (!isLatexCommand && '"\\/bfnrtu'.includes(next)) {
             out += c + next;
             i += 2;
           } else {
@@ -266,13 +290,22 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching exactly this
       }
       return out;
     };
-    const sanitized = repairJsonStrings(jsonMatch[0]);
+
+    // The repair always runs: a response containing "$\frac{a}{b}$" is *valid*
+    // JSON, it just decodes to a form feed followed by "rac", so parsing it
+    // strictly first would keep the bug rather than avoid it. The repair is a
+    // no-op on properly escaped backslashes, and strict parsing of the
+    // original is kept as a fallback should the repair ever mangle a response.
     let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(sanitized);
-    } catch (parseErr) {
-      console.error('mark-work JSON parse failed after sanitize:', parseErr, '\nRaw:', jsonMatch[0].slice(0, 500));
-      return jsonResponse({ error: 'AI marking response could not be parsed' }, 500);
+      parsed = JSON.parse(repairJsonStrings(jsonMatch[0]));
+    } catch {
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseErr) {
+        console.error('mark-work JSON parse failed after sanitize:', parseErr, '\nRaw:', jsonMatch[0].slice(0, 500));
+        return jsonResponse({ error: 'AI marking response could not be parsed' }, 500);
+      }
     }
     const percentageAttained = Math.max(0, Math.min(100, Math.round(Number(parsed.percentageAttained) || 0)));
     const marksAwarded = Number.isFinite(Number(parsed.marksAwarded)) ? Number(parsed.marksAwarded) : null;
