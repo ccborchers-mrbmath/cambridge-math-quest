@@ -749,10 +749,16 @@ const StudentProgress = () => {
           <CardHeader>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <CardTitle>{inModuleView ? 'Question Coverage' : 'Your Attempt History'}</CardTitle>
+                <CardTitle>
+                  {inModuleView
+                    ? trackMode === 'manual' ? 'My Question Checklist' : 'Question Coverage'
+                    : 'Your Attempt History'}
+                </CardTitle>
                 <CardDescription>
                   {inModuleView
-                    ? 'Every question in the selected module. Green = mastered, amber = needs work, grey = not yet attempted.'
+                    ? trackMode === 'manual'
+                      ? 'Tick off questions you\u2019ve completed yourself and rate how they went. Only you can see this.'
+                      : 'Every question in the selected module. Green = mastered, amber = needs work, grey = not yet attempted.'
                     : 'Review your past attempts and identify areas for improvement'}
                 </CardDescription>
               </div>
@@ -890,7 +896,15 @@ const StudentProgress = () => {
                 </div>
               </div>
             )}
-            {inModuleView && viewMode === 'grid' ? (
+            {inModuleView && trackMode === 'manual' ? (
+              <ManualChecklist
+                moduleCode={moduleFilter as ModuleCode}
+                topicFilter={topicFilter}
+                sortMode={sortMode}
+                showUnchecked={showUnattempted}
+                onGoToQuestion={goToQuestion}
+              />
+            ) : inModuleView && viewMode === 'grid' ? (
               gridTopics.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">No questions match the current filters.</div>
               ) : (
