@@ -166,6 +166,48 @@ export type Database = {
         }
         Relationships: []
       }
+      manual_completions: {
+        Row: {
+          confidence: Database["public"]["Enums"]["self_confidence"]
+          created_at: string
+          id: string
+          module: Database["public"]["Enums"]["module_code"]
+          paper_number: number
+          question_number: number
+          sitting: string
+          topic: string | null
+          updated_at: string
+          user_id: string
+          year: number
+        }
+        Insert: {
+          confidence?: Database["public"]["Enums"]["self_confidence"]
+          created_at?: string
+          id?: string
+          module: Database["public"]["Enums"]["module_code"]
+          paper_number: number
+          question_number: number
+          sitting: string
+          topic?: string | null
+          updated_at?: string
+          user_id: string
+          year: number
+        }
+        Update: {
+          confidence?: Database["public"]["Enums"]["self_confidence"]
+          created_at?: string
+          id?: string
+          module?: Database["public"]["Enums"]["module_code"]
+          paper_number?: number
+          question_number?: number
+          sitting?: string
+          topic?: string | null
+          updated_at?: string
+          user_id?: string
+          year?: number
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -677,6 +719,7 @@ export type Database = {
         | "completed"
         | "cancelled"
       module_code: "P1" | "P2" | "P3" | "S1" | "S2" | "M1"
+      self_confidence: "easy" | "ok" | "struggled"
       session_status: "scheduled" | "in_progress" | "completed" | "cancelled"
     }
     CompositeTypes: {
@@ -823,6 +866,7 @@ export const Constants = {
         "cancelled",
       ],
       module_code: ["P1", "P2", "P3", "S1", "S2", "M1"],
+      self_confidence: ["easy", "ok", "struggled"],
       session_status: ["scheduled", "in_progress", "completed", "cancelled"],
     },
   },

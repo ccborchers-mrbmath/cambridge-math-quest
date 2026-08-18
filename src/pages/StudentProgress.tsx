@@ -20,6 +20,7 @@ import { questionsDatabase, type Question } from '@/data/questions';
 import { moduleOf, moduleFromPaperNumber, MODULES, questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
 import { useQuestionsVersion } from '@/lib/questionStore';
 import { ensureMarkschemeText } from '@/utils/ensureMarkschemeText';
+import { ManualChecklist } from '@/components/progress/ManualChecklist';
 
 interface StudentAttempt {
   id: string;
@@ -54,6 +55,7 @@ const StudentProgress = () => {
   const [topicFilter, setTopicFilter] = useState<string>('all');
   const [showUnattempted, setShowUnattempted] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [trackMode, setTrackMode] = useState<'ai' | 'manual'>('ai');
   const [gridDialogKey, setGridDialogKey] = useState<string | null>(null);
   const [gridPreviewOpen, setGridPreviewOpen] = useState(false);
   const [shareProgress, setShareProgress] = useState(false);
@@ -747,10 +749,16 @@ const StudentProgress = () => {
           <CardHeader>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <CardTitle>{inModuleView ? 'Question Coverage' : 'Your Attempt History'}</CardTitle>
+                <CardTitle>
+                  {inModuleView
+                    ? trackMode === 'manual' ? 'My Question Checklist' : 'Question Coverage'
+                    : 'Your Attempt History'}
+                </CardTitle>
                 <CardDescription>
                   {inModuleView
-                    ? 'Every question in the selected module. Green = mastered, amber = needs work, grey = not yet attempted.'
+                    ? trackMode === 'manual'
+                      ? 'Tick off questions you\u2019ve completed yourself and rate how they went. Only you can see this.'
+                      : 'Every question in the selected module. Green = mastered, amber = needs work, grey = not yet attempted.'
                     : 'Review your past attempts and identify areas for improvement'}
                 </CardDescription>
               </div>
@@ -812,7 +820,27 @@ const StudentProgress = () => {
                   </SelectContent>
                 </Select>
               </div>
-              {inModuleView && (
+              {inModuleView && !isCoachView && (
+                <div className="flex items-center gap-1 border border-border rounded-md p-0.5">
+                  <Button
+                    variant={trackMode === 'ai' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7"
+                    onClick={() => setTrackMode('ai')}
+                  >
+                    AI marked
+                  </Button>
+                  <Button
+                    variant={trackMode === 'manual' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7"
+                    onClick={() => setTrackMode('manual')}
+                  >
+                    My checklist
+                  </Button>
+                </div>
+              )}
+              {inModuleView && trackMode === 'ai' && (
                 <div className="flex items-center gap-2">
                   <Switch
                     id="show-unattempted"
@@ -822,7 +850,17 @@ const StudentProgress = () => {
                   <Label htmlFor="show-unattempted" className="text-xs">Show unattempted</Label>
                 </div>
               )}
-              {inModuleView && (
+              {inModuleView && trackMode === 'manual' && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="show-unchecked"
+                    checked={showUnattempted}
+                    onCheckedChange={setShowUnattempted}
+                  />
+                  <Label htmlFor="show-unchecked" className="text-xs">Show unchecked</Label>
+                </div>
+              )}
+              {inModuleView && trackMode === 'ai' && (
                 <div className="flex items-center gap-1 ml-auto border border-border rounded-md p-0.5">
                   <Button
                     variant={viewMode === 'list' ? 'default' : 'ghost'}
@@ -858,7 +896,15 @@ const StudentProgress = () => {
                 </div>
               </div>
             )}
-            {inModuleView && viewMode === 'grid' ? (
+            {inModuleView && trackMode === 'manual' ? (
+              <ManualChecklist
+                moduleCode={moduleFilter as ModuleCode}
+                topicFilter={topicFilter}
+                sortMode={sortMode}
+                showUnchecked={showUnattempted}
+                onGoToQuestion={goToQuestion}
+              />
+            ) : inModuleView && viewMode === 'grid' ? (
               gridTopics.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">No questions match the current filters.</div>
               ) : (
