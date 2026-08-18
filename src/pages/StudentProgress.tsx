@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { LatexRenderer } from '@/components/LatexRenderer';
 import { getAllCurriculumSubtopics, getMasteredSubtopicCodes, parseSubtopics } from '@/lib/curriculum';
 import { questionsDatabase, type Question } from '@/data/questions';
-import { moduleOf, moduleFromPaperNumber, MODULES, questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
+import { moduleOf, moduleFromPaperNumber, MODULES, questionsInModule, getTopicsInCurriculumOrder, abbreviateSitting, type ModuleCode } from '@/lib/modules';
 import { useQuestionsVersion } from '@/lib/questionStore';
 import { ensureMarkschemeText } from '@/utils/ensureMarkschemeText';
 import { ManualChecklist } from '@/components/progress/ManualChecklist';
@@ -929,7 +929,7 @@ const StudentProgress = () => {
                             >
                               <span className="leading-none">{label}</span>
                               <span className="mt-1 text-[10px] font-normal opacity-80 leading-none">
-                                P{r.paperNumber} Q{r.questionNumber}
+                                {r.year.toString().slice(-2)} {abbreviateSitting(r.sitting)} P{r.paperNumber} Q{r.questionNumber}
                               </span>
                             </button>
                           );

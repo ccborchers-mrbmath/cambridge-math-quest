@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, CheckCircle2, ExternalLink } from 'lucide-react';
-import { questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
+import { questionsInModule, getTopicsInCurriculumOrder, abbreviateSitting, type ModuleCode } from '@/lib/modules';
 import { type Question } from '@/data/questions';
 
 export type Confidence = 'easy' | 'ok' | 'struggled';
@@ -226,7 +226,7 @@ export function ManualChecklist({ moduleCode, topicFilter, showUnchecked, onGoTo
                         {row ? CONFIDENCE_META.find((c) => c.value === row.confidence)!.label : '—'}
                       </span>
                       <span className="mt-1 text-[10px] font-normal opacity-80 leading-none">
-                        P{q.paperNumber} Q{q.questionNumber}
+                        {q.year.toString().slice(-2)} {abbreviateSitting(q.sitting)} P{q.paperNumber} Q{q.questionNumber}
                       </span>
                     </button>
                   );
