@@ -762,7 +762,7 @@ const StudentProgress = () => {
                     : 'Review your past attempts and identify areas for improvement'}
                 </CardDescription>
               </div>
-              {attempts.length > 0 && (
+              {attempts.length > 0 && trackMode !== 'manual' && (
                 <div className="flex flex-wrap gap-2">
                   <Button variant={sortMode === 'recent' ? 'default' : 'outline'} size="sm" onClick={() => setSortMode('recent')}>
                     Recent
