@@ -814,7 +814,27 @@ const StudentProgress = () => {
                   </SelectContent>
                 </Select>
               </div>
-              {inModuleView && (
+              {inModuleView && !isCoachView && (
+                <div className="flex items-center gap-1 border border-border rounded-md p-0.5">
+                  <Button
+                    variant={trackMode === 'ai' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7"
+                    onClick={() => setTrackMode('ai')}
+                  >
+                    AI marked
+                  </Button>
+                  <Button
+                    variant={trackMode === 'manual' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7"
+                    onClick={() => setTrackMode('manual')}
+                  >
+                    My checklist
+                  </Button>
+                </div>
+              )}
+              {inModuleView && trackMode === 'ai' && (
                 <div className="flex items-center gap-2">
                   <Switch
                     id="show-unattempted"
@@ -824,7 +844,17 @@ const StudentProgress = () => {
                   <Label htmlFor="show-unattempted" className="text-xs">Show unattempted</Label>
                 </div>
               )}
-              {inModuleView && (
+              {inModuleView && trackMode === 'manual' && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="show-unchecked"
+                    checked={showUnattempted}
+                    onCheckedChange={setShowUnattempted}
+                  />
+                  <Label htmlFor="show-unchecked" className="text-xs">Show unchecked</Label>
+                </div>
+              )}
+              {inModuleView && trackMode === 'ai' && (
                 <div className="flex items-center gap-1 ml-auto border border-border rounded-md p-0.5">
                   <Button
                     variant={viewMode === 'list' ? 'default' : 'ghost'}
