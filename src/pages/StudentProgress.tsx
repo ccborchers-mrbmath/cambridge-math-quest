@@ -20,6 +20,7 @@ import { questionsDatabase, type Question } from '@/data/questions';
 import { moduleOf, moduleFromPaperNumber, MODULES, questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
 import { useQuestionsVersion } from '@/lib/questionStore';
 import { ensureMarkschemeText } from '@/utils/ensureMarkschemeText';
+import { ManualChecklist } from '@/components/progress/ManualChecklist';
 
 interface StudentAttempt {
   id: string;
@@ -54,6 +55,7 @@ const StudentProgress = () => {
   const [topicFilter, setTopicFilter] = useState<string>('all');
   const [showUnattempted, setShowUnattempted] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [trackMode, setTrackMode] = useState<'ai' | 'manual'>('ai');
   const [gridDialogKey, setGridDialogKey] = useState<string | null>(null);
   const [gridPreviewOpen, setGridPreviewOpen] = useState(false);
   const [shareProgress, setShareProgress] = useState(false);
