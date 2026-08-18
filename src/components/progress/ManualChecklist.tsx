@@ -4,10 +4,9 @@ import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle2 } from 'lucide-react';
-import { questionsInModule, getTopicsInCurriculumOrder, type ModuleCode } from '@/lib/modules';
-import { parseSubtopics } from '@/lib/curriculum';
+import { Loader2, CheckCircle2, ExternalLink } from 'lucide-react';
+import { questionsInModule, type ModuleCode } from '@/lib/modules';
+import { type Question } from '@/data/questions';
 
 export type Confidence = 'easy' | 'ok' | 'struggled';
 
@@ -34,15 +33,22 @@ interface Props {
   ) => void;
 }
 
-const CONFIDENCE_META: { value: Confidence; label: string; tint: string }[] = [
-  { value: 'easy', label: 'Easy', tint: 'bg-emerald-500 text-white hover:bg-emerald-500/90' },
-  { value: 'ok', label: 'OK', tint: 'bg-emerald-500/30 text-emerald-900 dark:text-emerald-100 hover:bg-emerald-500/40' },
-  { value: 'struggled', label: 'Struggled', tint: 'bg-amber-500/50 text-amber-950 dark:text-amber-50 hover:bg-amber-500/60' },
+const CONFIDENCE_META: { value: Confidence; label: string; tint: string; short: string }[] = [
+  { value: 'easy', label: 'Easy', short: 'E', tint: 'bg-emerald-500 text-white hover:bg-emerald-500/90' },
+  { value: 'ok', label: 'OK', short: 'O', tint: 'bg-emerald-500/30 text-emerald-900 dark:text-emerald-100 hover:bg-emerald-500/40' },
+  { value: 'struggled', label: 'Struggled', short: 'S', tint: 'bg-amber-500/50 text-amber-950 dark:text-amber-50 hover:bg-amber-500/60' },
 ];
 
 const keyOf = (y: number, s: string, p: number, q: number) => `${y}|${s}|${p}|${q}`;
 
-export function ManualChecklist({ moduleCode, topicFilter, sortMode, showUnchecked, onGoToQuestion }: Props) {
+const sittingRank = (s: string) => {
+  if (s.startsWith('Feb')) return 0;
+  if (s.startsWith('May')) return 1;
+  if (s.startsWith('Oct')) return 2;
+  return 3;
+};
+
+export function ManualChecklist({ moduleCode, topicFilter, showUnchecked, onGoToQuestion }: Props) {
   const [rows, setRows] = useState<Map<string, ManualRow>>(new Map());
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -72,45 +78,55 @@ export function ManualChecklist({ moduleCode, topicFilter, sortMode, showUncheck
   }, [moduleCode]);
 
   const questions = useMemo(() => questionsInModule(moduleCode), [moduleCode]);
-  const topics = useMemo(() => getTopicsInCurriculumOrder(questions), [questions]);
 
   const groups = useMemo(() => {
-    const ordered = topicFilter === 'all' ? topics : [topicFilter];
-    const byTopic = new Map<string, typeof questions>();
-    for (const t of ordered) byTopic.set(t, [] as typeof questions);
-    for (const q of questions) {
-      const t = q.topic || 'Other';
-      if (topicFilter !== 'all' && t !== topicFilter) continue;
-      if (!byTopic.has(t)) byTopic.set(t, [] as typeof questions);
-      byTopic.get(t)!.push(q);
+    const filtered = topicFilter === 'all'
+      ? questions
+      : questions.filter((q) => (q.topic || 'Other') === topicFilter);
+
+    const visible = showUnchecked
+      ? filtered
+      : filtered.filter((q) => rows.has(keyOf(q.year, q.sitting, q.paperNumber, q.questionNumber)));
+
+    if (visible.length === 0) return [];
+
+    const byYear = new Map<number, Map<string, Map<number, Question[]>>>();
+    for (const q of visible) {
+      if (!byYear.has(q.year)) byYear.set(q.year, new Map());
+      const bySitting = byYear.get(q.year)!;
+      if (!bySitting.has(q.sitting)) bySitting.set(q.sitting, new Map());
+      const byPaper = bySitting.get(q.sitting)!;
+      if (!byPaper.has(q.paperNumber)) byPaper.set(q.paperNumber, []);
+      byPaper.get(q.paperNumber)!.push(q);
     }
-    const rank: Record<Confidence, number> = { easy: 3, ok: 2, struggled: 1 };
-    return [...byTopic.entries()]
-      .map(([topic, qs]) => ({
-        topic,
-        questions: qs
-          .filter((q) => showUnchecked || rows.has(keyOf(q.year, q.sitting, q.paperNumber, q.questionNumber)))
-          .sort((a, b) => {
-            const ra = rows.get(keyOf(a.year, a.sitting, a.paperNumber, a.questionNumber));
-            const rb = rows.get(keyOf(b.year, b.sitting, b.paperNumber, b.questionNumber));
-            if (sortMode === 'score') {
-              const va = ra ? rank[ra.confidence] : -1;
-              const vb = rb ? rank[rb.confidence] : -1;
-              if (va !== vb) return vb - va;
-            }
-            if (sortMode === 'recent') {
-              const va = ra ? 1 : 0;
-              const vb = rb ? 1 : 0;
-              if (va !== vb) return vb - va;
-            }
-            return a.year - b.year
-              || a.sitting.localeCompare(b.sitting)
-              || a.paperNumber - b.paperNumber
-              || a.questionNumber - b.questionNumber;
-          }),
+
+    return [...byYear.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([year, bySitting]) => ({
+        year,
+        sittings: [...bySitting.entries()]
+          .sort((a, b) => sittingRank(a[0]) - sittingRank(b[0]))
+          .map(([sitting, byPaper]) => ({
+            sitting,
+            papers: [...byPaper.entries()]
+              .sort((a, b) => a[0] - b[0])
+              .map(([paperNumber, qs]) => ({
+                paperNumber,
+                questions: qs.sort((a, b) => {
+                  const ka = keyOf(a.year, a.sitting, a.paperNumber, a.questionNumber);
+                  const kb = keyOf(b.year, b.sitting, b.paperNumber, b.questionNumber);
+                  const checkedA = rows.has(ka) ? 1 : 0;
+                  const checkedB = rows.has(kb) ? 1 : 0;
+                  if (checkedA !== checkedB) return checkedB - checkedA;
+                  return a.questionNumber - b.questionNumber;
+                }),
+              }))
+              .filter((p) => p.questions.length > 0),
+          }))
+          .filter((s) => s.papers.length > 0),
       }))
-      .filter((g) => g.questions.length > 0);
-  }, [questions, topics, topicFilter, rows, showUnchecked, sortMode]);
+      .filter((g) => g.sittings.length > 0);
+  }, [questions, topicFilter, showUnchecked, rows]);
 
   const toggle = async (
     q: { year: number; sitting: string; paperNumber: number; questionNumber: number; topic?: string | null },
@@ -185,7 +201,7 @@ export function ManualChecklist({ moduleCode, topicFilter, sortMode, showUncheck
   const done = rows.size;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <CheckCircle2 className="h-4 w-4 text-primary" />
         You've ticked off <span className="font-semibold text-foreground">{done}</span> of {total} questions in this module.
@@ -194,72 +210,85 @@ export function ManualChecklist({ moduleCode, topicFilter, sortMode, showUncheck
       {groups.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No questions match the current filters.</div>
       ) : (
-        groups.map((g) => (
-          <div key={g.topic} className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground/90 border-b border-border pb-1">
-              {g.topic || 'Other'}
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {g.questions.map((q) => {
-                const k = keyOf(q.year, q.sitting, q.paperNumber, q.questionNumber);
-                const row = rows.get(k);
-                const subs = parseSubtopics(q.subtopics || '');
-                return (
-                  <div
-                    key={k}
-                    className={`rounded-lg border p-3 transition-colors ${row ? 'border-primary/40 bg-primary/5' : 'border-border bg-card'}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        className="mt-1"
-                        checked={!!row}
-                        disabled={savingKey === k}
-                        onCheckedChange={(v) => toggle(q, v === true)}
-                        aria-label={`Mark ${q.year} ${q.sitting} P${q.paperNumber} Q${q.questionNumber} as completed`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">
-                          {q.year} {q.sitting} · P{q.paperNumber} Q{q.questionNumber}
-                        </p>
-                        {subs.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {subs.slice(0, 3).map((s) => (
-                              <Badge key={s.code} variant="secondary" className="text-[10px] font-normal">
-                                {s.label}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                        {row && (
-                          <div className="mt-2.5 flex flex-wrap gap-1">
-                            {CONFIDENCE_META.map((c) => (
+        groups.map((yearGroup) => (
+          <div key={yearGroup.year} className="space-y-4">
+            <h2 className="text-lg font-semibold text-foreground border-b border-border pb-1">
+              {yearGroup.year}
+            </h2>
+            {yearGroup.sittings.map((sittingGroup) => (
+              <div key={sittingGroup.sitting} className="space-y-3 pl-2 sm:pl-4">
+                <h3 className="text-sm font-medium text-foreground/80">
+                  {sittingGroup.sitting}
+                </h3>
+                {sittingGroup.papers.map((paperGroup) => (
+                  <div key={paperGroup.paperNumber} className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
+                      <span className="font-semibold">Paper {paperGroup.paperNumber}</span>
+                      <span className="text-border">|</span>
+                      <span>{paperGroup.questions.length} questions</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                      {paperGroup.questions.map((q) => {
+                        const k = keyOf(q.year, q.sitting, q.paperNumber, q.questionNumber);
+                        const row = rows.get(k);
+                        const meta = row ? CONFIDENCE_META.find((c) => c.value === row.confidence) : undefined;
+                        return (
+                          <div
+                            key={k}
+                            className={`relative rounded-md border p-2 transition-colors ${
+                              row
+                                ? `${meta?.tint || 'bg-primary/10'} border-transparent`
+                                : 'bg-card border-border hover:bg-accent'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                className="h-4 w-4"
+                                checked={!!row}
+                                disabled={savingKey === k}
+                                onCheckedChange={(v) => toggle(q, v === true)}
+                                aria-label={`Mark ${q.year} ${q.sitting} P${q.paperNumber} Q${q.questionNumber} as completed`}
+                              />
+                              <span className={`text-xs font-semibold leading-none ${row ? 'text-inherit' : 'text-foreground'}`}>
+                                Q{q.questionNumber}
+                              </span>
                               <button
-                                key={c.value}
                                 type="button"
-                                onClick={() => setConfidence(k, c.value)}
-                                className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
-                                  row.confidence === c.value ? c.tint : 'bg-muted text-muted-foreground hover:bg-muted/70'
-                                }`}
+                                onClick={() => onGoToQuestion(moduleCode, q.year, q.sitting, q.paperNumber, q.questionNumber)}
+                                className={`ml-auto ${row ? 'text-inherit opacity-80 hover:opacity-100' : 'text-muted-foreground hover:text-foreground'}`}
+                                aria-label={`Open ${q.year} ${q.sitting} P${q.paperNumber} Q${q.questionNumber}`}
+                                title="Open question"
                               >
-                                {c.label}
+                                <ExternalLink className="h-3 w-3" />
                               </button>
-                            ))}
+                            </div>
+                            {row && (
+                              <div className="mt-1.5 flex gap-1">
+                                {CONFIDENCE_META.map((c) => (
+                                  <button
+                                    key={c.value}
+                                    type="button"
+                                    onClick={() => setConfidence(k, c.value)}
+                                    className={`flex-1 rounded px-1 py-0.5 text-[10px] font-medium transition-colors ${
+                                      row.confidence === c.value
+                                        ? 'bg-white/20 text-current ring-1 ring-current/40'
+                                        : 'bg-black/10 text-current/80 hover:bg-black/15'
+                                    }`}
+                                    title={c.label}
+                                  >
+                                    {c.short}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        )}
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="mt-1 h-auto p-0 text-xs"
-                          onClick={() => onGoToQuestion(moduleCode, q.year, q.sitting, q.paperNumber, q.questionNumber)}
-                        >
-                          Open question
-                        </Button>
-                      </div>
+                        );
+                      })}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ))}
           </div>
         ))
       )}
