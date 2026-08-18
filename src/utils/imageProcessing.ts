@@ -270,10 +270,21 @@ export const bakeNumberIntoImage = async (
         return;
       }
       ctx.drawImage(img, 0, 0);
-      ctx.fillStyle = "#000000";
       ctx.font = `bold ${fontSize}px ${NUMBER_FONT_FAMILY}`;
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
+      // Paint an opaque white plate behind the new number, at least as wide
+      // as a two-digit number, so a single digit fully covers the old
+      // double-digit number underneath.
+      const textWidth = ctx.measureText(String(newNumber)).width;
+      const minWidth = ctx.measureText("88").width;
+      const padX = fontSize * 0.12;
+      const padY = fontSize * 0.12;
+      const plateWidth = Math.max(textWidth, minWidth) + padX * 2;
+      const plateHeight = fontSize * 1.25 + padY;
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(x - padX, y - padY, plateWidth, plateHeight);
+      ctx.fillStyle = "#000000";
       ctx.fillText(String(newNumber), x, y);
       resolve(canvas.toDataURL("image/jpeg", 0.95));
     };
