@@ -31,6 +31,16 @@ export const getModuleInfo = (code: ModuleCode): ModuleInfo =>
 /** Treat questions without an explicit `module` as P3 (legacy data). */
 export const moduleOf = (q: { module?: ModuleCode }): ModuleCode => q.module ?? "P3";
 
+/** Abbreviate Cambridge sitting names, e.g. "Feb/Mar" → "F/M". */
+export const abbreviateSitting = (sitting: string): string => {
+  const normalized = sitting.trim().toLowerCase();
+  if (normalized.includes("feb") || normalized.includes("mar")) return "F/M";
+  if (normalized.includes("may") || normalized.includes("jun")) return "M/J";
+  if (normalized.includes("oct") || normalized.includes("nov")) return "O/N";
+  return sitting;
+};
+
+
 /**
  * Cambridge 9709 paper-number convention:
  *   11/12/13 → P1   21/22/23 → P2   31/32/33 → P3
