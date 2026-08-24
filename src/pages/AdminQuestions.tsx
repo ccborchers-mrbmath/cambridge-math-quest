@@ -16,6 +16,7 @@ import { Loader2, Plus, Pencil, Trash2, Sparkles, Upload, BookOpen, FileText, Re
 import { LatexRenderer } from "@/components/LatexRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MODULES, ModuleCode, moduleFromPaperNumber } from "@/lib/modules";
+import { resolveSubtopicText, subtopicCodesToText } from "@/lib/syllabusLabels";
 import { ColumnFilter, MISSING } from "@/components/admin/ColumnFilter";
 
 const SITTINGS = ["Feb/Mar", "May/Jun", "Oct/Nov"] as const;
@@ -198,7 +199,15 @@ const AdminQuestions = () => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (q) {
-        const hay = [r.year, r.sitting, r.paper_number, r.question_number, r.module, r.topic, r.subtopics]
+        const hay = [
+          r.year,
+          r.sitting,
+          r.paper_number,
+          r.question_number,
+          r.module,
+          r.topic,
+          resolveSubtopicText(r.subtopic_ids, r.subtopics),
+        ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -210,7 +219,7 @@ const AdminQuestions = () => {
         if (!topicFilter.has(key)) return false;
       }
       if (subtopicFilter.size) {
-        const raw = (r.subtopics ?? "").trim();
+        const raw = resolveSubtopicText(r.subtopic_ids, r.subtopics);
         if (!raw) {
           if (!subtopicFilter.has(MISSING)) return false;
         } else {
@@ -267,7 +276,7 @@ const AdminQuestions = () => {
     const set = new Set<string>();
     let hasMissing = false;
     for (const r of rows) {
-      const raw = (r.subtopics ?? "").trim();
+      const raw = resolveSubtopicText(r.subtopic_ids, r.subtopics);
       if (!raw) { hasMissing = true; continue; }
       for (const part of raw.split(",").map((s) => s.trim()).filter(Boolean)) {
         set.add(part);
@@ -444,6 +453,13 @@ const AdminQuestions = () => {
       });
       if (error) throw error;
       const s = (data as { suggestion?: Record<string, unknown> })?.suggestion ?? {};
+      // The tagger returns syllabus codes in subtopic_ids and no `subtopics`
+      // string, so spell the codes out here. Everything downstream — this
+      // table, the Test Maker, topic tests and student search — reads the
+      // text form, and it stayed empty on every question added this way.
+      const suggestedIds = Array.isArray(s.subtopic_ids)
+        ? (s.subtopic_ids as unknown[]).filter((x): x is string => typeof x === "string")
+        : null;
       setDraft((d) => ({
         ...d,
         year: typeof s.year === "number" ? s.year : d.year,
@@ -457,11 +473,12 @@ const AdminQuestions = () => {
             : d.paper_number,
         question_number: typeof s.question_number === "number" ? s.question_number : d.question_number,
         topic: typeof s.topic === "string" ? s.topic : d.topic,
-        subtopics: typeof s.subtopics === "string" ? s.subtopics : d.subtopics,
+        subtopics:
+          typeof s.subtopics === "string" && s.subtopics
+            ? s.subtopics
+            : subtopicCodesToText(suggestedIds) ?? d.subtopics,
         topic_id: typeof s.topic_id === "string" ? s.topic_id : d.topic_id,
-        subtopic_ids: Array.isArray(s.subtopic_ids)
-          ? (s.subtopic_ids as unknown[]).filter((x): x is string => typeof x === "string")
-          : d.subtopic_ids,
+        subtopic_ids: suggestedIds ?? d.subtopic_ids,
         marks: typeof s.marks === "number" ? s.marks : d.marks,
       }));
       toast.success("AI suggestions applied — review and save");
@@ -674,7 +691,15 @@ const AdminQuestions = () => {
                   const ids = (s.subtopic_ids as unknown[]).filter(
                     (x): x is string => typeof x === "string",
                   );
-                  if (ids.length) update.subtopic_ids = ids;
+                  if (ids.length) {
+                    update.subtopic_ids = ids;
+                    // Spell the codes out too: the tagger never returns a
+                    // `subtopics` string, and the rest of the app reads that.
+                    if (!update.subtopics) {
+                      const text = subtopicCodesToText(ids);
+                      if (text) update.subtopics = text;
+                    }
+                  }
                 }
                 if (typeof s.marks === "number") update.marks = s.marks;
                 if (Object.keys(update).length) {
@@ -871,7 +896,9 @@ const AdminQuestions = () => {
                       <TableCell>P{r.paper_number}</TableCell>
                       <TableCell>Q{r.question_number}</TableCell>
                       <TableCell>{r.topic ?? "-"}</TableCell>
-                      <TableCell className="max-w-md truncate text-sm text-muted-foreground">{r.subtopics ?? "-"}</TableCell>
+                      <TableCell className="max-w-md truncate text-sm text-muted-foreground">
+                        {resolveSubtopicText(r.subtopic_ids, r.subtopics) || "-"}
+                      </TableCell>
                       <TableCell>{r.marks ?? "-"}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap">
                         <span title="Question text" className={r.question_text_status === "ready" ? "text-primary" : r.question_text_status === "pending" ? "text-muted-foreground" : r.question_text_status === "failed" ? "text-destructive" : "text-muted-foreground/50"}>

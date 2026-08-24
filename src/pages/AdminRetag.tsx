@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Loader2, Sparkles, Check, X, ArrowLeft } from "lucide-react";
 import { logger } from "@/lib/logger";
-import { formatSubtopicCodes } from "@/lib/syllabusLabels";
+import { formatSubtopicCodes, subtopicCodesToText } from "@/lib/syllabusLabels";
 
 const BUCKET = "exam-images";
 const MODULES = ["P1", "P2", "P3", "M1", "S1", "S2"] as const;
@@ -169,6 +169,10 @@ const AdminRetag = () => {
       if (sug.topic) patch.topic = sug.topic;
       if (sug.topic_id) patch.topic_id = sug.topic_id;
       if (sug.subtopic_ids) patch.subtopic_ids = sug.subtopic_ids;
+      // Keep the free-text column in step with the codes — the Test Maker,
+      // topic tests and student search all read the text form.
+      const subtopicText = subtopicCodesToText(sug.subtopic_ids);
+      if (subtopicText) patch.subtopics = subtopicText;
       const { error } = await supabase.from("questions").update(patch).eq("id", row.id);
       if (error) throw error;
       setRows((prev) =>
@@ -179,6 +183,7 @@ const AdminRetag = () => {
                 topic: (sug.topic as string) ?? r.topic,
                 topic_id: sug.topic_id ?? r.topic_id,
                 subtopic_ids: sug.subtopic_ids ?? r.subtopic_ids,
+                subtopics: subtopicText ?? r.subtopics,
               }
             : r,
         ),

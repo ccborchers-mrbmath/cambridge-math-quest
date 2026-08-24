@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { questionsDatabase, type Question } from "@/data/questions";
 import { isModuleCode, type ModuleCode } from "@/lib/modules";
+import { resolveSubtopicText } from "@/lib/syllabusLabels";
 
 /**
  * Runtime store that merges questions from the Supabase `questions` table
@@ -44,7 +45,7 @@ export function loadQuestionsFromDb(): Promise<void> {
       const { data, error } = await supabase
         .from("questions")
         .select(
-          "year,sitting,paper_number,question_number,topic,subtopics,marks,question_url,markscheme_url,question_image_path,markscheme_image_path,module,is_published"
+          "year,sitting,paper_number,question_number,topic,subtopics,subtopic_ids,marks,question_url,markscheme_url,question_image_path,markscheme_image_path,module,is_published"
         )
         .eq("is_published", true);
       if (error) {
@@ -85,7 +86,10 @@ export function loadQuestionsFromDb(): Promise<void> {
             paperNumber: r.paper_number,
             questionNumber: r.question_number,
             topic: r.topic ?? "",
-            subtopics: r.subtopics ?? "",
+            // Questions tagged by the AI only carry syllabus codes in
+            // subtopic_ids; spell them out so search, topic-test grouping and
+            // the Test Maker see subtopics for those questions too.
+            subtopics: resolveSubtopicText(r.subtopic_ids, r.subtopics),
             marks: r.marks ?? 0,
             questionUrl: qUrl,
             markschemeUrl: mUrl,
