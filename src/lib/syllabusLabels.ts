@@ -165,12 +165,37 @@ export const SUBTOPIC_LABELS: Record<string, string> = {
   "6.5.4": "Type I and Type II errors",
 };
 
-export function formatSubtopicCodes(codes: string[] | null | undefined): string {
-  if (!codes || codes.length === 0) return "—";
-  return codes
+/**
+ * Human-readable subtopic text for storage, search and grouping — e.g.
+ * "4.1.2 Components and resultants of forces, 4.1.3 Equilibrium of a particle".
+ * Returns null when there is nothing to describe so callers can fall back to
+ * the legacy free-text `subtopics` column.
+ */
+export function subtopicCodesToText(codes: string[] | null | undefined): string | null {
+  if (!codes || codes.length === 0) return null;
+  const text = codes
+    .map((c) => (typeof c === "string" ? c.trim() : ""))
+    .filter(Boolean)
     .map((c) => {
       const label = SUBTOPIC_LABELS[c];
       return label ? `${c} ${label}` : c;
     })
     .join(", ");
+  return text || null;
+}
+
+/**
+ * The subtopic text to show for a question. The AI tagger writes syllabus
+ * codes to `subtopic_ids`; questions imported before that column existed only
+ * have the free-text `subtopics`. Prefer the codes, fall back to the text.
+ */
+export function resolveSubtopicText(
+  subtopicIds: string[] | null | undefined,
+  legacySubtopics: string | null | undefined,
+): string {
+  return subtopicCodesToText(subtopicIds) ?? (legacySubtopics ?? "").trim();
+}
+
+export function formatSubtopicCodes(codes: string[] | null | undefined): string {
+  return subtopicCodesToText(codes) ?? "—";
 }

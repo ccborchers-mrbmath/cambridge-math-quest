@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Eye, EyeOff, Loader2 } from "lucide-react";
 import { processQuestionImage, bakeNumberIntoImage } from "@/utils/imageProcessing";
 import { moduleOf, ModuleCode } from "@/lib/modules";
+import { parseSubtopics } from "@/lib/curriculum";
 
 interface TopicTestProps {
   topic: string;
@@ -34,8 +35,10 @@ const selectVariedQuestions = (topic: string, module?: ModuleCode): Question[] =
   // Group by subtopic to ensure variety
   const subtopicGroups = new Map<string, Question[]>();
   topicQuestions.forEach((q) => {
-    // Use first subtopic as key for grouping
-    const firstSubtopic = q.subtopics.split(",")[0].trim();
+    // Use first subtopic as key for grouping. Parse rather than split on the
+    // first comma — syllabus labels contain commas, which would cut the key
+    // short and merge distinct subtopics.
+    const firstSubtopic = parseSubtopics(q.subtopics)[0]?.code ?? "";
     if (!subtopicGroups.has(firstSubtopic)) {
       subtopicGroups.set(firstSubtopic, []);
     }

@@ -14,8 +14,13 @@ export interface ParsedSubtopic {
 export const parseSubtopics = (raw: string | null | undefined): ParsedSubtopic[] => {
   if (!raw) return [];
   const codeRe = /^(\d+(?:\.\d+)+)\s+(.*)$/;
-  return raw
-    .split(",")
+  // Syllabus labels contain commas of their own ("Distance, gradient, midpoint,
+  // parallel and perpendicular lines"), so when the entries carry codes, split
+  // only where the next code begins. Comma-splitting those would invent
+  // subtopics like "gradient" and "midpoint".
+  const hasCodes = /(?:^|,\s*)\d+(?:\.\d+)+\s/.test(raw);
+  const entries = hasCodes ? raw.split(/,\s*(?=\d+(?:\.\d+)+\s)/) : raw.split(",");
+  return entries
     .map((s) => s.trim())
     .filter(Boolean)
     .map((entry) => {
