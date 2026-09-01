@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Camera, Loader2, Upload, X, ScanLine } from "lucide-react";
+import { Camera, Loader2, Lock, Upload, X, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +30,8 @@ interface IdentifyWorkPanelProps {
   onPartial?: (identification: Identification) => void;
   /** Gate for users without AI access; return false to block and prompt. */
   onRequireAi?: () => boolean;
+  /** Drives the Practice+ note; the gate itself is onRequireAi and the server. */
+  hasAiAccess?: boolean;
 }
 
 const MAX_PAGES = 12;
@@ -93,6 +95,11 @@ const describeInvokeFailure = async (err: unknown): Promise<string> => {
   }
 
   switch (response.status) {
+    case 403:
+      return (
+        serverMessage ||
+        "Finding your question from a photo needs an active Practice+ subscription."
+      );
     case 404:
       return "The question finder isn't deployed yet (404). The identify-question edge function needs deploying to Supabase.";
     case 401:
@@ -125,6 +132,7 @@ export const IdentifyWorkPanel = ({
   onIdentified,
   onPartial,
   onRequireAi,
+  hasAiAccess = true,
 }: IdentifyWorkPanelProps) => {
   const [images, setImages] = useState<string[]>([]);
   const [isReading, setIsReading] = useState(false);
@@ -157,6 +165,13 @@ export const IdentifyWorkPanel = ({
     const files = event.target.files;
     if (files && files.length > 0) await addFiles(Array.from(files));
     event.target.value = "";
+  };
+
+  /** Check access before the picker opens, so nobody photographs pages they
+   *  then aren't allowed to use. `identify` re-checks, and so does the server. */
+  const openPicker = (ref: React.RefObject<HTMLInputElement>) => {
+    if (onRequireAi && !onRequireAi()) return;
+    ref.current?.click();
   };
 
   const identify = async () => {
@@ -219,6 +234,12 @@ export const IdentifyWorkPanel = ({
             <span className="font-mono text-xs">9709/11/M/J/25</span>) or the printed
             question, and we'll find the question for you. No dropdowns needed.
           </p>
+          {!hasAiAccess && (
+            <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Lock className="h-3 w-3" />
+              Included with Practice+
+            </p>
+          )}
 
           {images.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-3">
@@ -268,7 +289,7 @@ export const IdentifyWorkPanel = ({
               variant="outline"
               size="sm"
               disabled={busy}
-              onClick={() => cameraInputRef.current?.click()}
+              onClick={() => openPicker(cameraInputRef)}
             >
               <Camera className="h-4 w-4 mr-2" />
               Take photo
@@ -277,7 +298,7 @@ export const IdentifyWorkPanel = ({
               variant="outline"
               size="sm"
               disabled={busy}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => openPicker(fileInputRef)}
             >
               <Upload className="h-4 w-4 mr-2" />
               Upload

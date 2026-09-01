@@ -89,6 +89,54 @@ serve(async (req) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
+    // Identification runs a vision model on every page, so it costs real API
+    // spend. Gate it exactly as credited features are gated — admins, billing-
+    // exempt accounts, then an active subscription in either Paddle
+    // environment. Enforced here rather than only in the UI, since a signed-in
+    // user could otherwise call this endpoint directly.
+    const adminClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+    const userId = userData.user.id;
+
+    const [isAdminRes, profileRes, sandboxRes, liveRes] = await Promise.all([
+      adminClient.rpc("has_role", { _user_id: userId, _role: "admin" }),
+      adminClient.from("profiles").select("billing_exempt").eq("user_id", userId).maybeSingle(),
+      adminClient.rpc("has_active_subscription", { user_uuid: userId, check_env: "sandbox" }),
+      adminClient.rpc("has_active_subscription", { user_uuid: userId, check_env: "live" }),
+    ]);
+
+    // Fail closed: an entitlement lookup that errors must never hand out paid
+    // AI. Log it, because that failure mode blocks every user identically and
+    // is otherwise indistinguishable from nobody being subscribed.
+    for (const [label, res] of [
+      ["has_role", isAdminRes],
+      ["profiles.billing_exempt", profileRes],
+      ["has_active_subscription(sandbox)", sandboxRes],
+      ["has_active_subscription(live)", liveRes],
+    ] as const) {
+      if (res.error) {
+        console.error("identify-question entitlement check failed", label, res.error.message);
+      }
+    }
+
+    const entitled =
+      isAdminRes.data === true ||
+      profileRes.data?.billing_exempt === true ||
+      sandboxRes.data === true ||
+      liveRes.data === true;
+
+    if (!entitled) {
+      return jsonResponse(
+        {
+          error: "Finding your question from a photo needs an active Practice+ subscription.",
+          code: "subscription_required",
+        },
+        403,
+      );
+    }
+
     const { images, catalogue } = await req.json();
 
     if (!Array.isArray(images) || images.length === 0) {

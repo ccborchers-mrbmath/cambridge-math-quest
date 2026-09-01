@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { SearchBar } from "@/components/SearchBar";
 import { QuestionDisplay } from "@/components/QuestionDisplay";
 import { IdentifyWorkPanel, type Identification } from "@/components/IdentifyWorkPanel";
+import { useSubscription } from "@/hooks/useSubscription";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { TopicTest } from "@/components/TopicTest";
 import { questionsDatabase, Question } from "@/data/questions";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,6 +37,9 @@ const Index = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, userRole, loading, signOut } = useAuth();
+  const { isActive: hasActiveSub } = useSubscription();
+  const canUseAi = userRole === "admin" || hasActiveSub;
+  const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
   const { module, setModule } = useActiveModule({ redirectIfMissing: true });
   const { recordView, capped } = useFreeTierCap();
   const [showCapDialog, setShowCapDialog] = useState(false);
@@ -207,11 +212,12 @@ const Index = () => {
     if (id.questionNumber !== null) setSelectedQuestionNum(id.questionNumber.toString());
   };
 
-  // Identification calls an authenticated edge function; marking itself keeps
-  // its own subscription gate further down the flow.
-  const requireSignIn = (): boolean => {
-    if (user) return true;
-    navigate("/auth");
+  // Identification runs a vision model over every page, so it carries the same
+  // Practice+ gate as AI marking rather than being free to signed-in users.
+  // The edge function enforces this too — this only saves a wasted round trip.
+  const requireAiAccess = (): boolean => {
+    if (canUseAi) return true;
+    setUpgradeFeature("the question finder");
     return false;
   };
 
@@ -517,7 +523,8 @@ const Index = () => {
                   pool={pool}
                   onIdentified={handleIdentified}
                   onPartial={handlePartialIdentification}
-                  onRequireAi={requireSignIn}
+                  onRequireAi={requireAiAccess}
+                  hasAiAccess={canUseAi}
                 />
               </div>
 
@@ -687,6 +694,12 @@ const Index = () => {
       </main>
 
       <FreeTierCapDialog open={showCapDialog} onOpenChange={setShowCapDialog} />
+
+      <UpgradePrompt
+        open={upgradeFeature !== null}
+        onOpenChange={(open) => !open && setUpgradeFeature(null)}
+        featureName={upgradeFeature ?? ""}
+      />
 
       {/* Footer */}
       <footer className="border-t border-border mt-24 py-8">
