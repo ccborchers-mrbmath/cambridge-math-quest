@@ -62,6 +62,54 @@ const findQuestion = (
   return pool.find(matches) ?? questionsDatabase.find(matches) ?? null;
 };
 
+/**
+ * Turn a failed functions.invoke into something that names the actual cause.
+ * The generic "please try again" hid the two failures that matter most —
+ * the function not being deployed, and a payload the platform rejected —
+ * and the logger is silent in production, so nothing reached the console
+ * either.
+ */
+const describeInvokeFailure = async (err: unknown): Promise<string> => {
+  const context = (err as { context?: unknown })?.context;
+  const response =
+    context && typeof context === "object" && "status" in context
+      ? (context as Response)
+      : null;
+
+  if (!response) {
+    // No HTTP response at all: DNS, CORS, offline, or no function at that URL.
+    return (
+      "Couldn't reach the question finder. If this keeps happening the " +
+      "identify-question function may not be deployed yet."
+    );
+  }
+
+  let serverMessage = "";
+  try {
+    const body = await response.clone().json();
+    if (body && typeof body.error === "string") serverMessage = body.error;
+  } catch {
+    /* body may be empty or not JSON */
+  }
+
+  switch (response.status) {
+    case 404:
+      return "The question finder isn't deployed yet (404). The identify-question edge function needs deploying to Supabase.";
+    case 401:
+      return "Your session has expired — sign in again and retry.";
+    case 402:
+      return "The AI service is out of credits.";
+    case 413:
+      return "Those photos are too large to send. Try fewer pages, or a lower-resolution photo.";
+    case 429:
+      return "Too many requests just now — wait a moment and try again.";
+    default:
+      return serverMessage
+        ? `Couldn't identify the question (${response.status}): ${serverMessage}`
+        : `Couldn't identify the question (${response.status}). Please try again.`;
+  }
+};
+
 const describe = (id: Identification): string => {
   const parts = [
     id.year ?? "????",
@@ -148,7 +196,7 @@ export const IdentifyWorkPanel = ({
       );
     } catch (err) {
       logger.error("identify-question failed", err);
-      setProblem("Couldn't identify the question. Please try again.");
+      setProblem(await describeInvokeFailure(err));
     } finally {
       setIsIdentifying(false);
     }
