@@ -18,9 +18,12 @@ export function UpgradePrompt({ open, onOpenChange, featureName }: Props) {
   const title = signedIn
     ? `Unlock ${featureName} with Practice+`
     : `Sign in to use ${featureName}`;
+  // Feature names read naturally mid-sentence ("the question finder"), so the
+  // sentence they open has to be capitalised rather than the name itself.
+  const openingWord = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   const description = signedIn
-    ? `${featureName} is powered by AI and included with Practice+. Start your 7-day free trial to unlock AI hints, AI marking, the Test Maker and more.`
-    : `${featureName} is an AI-powered feature for Practice+ members. Sign in and start your 7-day free trial to unlock AI hints, AI marking, the Test Maker and more.`;
+    ? `${openingWord(featureName)} is powered by AI and included with Practice+. Start your 7-day free trial to unlock AI hints, AI marking, the Test Maker and more.`
+    : `${openingWord(featureName)} is an AI-powered feature for Practice+ members. Sign in and start your 7-day free trial to unlock AI hints, AI marking, the Test Maker and more.`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
