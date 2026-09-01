@@ -5,7 +5,7 @@ import { questionsDatabase, Question } from "@/data/questions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical, BookOpen, Eye, EyeOff, ImageDown } from "lucide-react";
+import { ArrowLeft, FileText, Clock, Award, Loader2, Download, ChevronUp, ChevronDown, GripVertical, BookOpen, Eye, EyeOff, ImageDown, Tag } from "lucide-react";
 import { processQuestionImage, bakeNumberIntoImage, NUMBER_FONT_FAMILY } from "@/utils/imageProcessing";
 import { ensureMarkschemeText } from "@/utils/ensureMarkschemeText";
 import { supabase } from "@/integrations/supabase/client";
@@ -143,6 +143,24 @@ function getQuestionId(q: Question) {
 }
 
 /**
+ * Where a question came from, e.g. "2025 May/Jun Paper 11 Q6". Shown on the
+ * compiled preview so the teacher always knows the source, and printed under
+ * each question only when the source-reference option is on.
+ */
+function sourceReference(q: Question): string {
+  return `${q.year} ${q.sitting} Paper ${q.paperNumber} Q${q.questionNumber}`;
+}
+
+/** Escape text destined for the printable HTML documents. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
  * Rewrite the original Cambridge question number in the extracted mark-scheme
  * text (e.g. "9(b)", "9(b)(i)") to the test's renumbered value (e.g. "1(b)").
  * Targets a digit run immediately followed by "(letter)" to avoid touching
@@ -182,6 +200,9 @@ const TestMaker = () => {
   const [processedQuestions, setProcessedQuestions] = useState<ProcessedQuestion[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [includeMarkschemes, setIncludeMarkschemes] = useState(true);
+  // Off by default so the paper a student sits stays anonymous; turn it on to
+  // produce the otherwise-identical teacher copy that cites each source.
+  const [includeSourceRefs, setIncludeSourceRefs] = useState(false);
   const [showMarkschemes, setShowMarkschemes] = useState(false);
   const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null);
 
@@ -468,6 +489,9 @@ const TestMaker = () => {
         ${bakedUrl
           ? `<img class="q-img" src="${bakedUrl}" alt="Question ${pq.newNumber}"/>`
           : `<p class="err">Question image unavailable</p>`}
+        ${includeSourceRefs
+          ? `<p class="q-source">${escapeHtml(sourceReference(pq.original))}</p>`
+          : ""}
         <div class="lines-wrap"><div class="lines-inner">${linesHtml}</div></div>
       </section>
       <section class="page working-page">
@@ -480,7 +504,7 @@ const TestMaker = () => {
     const date = new Date().toISOString().split("T")[0];
     const docHtml = `<!doctype html>
 <html><head><meta charset="utf-8"/>
-<title>practice-test-${date}</title>
+<title>practice-test-${date}${includeSourceRefs ? "-with-sources" : ""}</title>
 <style>
   @page { size: A4 portrait; margin: 0; }
   * { box-sizing: border-box; }
@@ -503,6 +527,9 @@ const TestMaker = () => {
   .question-page { padding: 24mm 0 0; display: flex; flex-direction: column; }
   .working-page { padding: 24mm 0 0; display: flex; flex-direction: column; }
   .q-img { display: block; width: 210mm; height: auto; margin: 0; flex: 0 0 auto; }
+  .q-source { margin: 3mm 16mm 0 25mm; flex: 0 0 auto;
+    font-family: 'Times New Roman', Times, serif; font-size: 9pt; font-style: italic;
+    color: #64748b; }
   .lines-wrap { flex: 1 1 auto; position: relative; }
   .lines-inner { position: absolute; top: 6mm; left: 25mm; right: 16mm; bottom: 25mm; overflow: hidden; }
   .line { height: 9mm; border-bottom: 1px dotted #0f172a; }
@@ -535,7 +562,9 @@ const TestMaker = () => {
       <section class="page ms-page">
         <header class="ms-head">
           <div class="ms-title">Mark Scheme — Question ${pq.newNumber}</div>
-          <div class="ms-meta">${pq.original.marks} marks · ${pq.original.topic}</div>
+          <div class="ms-meta">${pq.original.marks} marks · ${escapeHtml(pq.original.topic)}${
+            includeSourceRefs ? ` · ${escapeHtml(sourceReference(pq.original))}` : ""
+          }</div>
         </header>
         <div class="ms-render">
           ${pq.markschemeText
@@ -639,8 +668,10 @@ const TestMaker = () => {
         const text = questionTexts[i];
         const body = text
           ? `**${pq.newNumber}** ${text}`
-          : `**${pq.newNumber}** _Question text not yet available. See the original image (${pq.original.year} ${pq.original.sitting} Paper ${pq.original.paperNumber} Q${pq.original.questionNumber})._`;
-        return `${body}\n\n---\n`;
+          : `**${pq.newNumber}** _Question text not yet available. See the original image (${sourceReference(pq.original)})._`;
+        // Only the reference line differs between the two versions.
+        const ref = includeSourceRefs && text ? `\n\n_${sourceReference(pq.original)}_` : "";
+        return `${body}${ref}\n\n---\n`;
       });
 
       const msBlocks: string[] = [];
@@ -648,7 +679,10 @@ const TestMaker = () => {
         msBlocks.push(``, `# MARK SCHEMES`, ``, `---`, ``);
         for (const pq of processedQuestions) {
           msBlocks.push(`## Mark Scheme — Question ${pq.newNumber}`, ``);
-          msBlocks.push(`**${pq.original.marks} marks · ${pq.original.topic}**`, ``);
+          const msMeta = `${pq.original.marks} marks · ${pq.original.topic}${
+            includeSourceRefs ? ` · ${sourceReference(pq.original)}` : ""
+          }`;
+          msBlocks.push(`**${msMeta}**`, ``);
           if (pq.markschemeText && pq.markschemeText.trim()) {
             msBlocks.push(pq.markschemeText.trim(), ``);
           } else {
@@ -665,8 +699,9 @@ const TestMaker = () => {
       ].join("\n").replace(/\n{3,}/g, "\n\n");
 
       const date = new Date().toISOString().split("T")[0];
-      const safeName = `${info.tagline}-9709-${info.name}-${date}`
-        .replace(/[^\w.-]+/g, "_");
+      const safeName = `${info.tagline}-9709-${info.name}-${date}${
+        includeSourceRefs ? "-with-sources" : ""
+      }`.replace(/[^\w.-]+/g, "_");
       const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -724,6 +759,19 @@ const TestMaker = () => {
                     </Label>
                   </div>
                 )}
+                {/* Downloads are otherwise identical: flip this and download a
+                    second time to get the teacher copy citing each source. */}
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="include-source-refs"
+                    checked={includeSourceRefs}
+                    onCheckedChange={setIncludeSourceRefs}
+                  />
+                  <Label htmlFor="include-source-refs" className="text-sm flex items-center gap-1">
+                    <Tag className="h-4 w-4" />
+                    Source references
+                  </Label>
+                </div>
                 <Button variant="outline" onClick={() => navigate("/")}>
                   Return Home
                 </Button>
@@ -809,7 +857,7 @@ const TestMaker = () => {
                     </span>
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    {pq.original.year} {pq.original.sitting} Paper {pq.original.paperNumber} Q{pq.original.questionNumber}
+                    {sourceReference(pq.original)}
                   </p>
                 </CardHeader>
                 <CardContent>
@@ -965,6 +1013,7 @@ const TestMaker = () => {
                   Add markschemes to compiled test & PDF
                 </p>
               </div>
+
 
               {/* Test summary: total marks + grade boundary estimates */}
               {selectedQuestionIds.length > 0 && (
