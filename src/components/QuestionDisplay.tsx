@@ -18,14 +18,20 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { DrawingPad, type Stroke } from "@/components/DrawingPad";
 import { copyImageUrlToClipboard, readImageFromClipboard } from "@/utils/clipboard";
-import { pdfFileToImages } from "@/utils/pdfToImages";
+import { filesToWorkImages, readImageAsDataUrl } from "@/utils/workImages";
 import { getProxiedImageUrl } from "@/utils/imageProcessing";
 
 interface QuestionDisplayProps {
   question: Question;
+  /**
+   * Work the student photographed before the question was known — from the
+   * "find my question" flow on the landing page. Seeds the marking panel so
+   * they never photograph the same pages twice.
+   */
+  initialWorkImages?: string[];
 }
 
-export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
+export const QuestionDisplay = ({ question, initialWorkImages }: QuestionDisplayProps) => {
   const { user } = useAuth();
   const { userRole } = useAuth();
   const { isActive: hasActiveSub } = useSubscription();
@@ -33,10 +39,10 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
   const [upgradeFeature, setUpgradeFeature] = useState<string | null>(null);
   const navigate = useNavigate();
   const [showMarkscheme, setShowMarkscheme] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
+  const [showCamera, setShowCamera] = useState((initialWorkImages?.length ?? 0) > 0);
   const [hint, setHint] = useState<string | null>(null);
   const [isLoadingHint, setIsLoadingHint] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<string[]>(initialWorkImages ?? []);
   const [isProcessingFiles, setIsProcessingFiles] = useState(false);
   const [showDrawing, setShowDrawing] = useState(false);
   // When the student used the in-app drawing pad we keep their raw strokes
@@ -170,37 +176,11 @@ export const QuestionDisplay = ({ question }: QuestionDisplayProps) => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const readImageAsDataUrl = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error("Failed to read file"));
-      reader.readAsDataURL(file);
-    });
-
   const ingestFiles = async (files: File[]) => {
     setIsProcessingFiles(true);
     try {
-      const collected: string[] = [];
-      for (const file of files) {
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error(`${file.name} is over 10MB — skipped`);
-          continue;
-        }
-        if (file.type === "application/pdf") {
-          try {
-            const pages = await pdfFileToImages(file);
-            collected.push(...pages);
-          } catch (err) {
-            logger.error("PDF processing failed:", err);
-            toast.error(`Couldn't read ${file.name} as a PDF`);
-          }
-        } else if (file.type.startsWith("image/")) {
-          collected.push(await readImageAsDataUrl(file));
-        } else {
-          toast.error(`${file.name} isn't an image or PDF — skipped`);
-        }
-      }
+      const { images: collected, skipped } = await filesToWorkImages(files);
+      for (const reason of skipped) toast.error(`${reason} — skipped`);
       if (collected.length > 0) {
         setUploadedImages((prev) => [...prev, ...collected]);
         toast.success(
