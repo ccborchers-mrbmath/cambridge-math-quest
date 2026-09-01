@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { SearchBar } from "@/components/SearchBar";
 import { QuestionDisplay } from "@/components/QuestionDisplay";
+import { IdentifyWorkPanel, type Identification } from "@/components/IdentifyWorkPanel";
 import { TopicTest } from "@/components/TopicTest";
 import { questionsDatabase, Question } from "@/data/questions";
 import { useAuth } from "@/hooks/useAuth";
@@ -48,6 +49,9 @@ const Index = () => {
   const [currentTopic, setCurrentTopic] = useState<string>("");
   const [viewedQuestionIds, setViewedQuestionIds] = useState<Set<string>>(new Set());
   const [testTopic, setTestTopic] = useState<string>("");
+  // Photos taken before the question was known, handed to QuestionDisplay so
+  // the student marks the work they already captured.
+  const [pendingWorkImages, setPendingWorkImages] = useState<string[]>([]);
 
   // Pool of questions scoped to the currently active module.
   const pool = useMemo(
@@ -179,6 +183,37 @@ const Index = () => {
     if (module) next.set("module", module);
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, pool, module]);
+
+  // A photographed question resolved to a real past paper: open it with the
+  // work already attached, and mirror the dropdowns so the student can see
+  // what was matched and correct it if the read was wrong.
+  const handleIdentified = (question: Question, workImages: string[]) => {
+    setTestTopic("");
+    setCurrentTopic("");
+    setSelectedYear(question.year.toString());
+    setSelectedSitting(question.sitting);
+    setSelectedPaper(question.paperNumber.toString());
+    setSelectedQuestionNum(question.questionNumber.toString());
+    setPendingWorkImages(workImages);
+    setSelectedQuestion(question);
+  };
+
+  // Nothing resolved, but something was read — fill in what we can so the
+  // student only picks the parts that were unreadable.
+  const handlePartialIdentification = (id: Identification) => {
+    if (id.year !== null) setSelectedYear(id.year.toString());
+    if (id.sitting) setSelectedSitting(id.sitting);
+    if (id.paperNumber !== null) setSelectedPaper(id.paperNumber.toString());
+    if (id.questionNumber !== null) setSelectedQuestionNum(id.questionNumber.toString());
+  };
+
+  // Identification calls an authenticated edge function; marking itself keeps
+  // its own subscription gate further down the flow.
+  const requireSignIn = (): boolean => {
+    if (user) return true;
+    navigate("/auth");
+    return false;
+  };
 
   // Calculate similarity score between search terms and text
   const calculateSimilarity = (searchTerms: string[], text: string): number => {
@@ -475,9 +510,22 @@ const Index = () => {
                 </p>
               </div>
 
+              {/* Straight from a printed paper: photograph the work and let
+                  the AI find the question, skipping the dropdowns entirely. */}
+              <div className="pt-6 max-w-2xl mx-auto">
+                <IdentifyWorkPanel
+                  pool={pool}
+                  onIdentified={handleIdentified}
+                  onPartial={handlePartialIdentification}
+                  onRequireAi={requireSignIn}
+                />
+              </div>
+
               {/* Dropdown filters */}
               <div className="pt-6">
-                <p className="text-sm text-muted-foreground mb-4">Select your question:</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Or select your question:
+                </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-4xl mx-auto">
                   <Select value={selectedYear} onValueChange={setSelectedYear}>
                     <SelectTrigger className="bg-card">
@@ -609,6 +657,7 @@ const Index = () => {
                   setSelectedPaper("");
                   setSelectedQuestionNum("");
                   setCurrentTopic("");
+                  setPendingWorkImages([]);
                 }}
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
               >
@@ -626,7 +675,13 @@ const Index = () => {
                 </Button>
               )}
             </div>
-            <QuestionDisplay question={selectedQuestion} />
+            {/* Keyed so switching question starts a clean marking panel and
+                picks up any work photographed for the new question. */}
+            <QuestionDisplay
+              key={getQuestionId(selectedQuestion)}
+              question={selectedQuestion}
+              initialWorkImages={pendingWorkImages}
+            />
           </div>
         )}
       </main>
