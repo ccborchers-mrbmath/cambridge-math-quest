@@ -11,6 +11,7 @@ import AdminQuestions from "./pages/AdminQuestions";
 import AdminRetag from "./pages/AdminRetag";
 import StudentProgress from "./pages/StudentProgress";
 import TestMaker from "./pages/TestMaker";
+import FullExam from "./pages/FullExam";
 import Pricing from "./pages/Pricing";
 import Terms from "./pages/legal/Terms";
 import Refund from "./pages/legal/Refund";
@@ -61,6 +62,14 @@ const AppShell = () => {
           element={
             <RequireSubscription featureName="My Progress">
               <StudentProgress />
+            </RequireSubscription>
+          }
+        />
+        <Route
+          path="/exam"
+          element={
+            <RequireSubscription featureName="Full exams">
+              <FullExam />
             </RequireSubscription>
           }
         />

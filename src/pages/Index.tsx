@@ -9,7 +9,7 @@ import { TopicTest } from "@/components/TopicTest";
 import { questionsDatabase, Question } from "@/data/questions";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { BookOpen, User, Settings, RefreshCw, FileEdit } from "lucide-react";
+import { BookOpen, User, Settings, RefreshCw, FileEdit, ClipboardList, ArrowRight } from "lucide-react";
 import { ModuleSwitcher } from "@/components/ModuleSwitcher";
 import { CreditsPill } from "@/components/CreditsPill";
 import { useFreeTierCap } from "@/hooks/useFreeTierCap";
@@ -526,6 +526,31 @@ const Index = () => {
                   onRequireAi={requireAiAccess}
                   hasAiAccess={canUseAi}
                 />
+              </div>
+
+              {/* Sit a whole past paper end to end, under exam timing. */}
+              <div className="pt-4 max-w-2xl mx-auto">
+                <button
+                  type="button"
+                  onClick={() => navigate(module ? `/exam?module=${module}` : "/exam")}
+                  className="w-full rounded-xl border border-primary/30 bg-card p-5 text-left shadow-card transition-all hover:border-primary hover:shadow-elevated"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <ClipboardList className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-serif font-semibold text-foreground">
+                        Write a full exam
+                      </h3>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        Sit a complete past paper under timed conditions, then have every
+                        question marked at once.
+                      </p>
+                    </div>
+                    <ArrowRight className="hidden h-5 w-5 shrink-0 text-muted-foreground sm:block" />
+                  </div>
+                </button>
               </div>
 
               {/* Dropdown filters */}
