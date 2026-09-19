@@ -25,16 +25,18 @@ export const variantOf = (paperNumber: number): number | null =>
   paperNumber >= 10 ? paperNumber % 10 : null;
 
 /**
- * Time allowed per paper, in minutes. Papers 1-3 run 1 h 50; papers 4-6 run
- * 1 h 15. Keyed on the paper digit so every variant of a paper inherits it.
+ * Time allowed per paper, in minutes, per the Cambridge 9709 syllabus: the
+ * two long pure papers (P1 and P3) run 1 h 50, and everything else — P2, and
+ * the mechanics and statistics papers — runs 1 h 15. Keyed on the paper digit
+ * so every variant of a paper inherits its timing.
  */
 export const EXAM_MINUTES_BY_PAPER: Record<number, number> = {
-  1: 110,
-  2: 110,
-  3: 110,
-  4: 75,
-  5: 75,
-  6: 75,
+  1: 110, // Pure Mathematics 1
+  2: 75,  // Pure Mathematics 2
+  3: 110, // Pure Mathematics 3
+  4: 75,  // Mechanics
+  5: 75,  // Probability & Statistics 1
+  6: 75,  // Probability & Statistics 2
 };
 
 export const DEFAULT_EXAM_MINUTES = 110;

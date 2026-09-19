@@ -553,7 +553,7 @@ const FullExam = () => {
                   <p className="mt-0.5 text-sm text-muted-foreground">
                     {paper
                       ? `Paper ${paper.paperNumber} allows ${formatDuration(durationMinutes)}.`
-                      : "Papers 1–3 allow 1 h 50 min; papers 4–6 allow 1 h 15 min."}{" "}
+                      : "Papers 1 and 3 allow 1 h 50 min; papers 2 and 4–6 allow 1 h 15 min."}{" "}
                     Switch this off to work at your own pace.
                   </p>
                 </div>
