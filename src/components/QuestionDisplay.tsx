@@ -20,6 +20,7 @@ import { DrawingPad, type Stroke } from "@/components/DrawingPad";
 import { copyImageUrlToClipboard, readImageFromClipboard } from "@/utils/clipboard";
 import { filesToWorkImages, readImageAsDataUrl } from "@/utils/workImages";
 import { getProxiedImageUrl } from "@/utils/imageProcessing";
+import { markQuestionWork, saveAttempt as persistAttempt } from "@/lib/marking";
 
 interface QuestionDisplayProps {
   question: Question;
@@ -269,96 +270,26 @@ export const QuestionDisplay = ({ question, initialWorkImages }: QuestionDisplay
 
     setIsMarkingWork(true);
     try {
-      // Try to look up the text-only Q/MS for this question so the AI can mark from text instead of the MS image.
-      let questionText: string | null = null;
-      let markschemeText: string | null = null;
-      try {
-        const { data: row } = await supabase
-          .from('questions')
-          .select('question_text, markscheme_text')
-          .eq('year', question.year)
-          .eq('sitting', question.sitting)
-          .eq('paper_number', question.paperNumber)
-          .eq('question_number', question.questionNumber)
-          .maybeSingle();
-        questionText = row?.question_text ?? null;
-        markschemeText = row?.markscheme_text ?? null;
-      } catch {
-        // ignore — fall back to images
-      }
-
-      // Pull the student's recent prior attempts of this exact question so the
-      // AI can reference concrete improvements (or regressions) in its
-      // feedback. We only send compact text — never prior images.
-      let previousAttempts: Array<{
-        createdAt: string;
-        percentageAttained: number | null;
-        natureOfErrors: string | null;
-        markBreakdown: unknown;
-      }> = [];
-      if (user) {
-        try {
-          const { data: priorRows } = await supabase
-            .from('student_attempts')
-            .select('created_at, percentage_attained, nature_of_errors, mark_breakdown')
-            .eq('user_id', user.id)
-            .eq('year', question.year)
-            .eq('sitting', question.sitting)
-            .eq('paper_number', question.paperNumber)
-            .eq('question_number', question.questionNumber)
-            .order('created_at', { ascending: false })
-            .limit(3);
-          if (Array.isArray(priorRows)) {
-            previousAttempts = priorRows
-              .slice()
-              .reverse()
-              .map((r) => ({
-                createdAt: r.created_at,
-                percentageAttained: r.percentage_attained != null ? Number(r.percentage_attained) : null,
-                natureOfErrors: r.nature_of_errors ?? null,
-                markBreakdown: r.mark_breakdown ?? null,
-              }));
-          }
-        } catch {
-          // history is best-effort; never block marking
-        }
-      }
-
-      const { data, error } = await supabase.functions.invoke('mark-work', {
-        body: {
-          questionUrl: question.questionUrl,
-          markschemeUrl: question.markschemeUrl,
-          questionText,
-          markschemeText,
-          workImages: uploadedImages,
-          previousAttempts,
-          questionMeta: {
-            year: question.year,
-            sitting: question.sitting,
-            paperNumber: question.paperNumber,
-            questionNumber: question.questionNumber,
-            topic: question.topic,
-            subtopics: question.subtopics,
-            marks: question.marks,
-          },
-        },
+      const outcome = await markQuestionWork({
+        question,
+        images: uploadedImages,
+        userId: user?.id ?? null,
       });
 
-      if (error) {
-        const ctx: any = (error as any).context;
-        if (ctx?.status === 402) {
-          toast.error("You're out of credits. AI marking needs an active Practice+ subscription.");
-          return;
-        }
-        throw error;
+      if (!outcome.ok) {
+        toast.error(outcome.message);
+        return;
       }
 
-      setPercentageAttained(String(data.percentageAttained ?? ""));
-      setNatureOfErrors(data.natureOfErrors ?? "");
-      setAiFeedback(data.feedback ?? "");
-      setMarkBreakdown(Array.isArray(data.markBreakdown) ? data.markBreakdown : []);
-      setMarksAwarded(typeof data.marksAwarded === 'number' ? data.marksAwarded : null);
-      setTotalMarks(typeof data.totalMarks === 'number' ? data.totalMarks : null);
+      const { result } = outcome;
+      setPercentageAttained(
+        result.percentageAttained !== null ? String(result.percentageAttained) : ""
+      );
+      setNatureOfErrors(result.natureOfErrors);
+      setAiFeedback(result.feedback);
+      setMarkBreakdown(result.markBreakdown);
+      setMarksAwarded(result.marksAwarded);
+      setTotalMarks(result.totalMarks);
       // New feedback → allow saving again.
       setSavedSnapshotKey(null);
       toast.success("AI marking complete");
@@ -383,25 +314,16 @@ export const QuestionDisplay = ({ question, initialWorkImages }: QuestionDisplay
 
     setIsSavingAttempt(true);
     try {
-      const { error } = await supabase
-        .from('student_attempts')
-        .insert({
-          user_id: user.id,
-          year: question.year,
-          sitting: question.sitting,
-          paper_number: question.paperNumber,
-          question_number: question.questionNumber,
-          topic: question.topic,
-          subtopic: question.subtopics,
-          attempted: true,
-          percentage_attained: percentageAttained ? parseFloat(percentageAttained) : null,
-          nature_of_errors: natureOfErrors || null,
-          image_url: uploadedImages[0],
-          ai_feedback: aiFeedback || null,
-          mark_breakdown: markBreakdown.length > 0 ? markBreakdown : null,
-        });
-
-      if (error) throw error;
+      const saved = await persistAttempt({
+        userId: user.id,
+        question,
+        images: uploadedImages,
+        percentageAttained: percentageAttained ? parseFloat(percentageAttained) : null,
+        natureOfErrors,
+        aiFeedback,
+        markBreakdown,
+      });
+      if (!saved.ok) throw new Error(saved.message);
 
       toast.success("Attempt saved successfully!");
       // Keep the page open so the student can Reattempt — edit their drawing
